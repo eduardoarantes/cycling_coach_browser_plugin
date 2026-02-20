@@ -17,3 +17,28 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Temporary files
+.tmp/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package manager
+.npm
+.yarn
+
+# Playwright
+test-results/
+playwright-report/
+
+# Misc
+*.swp
+*.swo
+*~
