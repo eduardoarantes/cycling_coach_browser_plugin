@@ -19,10 +19,40 @@ export interface ClearTokenMessage {
   type: 'CLEAR_TOKEN';
 }
 
+export interface ValidateTokenMessage {
+  type: 'VALIDATE_TOKEN';
+}
+
+/**
+ * Message to request user profile from API
+ */
+export interface GetUserMessage {
+  type: 'GET_USER';
+}
+
+/**
+ * Message to request libraries list from API
+ */
+export interface GetLibrariesMessage {
+  type: 'GET_LIBRARIES';
+}
+
+/**
+ * Message to request library items from API
+ */
+export interface GetLibraryItemsMessage {
+  type: 'GET_LIBRARY_ITEMS';
+  libraryId: number;
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
   | GetTokenMessage
-  | ClearTokenMessage;
+  | ClearTokenMessage
+  | ValidateTokenMessage
+  | GetUserMessage
+  | GetLibrariesMessage
+  | GetLibraryItemsMessage;
 
 /**
  * Token storage structure

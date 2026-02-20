@@ -1,0 +1,17 @@
+# Build output
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Test coverage
+coverage/
+
+# Test reports
+playwright-report/
+test-results/
+
+# Generated files
+*.min.js
+*.bundle.js
