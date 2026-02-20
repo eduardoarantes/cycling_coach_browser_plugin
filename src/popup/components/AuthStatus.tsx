@@ -4,9 +4,10 @@
  * Displays current authentication status and provides retry option
  */
 
-import { useAuth } from '../../hooks/useAuth';
+import type { ReactElement } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
-export function AuthStatus() {
+export function AuthStatus(): ReactElement {
   const { isAuthenticated, isLoading, error, tokenAge, refreshAuth } =
     useAuth();
 

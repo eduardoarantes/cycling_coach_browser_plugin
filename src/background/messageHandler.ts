@@ -4,6 +4,14 @@
  * Handles messages from content scripts and popup
  */
 
+import type { RuntimeMessage } from '@/types';
+import { logger } from '@/utils/logger';
+
+type MessageResponse =
+  | { success: true }
+  | { success: false; error: string }
+  | { token: string | null; timestamp: number | null };
+
 /**
  * Handle TOKEN_FOUND message from content script
  */
@@ -18,9 +26,9 @@ async function handleTokenFound(
       token_timestamp: timestamp,
     });
 
-    console.log('TrainingPeaks Extension: Token stored successfully');
+    logger.info('Token stored successfully');
   } catch (error) {
-    console.error('Failed to store token:', error);
+    logger.error('Failed to store token:', error);
     throw error;
   }
 }
@@ -42,7 +50,7 @@ async function handleGetToken(): Promise<{
       timestamp: (data.token_timestamp as number) || null,
     };
   } catch (error) {
-    console.error('Failed to retrieve token:', error);
+    logger.error('Failed to retrieve token:', error);
     throw error;
   }
 }
@@ -53,9 +61,9 @@ async function handleGetToken(): Promise<{
 async function handleClearToken(): Promise<void> {
   try {
     await chrome.storage.local.remove(['auth_token', 'token_timestamp']);
-    console.log('TrainingPeaks Extension: Token cleared');
+    logger.info('Token cleared');
   } catch (error) {
-    console.error('Failed to clear token:', error);
+    logger.error('Failed to clear token:', error);
     throw error;
   }
 }
@@ -64,10 +72,10 @@ async function handleClearToken(): Promise<void> {
  * Main message router
  */
 export async function handleMessage(
-  message: any,
+  message: RuntimeMessage,
   sender: chrome.runtime.MessageSender
-): Promise<any> {
-  console.log('Background received message:', message.type, 'from:', sender);
+): Promise<MessageResponse> {
+  logger.debug('Background received message:', message.type, 'from:', sender);
 
   switch (message.type) {
     case 'TOKEN_FOUND':
@@ -82,7 +90,7 @@ export async function handleMessage(
       return { success: true };
 
     default:
-      console.warn('Unknown message type:', message.type);
+      logger.warn('Unknown message type received');
       return { success: false, error: 'Unknown message type' };
   }
 }
