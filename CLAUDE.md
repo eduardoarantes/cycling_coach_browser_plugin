@@ -47,7 +47,7 @@ make load
 **State Management**
 
 - **Zustand 5.0.11** - Client state (1KB, minimal API)
-- **TanStack Query 5.90.21** - Server state with caching (not yet implemented)
+- **TanStack Query 5.90.21** - Server state with caching
 
 **Validation & Type Safety**
 
@@ -83,7 +83,12 @@ cycling_coach_browser_plugin/
 │   ├── store/              # Zustand state management
 │   │   └── authStore.ts
 │   ├── hooks/              # React custom hooks
-│   │   └── useAuth.ts
+│   │   ├── useAuth.ts
+│   │   ├── useUser.ts
+│   │   ├── useLibraries.ts
+│   │   └── useLibraryItems.ts
+│   ├── config/             # Configuration
+│   │   └── queryClient.ts
 │   ├── schemas/            # Zod validation schemas
 │   │   └── storage.schema.ts
 │   ├── types/              # TypeScript type definitions
@@ -94,7 +99,12 @@ cycling_coach_browser_plugin/
 │   └── styles/
 │       └── globals.css
 ├── tests/
-│   ├── unit/               # Unit tests (22 tests, 100% coverage)
+│   ├── unit/               # Unit tests (125 tests, 100% coverage)
+│   │   ├── config/        # Query client tests
+│   │   ├── hooks/         # React hooks tests (24 tests)
+│   │   ├── services/      # Service tests
+│   │   ├── schemas/       # Zod schema tests
+│   │   └── background/    # Background worker tests
 │   ├── integration/        # Integration tests (empty)
 │   ├── components/         # Component tests (empty)
 │   ├── e2e/                # E2E tests (empty)
@@ -175,7 +185,7 @@ sequenceDiagram
 
 ## Current Implementation Status
 
-### ✅ Completed (Phases 1-2)
+### ✅ Completed (Phases 1-3.3)
 
 **Phase 1: Project Foundation**
 
@@ -193,7 +203,22 @@ sequenceDiagram
 - ✅ Auth service with 24-hour expiration
 - ✅ Zustand auth store
 - ✅ AuthStatus UI component
-- ✅ 22 unit tests with 100% coverage
+
+**Phase 3: API Integration** (Issues #10-13, #35-40)
+
+- ✅ TypeScript interfaces for TrainingPeaks API responses
+- ✅ Zod schemas for API validation (user, libraries, library items)
+- ✅ API service layer in `src/background/api/trainingPeaks.ts`
+- ✅ React Query configuration with Chrome extension optimizations
+- ✅ Custom hooks: `useUser`, `useLibraries`, `useLibraryItems`
+- ✅ Type-safe chrome.runtime.sendMessage with generics
+- ✅ 125 unit tests with 100% coverage
+
+**API Endpoints Implemented**:
+
+1. ✅ `GET /users/v3/user` - User profile
+2. ✅ `GET /exerciselibrary/v2/libraries` - Library list
+3. ✅ `GET /exerciselibrary/v2/libraries/{id}/items` - Library content
 
 **Documentation**
 
@@ -202,22 +227,17 @@ sequenceDiagram
 - ✅ README with installation instructions
 - ✅ Makefile with common commands
 - ✅ CLAUDE.md guides (this file, src/, tests/)
+- ✅ Implementation plan (Phase 3.3 - React Query)
 
-### ⏳ Next Up (Phase 3)
+### ⏳ Next Up (Phase 4)
 
-**API Integration** - Issues #10-13
+**UI Components** - Library Display Interface
 
-- ⏳ TypeScript interfaces for TrainingPeaks API responses
-- ⏳ Zod schemas for API validation
-- ⏳ API service layer in `src/background/api/trainingPeaks.ts`
-- ⏳ React Query configuration
-- ⏳ Custom hooks: `useUser`, `useLibraries`, `useLibraryItems`
-
-**Endpoints to Implement**:
-
-1. `GET /users/v3/user` - User profile
-2. `GET /exerciselibrary/v2/libraries` - Library list
-3. `GET /exerciselibrary/v2/libraries/{id}/items` - Library content
+- ⏳ LibraryList component (consumes `useLibraries`)
+- ⏳ LibraryCard component
+- ⏳ WorkoutList component (consumes `useLibraryItems`)
+- ⏳ Loading/error states
+- ⏳ Empty states
 
 ---
 
@@ -406,6 +426,189 @@ Origin: https://app.trainingpeaks.com
    GET /exerciselibrary/v2/libraries/{id}/items
    Response: { items: [{ id, name, description, type, duration }] }
    ```
+
+---
+
+## React Query Patterns
+
+### State Management Strategy
+
+We maintain **strict separation** between two types of state:
+
+**Server State (React Query)** - Data from TrainingPeaks API:
+
+- User profile (`useUser`)
+- Libraries list (`useLibraries`)
+- Library items (`useLibraryItems`)
+
+**Client State (Zustand)** - Local application state:
+
+- Authentication status (`useAuth` - existing)
+- UI preferences (future)
+- Form state (future)
+
+### Custom Hooks
+
+**useUser Hook** - Fetch user profile data:
+
+```typescript
+import { useUser } from '@/hooks/useUser';
+
+function UserProfile() {
+  const { data: user, isLoading, error } = useUser();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  if (!user) return null;
+
+  return <div>Hello, {user.firstName}!</div>;
+}
+```
+
+**useLibraries Hook** - Fetch libraries list:
+
+```typescript
+import { useLibraries } from '@/hooks/useLibraries';
+
+function LibraryList() {
+  const { data: libraries, isLoading, error, refetch } = useLibraries();
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage error={error} onRetry={refetch} />;
+  if (!libraries?.length) return <EmptyState />;
+
+  return (
+    <ul>
+      {libraries.map(lib => (
+        <LibraryCard key={lib.exerciseLibraryId} library={lib} />
+      ))}
+    </ul>
+  );
+}
+```
+
+**useLibraryItems Hook** - Fetch library items (parameterized):
+
+```typescript
+import { useLibraryItems } from '@/hooks/useLibraryItems';
+
+function LibraryDetails({ libraryId }: { libraryId: number }) {
+  const { data: items, isLoading, error } = useLibraryItems(libraryId);
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!items?.length) return <EmptyLibrary />;
+
+  return (
+    <div>
+      <h2>{items.length} Workouts</h2>
+      <WorkoutGrid items={items} />
+    </div>
+  );
+}
+```
+
+**Conditional Fetching** - Lazy loading with `enabled` option:
+
+```typescript
+function LibraryPreview({ libraryId }: { libraryId: number }) {
+  const { data, refetch } = useLibraryItems(libraryId, { enabled: false });
+
+  return (
+    <div>
+      <button onClick={() => refetch()}>Load Workouts</button>
+      {data && <WorkoutList items={data} />}
+    </div>
+  );
+}
+```
+
+### Query Configuration
+
+**Query Client Settings** (`src/config/queryClient.ts`):
+
+- `staleTime: 5min` - Default cache freshness
+- `gcTime: 10min` - Memory cleanup (keeps data for popup re-opens)
+- `retry: 2` - Exponential backoff for network errors
+- `refetchOnWindowFocus: true` - Validate on popup focus
+- `refetchOnReconnect: true` - Refetch when network reconnects
+- `refetchOnMount: false` - Trust cache on re-open
+
+**Per-Hook Overrides**:
+
+- `useUser`: `retry: 1` (auth failures shouldn't spam)
+- `useLibraries`: `staleTime: 10min` (libraries change infrequently)
+- `useLibraryItems`: `staleTime: 3min` (items may be edited more often)
+
+### Message Passing Pattern
+
+All API calls use type-safe `chrome.runtime.sendMessage`:
+
+```typescript
+// Type-safe message definition (src/types/index.ts)
+export interface GetUserMessage {
+  type: 'GET_USER';
+}
+
+// Custom hook sends message
+const response = await chrome.runtime.sendMessage<
+  GetUserMessage,
+  ApiResponse<UserProfile>
+>({ type: 'GET_USER' });
+
+// Background handler processes
+case 'GET_USER':
+  return await fetchUser(); // Returns ApiResponse<UserProfile>
+```
+
+### Cache Invalidation
+
+**Manual Invalidation**:
+
+```typescript
+import { useQueryClient } from '@tanstack/react-query';
+
+const queryClient = useQueryClient();
+
+// Invalidate all queries
+queryClient.invalidateQueries();
+
+// Invalidate specific queries
+queryClient.invalidateQueries(['user']);
+queryClient.invalidateQueries(['libraries']);
+queryClient.invalidateQueries(['libraries', 123, 'items']);
+```
+
+**Hierarchical Query Keys**:
+
+- `['user']` - User profile
+- `['libraries']` - All libraries
+- `['libraries', libraryId, 'items']` - Specific library items
+
+Invalidating `['libraries']` will invalidate all library-related queries.
+
+### Error Handling
+
+**Layered Approach**:
+
+1. **Background Worker** - Catches fetch errors, validates with Zod
+2. **Query Functions** - Unwraps `ApiResponse<T>`, throws on error
+3. **Custom Hooks** - Exposes React Query error state
+4. **UI Components** - Displays user-friendly messages
+
+```typescript
+// In custom hooks
+if (response.success) {
+  return response.data;
+} else {
+  throw new Error(response.error.message); // Triggers React Query error state
+}
+
+// In UI components
+if (error) {
+  return <ErrorMessage error={error} onRetry={refetch} />;
+}
+```
 
 ---
 
