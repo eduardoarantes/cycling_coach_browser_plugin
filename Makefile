@@ -22,7 +22,9 @@ help:
 	@echo "Testing:"
 	@echo "  make test         Run tests in watch mode"
 	@echo "  make test-unit    Run unit tests once"
-	@echo "  make test-e2e     Run E2E tests (when implemented)"
+	@echo "  make test-e2e     Run E2E tests (headed mode)"
+	@echo "  make test-e2e-ui  Run E2E tests in UI mode"
+	@echo "  make setup-e2e    Install Playwright browsers"
 	@echo "  make coverage     Generate coverage report"
 	@echo ""
 	@echo "Utilities:"
@@ -82,9 +84,21 @@ test-components:
 	@echo "Running component tests..."
 	npm run test:components
 
-test-e2e:
-	@echo "Running E2E tests..."
-	npm run test:e2e
+test-e2e: build
+	@echo "Running E2E tests (headed mode - you'll see browser)..."
+	npx playwright test
+
+test-e2e-ui: build
+	@echo "Running E2E tests in UI mode..."
+	npx playwright test --ui
+
+test-e2e-debug: build
+	@echo "Running E2E tests in debug mode..."
+	npx playwright test --debug
+
+setup-e2e:
+	@echo "Installing Playwright browsers..."
+	npx playwright install chromium
 
 coverage:
 	@echo "Generating coverage report..."
