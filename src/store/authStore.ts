@@ -5,7 +5,7 @@
  */
 
 import { create } from 'zustand';
-import * as authService from '../services/authService';
+import * as authService from '@/services/authService';
 
 interface AuthState {
   // State

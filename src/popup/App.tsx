@@ -1,6 +1,7 @@
+import type { ReactElement } from 'react';
 import { AuthStatus } from './components/AuthStatus';
 
-function App() {
+function App(): ReactElement {
   return (
     <div className="w-96 min-h-96 p-4 bg-gray-50">
       <div className="mb-4">

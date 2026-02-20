@@ -1,10 +1,11 @@
 /**
  * Storage service for managing chrome.storage.local
  *
- * Provides type-safe wrapper around Chrome storage API
+ * Provides type-safe wrapper around Chrome storage API with Zod validation
  */
 
-import type { TokenStorage } from '../types';
+import type { TokenStorage } from '@/types';
+import { TokenStorageSchema } from '@/schemas/storage.schema';
 
 /**
  * Store authentication token
@@ -21,20 +22,22 @@ export async function setToken(token: string): Promise<void> {
  */
 export async function getToken(): Promise<string | null> {
   const data = await chrome.storage.local.get('auth_token');
-  return (data.auth_token as string) || null;
+  const validated = TokenStorageSchema.parse(data);
+  return validated.auth_token ?? null;
 }
 
 /**
- * Get token with timestamp
+ * Get token with timestamp (validated)
  */
 export async function getTokenWithTimestamp(): Promise<TokenStorage> {
   const data = await chrome.storage.local.get([
     'auth_token',
     'token_timestamp',
   ]);
+  const validated = TokenStorageSchema.parse(data);
   return {
-    auth_token: (data.auth_token as string) || null,
-    token_timestamp: (data.token_timestamp as number) || null,
+    auth_token: validated.auth_token ?? null,
+    token_timestamp: validated.token_timestamp ?? null,
   };
 }
 

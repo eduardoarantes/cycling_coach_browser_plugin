@@ -5,9 +5,18 @@
  */
 
 import { useEffect } from 'react';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '@/store/authStore';
 
-export function useAuth() {
+export function useAuth(): {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  token: string | null;
+  tokenAge: number | null;
+  refreshAuth: () => Promise<void>;
+  clearAuth: () => Promise<void>;
+  setError: (error: string | null) => void;
+} {
   const {
     isAuthenticated,
     isLoading,

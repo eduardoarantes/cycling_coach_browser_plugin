@@ -5,6 +5,7 @@
  */
 
 import * as storageService from './storageService';
+import { TOKEN_EXPIRY_MS } from '@/utils/constants';
 
 /**
  * Check if user is authenticated
@@ -57,6 +58,5 @@ export async function isTokenExpired(): Promise<boolean> {
     return true;
   }
   // Consider token expired if older than 24 hours
-  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-  return age > TWENTY_FOUR_HOURS;
+  return age > TOKEN_EXPIRY_MS;
 }
