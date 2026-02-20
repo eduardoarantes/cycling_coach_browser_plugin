@@ -1,0 +1,1144 @@
+{
+    "user": {
+        "userId": 4830660,
+        "settings": {
+            "account": {
+                "accountSettingsId": 95011,
+                "userType": 4,
+                "isAthlete": true,
+                "headerImageUrl": null,
+                "headerLink": "http://www.trainingpeaks.com",
+                "helpUrl": null,
+                "logonFailedUrl": "http://home.trainingpeaks.com/login.aspx?m=loginfailed",
+                "logOffUrl": "http://home.trainingpeaks.com",
+                "displayTrainingPeaksLogo": false,
+                "coachType": 0,
+                "isCoached": false,
+                "isPremium": true,
+                "accessGroupIds": [],
+                "premiumTrial": false,
+                "lastLogon": "2026-02-19T00:09:55"
+            },
+            "calendar": {
+                "compactView": true,
+                "showAvailability": true,
+                "showNotes": true,
+                "showWorkouts": true,
+                "showStrengthWorkouts": true,
+                "showNutrition": true,
+                "showMetrics": true,
+                "showSummary": true,
+                "showFitnessFormFatigue": true,
+                "showComplianceColoring": true,
+                "showWeather": true,
+                "orderComplianceBy": [
+                    "Duration",
+                    "TSS",
+                    "Distance"
+                ],
+                "focusEventId": null,
+                "workoutLabelLayout": [
+                    26,
+                    30,
+                    8,
+                    4,
+                    38
+                ],
+                "weekSummaryAtpLayout": [
+                    12,
+                    13,
+                    14,
+                    15
+                ],
+                "showPayments": true,
+                "groupCalendarPagination": 10
+            },
+            "workout": {
+                "layout": {
+                    "1": [
+                        1,
+                        2,
+                        4,
+                        5,
+                        9,
+                        10,
+                        13,
+                        22
+                    ],
+                    "2": [
+                        1,
+                        2,
+                        3,
+                        5,
+                        6,
+                        9,
+                        10,
+                        11,
+                        8,
+                        13,
+                        14
+                    ],
+                    "3": [
+                        1,
+                        2,
+                        4,
+                        5,
+                        6,
+                        9,
+                        10,
+                        7,
+                        8,
+                        19,
+                        13
+                    ],
+                    "4": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        9,
+                        10,
+                        7,
+                        8,
+                        14,
+                        19,
+                        13,
+                        22
+                    ],
+                    "5": [
+                        1,
+                        2,
+                        5,
+                        9,
+                        10,
+                        13,
+                        22
+                    ],
+                    "6": [
+                        1,
+                        2,
+                        13,
+                        22
+                    ],
+                    "7": [
+                        1,
+                        13,
+                        22
+                    ],
+                    "8": [
+                        1,
+                        2,
+                        3,
+                        5,
+                        6,
+                        9,
+                        10,
+                        8,
+                        4,
+                        13,
+                        14,
+                        22
+                    ],
+                    "9": [
+                        1,
+                        5,
+                        9,
+                        10,
+                        13,
+                        22
+                    ],
+                    "10": [
+                        1,
+                        2,
+                        5,
+                        9,
+                        10,
+                        13,
+                        22
+                    ],
+                    "11": [
+                        1,
+                        2,
+                        4,
+                        5,
+                        9,
+                        10,
+                        13,
+                        22
+                    ],
+                    "12": [
+                        1,
+                        2,
+                        4,
+                        5,
+                        6,
+                        9,
+                        10,
+                        13,
+                        22
+                    ],
+                    "13": [
+                        1,
+                        2,
+                        4,
+                        5,
+                        6,
+                        9,
+                        10,
+                        13,
+                        22
+                    ],
+                    "100": [
+                        1,
+                        2,
+                        5,
+                        9,
+                        10,
+                        13,
+                        22
+                    ]
+                }
+            },
+            "metrics": [
+                {
+                    "type": 9
+                },
+                {
+                    "type": 6
+                },
+                {
+                    "type": 3
+                },
+                {
+                    "type": 7
+                },
+                {
+                    "type": 8
+                },
+                {
+                    "type": 52
+                },
+                {
+                    "type": 24
+                },
+                {
+                    "type": 23
+                },
+                {
+                    "type": 12
+                },
+                {
+                    "type": 11
+                },
+                {
+                    "type": 10
+                },
+                {
+                    "type": 4
+                }
+            ],
+            "dashboard": {
+                "pods": [
+                    {
+                        "durationUnits": 4,
+                        "summaryType": 4,
+                        "index": 0,
+                        "chartType": 3,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "durationUnits": 4,
+                        "summaryType": 2,
+                        "index": 1,
+                        "chartType": 3,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "durationUnits": 4,
+                        "summaryType": 3,
+                        "index": 2,
+                        "chartType": 3,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [
+                            "0"
+                        ],
+                        "quickDateSelectOption": 0,
+                        "showTSSPerDay": false,
+                        "showIntensityFactorPerDay": false,
+                        "showTSBFill": false,
+                        "atlConstant": 7,
+                        "atlStartValue": 0,
+                        "showSecondAtlSeries": false,
+                        "atlConstant2": 14,
+                        "atlStartValue2": 0,
+                        "ctlConstant": 42,
+                        "ctlStartValue": 0,
+                        "index": 3,
+                        "chartType": 32,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 6,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "durationUnits": 4,
+                        "summaryType": 1,
+                        "index": 4,
+                        "chartType": 3,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "showPlanned": false,
+                        "hideAverage": false,
+                        "index": 5,
+                        "chartType": 20,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "dateGrouping": 2,
+                        "showPlanned": false,
+                        "hideAverage": false,
+                        "units": null,
+                        "index": 6,
+                        "chartType": 37,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "index": 7,
+                        "chartType": 18,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "index": 8,
+                        "chartType": 25,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "index": 9,
+                        "chartType": 27,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "index": 10,
+                        "chartType": 17,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "powerProfileGrouping": 4,
+                        "displayCategoryLabels": true,
+                        "index": 11,
+                        "chartType": 33,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "index": 12,
+                        "chartType": 24,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "peakType": 1,
+                        "workoutTypeIds": [],
+                        "index": 13,
+                        "chartType": 35,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "index": 14,
+                        "chartType": 26,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "peakType": 4,
+                        "workoutTypeIds": [],
+                        "index": 15,
+                        "chartType": 35,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "showMarkers": true,
+                        "dataFields": [
+                            5,
+                            0
+                        ],
+                        "index": 16,
+                        "chartType": 13,
+                        "title": "Resting Heart Rate",
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "showMarkers": true,
+                        "dataFields": [
+                            6,
+                            4
+                        ],
+                        "index": 17,
+                        "chartType": 13,
+                        "title": "Sleeping patterns",
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "useComparison": false,
+                        "displayState": 1,
+                        "workoutTypeIds": null,
+                        "comparisonDateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        },
+                        "tags": null,
+                        "index": 19,
+                        "chartType": 28,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "useComparison": true,
+                        "displayState": 1,
+                        "workoutTypeIds": null,
+                        "comparisonDateOptions": {
+                            "quickDateSelectOption": 4,
+                            "startDate": null,
+                            "endDate": null
+                        },
+                        "tags": null,
+                        "index": 20,
+                        "chartType": 8,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 3,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "showMarkers": true,
+                        "dataFields": [
+                            9,
+                            4
+                        ],
+                        "index": 21,
+                        "chartType": 13,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "workoutTypeIds": [],
+                        "index": 22,
+                        "chartType": 25,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "powerProfileGrouping": 0,
+                        "displayCategoryLabels": true,
+                        "index": 23,
+                        "chartType": 33,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    },
+                    {
+                        "dateGrouping": 2,
+                        "caloriesType": 3,
+                        "includeGoalCalories": true,
+                        "index": 24,
+                        "chartType": 2,
+                        "title": null,
+                        "dateOptions": {
+                            "quickDateSelectOption": 1,
+                            "startDate": null,
+                            "endDate": null
+                        }
+                    }
+                ],
+                "dateOptions": {
+                    "quickDateSelectOption": 8,
+                    "startDate": null,
+                    "endDate": null
+                }
+            },
+            "expando": {
+                "layouts": [
+                    {
+                        "pods": [
+                            {
+                                "index": 0,
+                                "podType": 153,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 1,
+                                "podType": 152,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 2,
+                                "podType": 108,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "columns": null,
+                                "index": 3,
+                                "podType": 1081,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 4,
+                                "podType": 118,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 5,
+                                "podType": 102,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            }
+                        ],
+                        "workoutTypeId": 0
+                    },
+                    {
+                        "pods": [
+                            {
+                                "index": 0,
+                                "podType": 153,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 1,
+                                "podType": 152,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 2,
+                                "podType": 102,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 3,
+                                "podType": 101,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            }
+                        ],
+                        "workoutTypeId": 2
+                    },
+                    {
+                        "pods": [
+                            {
+                                "index": 0,
+                                "podType": 153,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 1,
+                                "podType": 152,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 2,
+                                "podType": 108,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "columns": null,
+                                "index": 3,
+                                "podType": 1081,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 4,
+                                "podType": 118,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 5,
+                                "podType": 102,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 6,
+                                "podType": 111,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 7,
+                                "podType": 101,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            }
+                        ],
+                        "workoutTypeId": 8
+                    },
+                    {
+                        "pods": [
+                            {
+                                "index": 0,
+                                "podType": 153,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 1,
+                                "podType": 152,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 2,
+                                "podType": 108,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "columns": [
+                                    4,
+                                    5,
+                                    6,
+                                    18,
+                                    13,
+                                    12,
+                                    16,
+                                    15,
+                                    11,
+                                    10,
+                                    9,
+                                    19,
+                                    20,
+                                    25
+                                ],
+                                "index": 3,
+                                "podType": 1081,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 1,
+                                "index": 4,
+                                "podType": 118,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 5,
+                                "podType": 102,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 1,
+                                "index": 6,
+                                "podType": 119,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 1,
+                                "index": 7,
+                                "podType": 125,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 1,
+                                "index": 8,
+                                "podType": 121,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 9,
+                                "podType": 122,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            }
+                        ],
+                        "workoutTypeId": 3
+                    },
+                    {
+                        "pods": [
+                            {
+                                "index": 0,
+                                "podType": 153,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 1,
+                                "podType": 152,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 2,
+                                "podType": 108,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "columns": null,
+                                "index": 3,
+                                "podType": 1081,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 4,
+                                "podType": 118,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 5,
+                                "podType": 102,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 6,
+                                "podType": 119,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 7,
+                                "podType": 125,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 8,
+                                "podType": 121,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 9,
+                                "podType": 122,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            }
+                        ],
+                        "workoutTypeId": 13
+                    },
+                    {
+                        "pods": [
+                            {
+                                "index": 0,
+                                "podType": 152,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 1,
+                                "podType": 108,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "columns": null,
+                                "index": 2,
+                                "podType": 1081,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 0,
+                                "index": 3,
+                                "podType": 119,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 4,
+                                "podType": 122,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            }
+                        ],
+                        "workoutTypeId": 1
+                    },
+                    {
+                        "pods": [
+                            {
+                                "index": 0,
+                                "podType": 153,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 1,
+                                "podType": 152,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "index": 2,
+                                "podType": 108,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "columns": [
+                                    4,
+                                    5,
+                                    6,
+                                    18,
+                                    13,
+                                    12,
+                                    16,
+                                    15,
+                                    11,
+                                    10,
+                                    9,
+                                    19,
+                                    20,
+                                    25
+                                ],
+                                "index": 3,
+                                "podType": 1081,
+                                "heightInRows": 1,
+                                "widthInColumns": 2
+                            },
+                            {
+                                "useComparison": false,
+                                "dateOptions": null,
+                                "displayState": 1,
+                                "index": 4,
+                                "podType": 118,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            },
+                            {
+                                "index": 5,
+                                "podType": 102,
+                                "heightInRows": 1,
+                                "widthInColumns": 1
+                            }
+                        ],
+                        "workoutTypeId": 100
+                    }
+                ],
+                "mapType": "MapboxTerrain"
+            },
+            "prompt": {
+                "promptPreferences": {
+                    "hideStreak": true,
+                    "workoutLibraryAddWorkoutTip": false,
+                    "activityBuilderAddNewBlock": false,
+                    "showWelcome": true,
+                    "showGoalsAssistanceBanner": false,
+                    "workoutStep": true,
+                    "contextMenuTip": false,
+                    "onboardingCompleted": true,
+                    "connectStep": true,
+                    "thresholdStep": true,
+                    "recuringNewChip": false,
+                    "weatherNewChip": false,
+                    "dismissTpVirtualHighlight": true
+                },
+                "promptChoices": {
+                    "showLandingSelection": "{\"homeVisits\":102}"
+                },
+                "promptDates": {
+                    "showGoalsAssistanceBanner": "2024-08-15T00:00:00"
+                }
+            },
+            "search": {
+                "exactMatch": false,
+                "displayedColumns": null,
+                "sortBy": null,
+                "sortOrder": 0
+            },
+            "atp": {
+                "displayGraph": true,
+                "displayPlannedCTL": true,
+                "displayActualCTL": true,
+                "displayPlannedTSB": true,
+                "displayActualTSB": true,
+                "displaySettings": {},
+                "limiterSettings": {
+                    "hours": {
+                        "showSwimLimiters": true,
+                        "showBikeLimiters": true,
+                        "showRunLimiters": true,
+                        "showStrengthPhase": true
+                    },
+                    "tss": {
+                        "showSwimLimiters": false,
+                        "showBikeLimiters": false,
+                        "showRunLimiters": false,
+                        "showStrengthPhase": false
+                    },
+                    "ctl": {
+                        "showSwimLimiters": false,
+                        "showBikeLimiters": false,
+                        "showRunLimiters": false,
+                        "showStrengthPhase": false
+                    }
+                }
+            },
+            "general": {
+                "defaultLandingPage": "Home",
+                "initialLoadedGroup": null,
+                "language": "en-us"
+            },
+            "experiments": {
+                "openLibrary": null
+            },
+            "affiliate": {
+                "affiliateId": 596,
+                "code": "",
+                "isTrainingPeaks": true
+            },
+            "appleWatch": {
+                "autoSendWorkouts": "None"
+            },
+            "privacy": {
+                "womensHealthMetrics": null,
+                "comments": null
+            }
+        },
+        "athletes": [
+            {
+                "athleteId": 4830660,
+                "firstName": "Eduardo",
+                "lastName": "Rodrigues",
+                "email": "r.eduardo.arantes@gmail.com",
+                "phone": null,
+                "cellPhone": null,
+                "age": 51,
+                "athleteType": 6,
+                "userType": 4,
+                "lastPlannedWorkout": null,
+                "settings": null,
+                "personPhotoUrl": "https://userdata.trainingpeaks.com/0660384/profile/person-photo-images/638420560120926980-300x300.jpeg",
+                "coachedBy": null,
+                "userName": "eduardoarodrigues",
+                "lastUpgradeOn": null,
+                "downgradeAllowed": true,
+                "expireOn": "2026-04-29T23:59:00",
+                "premiumTrial": false,
+                "premiumTrialDaysRemaining": 0,
+                "downgradeAllowedOn": "2026-02-19T00:00:00-07:00",
+                "workoutIndexState": 2,
+                "prCalcState": 2
+            }
+        ],
+        "personId": 4830660,
+        "accountSettingsId": 95011,
+        "userName": "eduardoarodrigues",
+        "email": "r.eduardo.arantes@gmail.com",
+        "isEmailVerified": true,
+        "firstName": "Eduardo",
+        "lastName": "Rodrigues",
+        "userType": 4,
+        "userIdentifierHash": "4IIBTC6HDDJ2A",
+        "expireDate": "2026-04-29T23:59:00",
+        "premiumTrial": false,
+        "premiumTrialDaysRemaining": 0,
+        "lastLogon": "2026-02-19T00:09:55",
+        "numberOfVisits": 658,
+        "created": "2024-01-03T03:59:00",
+        "age": 51,
+        "birthday": "1974-06-03T00:00:00",
+        "gender": "m",
+        "dateFormat": "dmy",
+        "timeZone": "Australia/Sydney",
+        "units": 2,
+        "temperatureUnit": 2,
+        "windSpeedUnit": 2,
+        "allowMarketingEmails": false,
+        "address": null,
+        "address2": null,
+        "city": "Sydney",
+        "state": null,
+        "zipCode": null,
+        "country": "AU",
+        "phone": null,
+        "cellPhone": null,
+        "language": "en-us",
+        "latitude": null,
+        "longitude": null,
+        "personPhotoUrl": "https://userdata.trainingpeaks.com/0660384/profile/person-photo-images/638420560120926980-300x300.jpeg",
+        "affiliateId": 596,
+        "isAthlete": true,
+        "fullName": "Eduardo Rodrigues"
+    },
+    "accountStatus": {
+        "status": 0,
+        "lockedOut": false,
+        "demoExpired": false,
+        "pastDue": false,
+        "pastDueAccountSetup": false,
+        "tooManyBasicAthletes": false,
+        "isAthlete": true,
+        "isCoachedAthlete": false,
+        "isCoach": false,
+        "isCoachingGroupOwner": false,
+        "athleteInZuoraSystem": false,
+        "lockedOutOfMobile": false,
+        "coachingGroupId": null,
+        "coachingGroupOwnerId": null,
+        "billingTier": 0,
+        "maximumBasicAthletes": 0,
+        "paymentRequired": false
+    }
+}
