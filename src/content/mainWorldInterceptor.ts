@@ -6,7 +6,7 @@
  */
 
 const DEBUG = true;
-const log = (...args: unknown[]) => {
+const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[TP Extension - MAIN World]', ...args);
 };
 

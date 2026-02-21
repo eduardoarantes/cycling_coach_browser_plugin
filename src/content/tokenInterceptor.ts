@@ -14,7 +14,7 @@ console.log('[TP Extension - Content] 🚀 Content script initializing...');
  * Inject interceptor into page's main world
  * This script runs in the page context and can intercept the real fetch/XHR
  */
-function injectInterceptor() {
+function injectInterceptor(): void {
   const script = document.createElement('script');
   script.textContent = `
     (function() {
