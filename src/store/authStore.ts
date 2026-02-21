@@ -22,7 +22,7 @@ interface AuthState {
   setError: (error: string | null) => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   // Initial state
   isAuthenticated: false,
   isLoading: false,
@@ -60,9 +60,58 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Refresh authentication (re-check)
+  // Refresh authentication (re-check and validate with API)
   refreshAuth: async () => {
-    await get().checkAuth();
+    set({ isLoading: true, error: null });
+
+    try {
+      // First check if token exists
+      const token = await authService.getAuthToken();
+
+      if (!token) {
+        // No token, just update state
+        set({
+          isAuthenticated: false,
+          token: null,
+          tokenAge: null,
+          isLoading: false,
+        });
+        return;
+      }
+
+      // Validate token with TrainingPeaks API
+      const isValid = await authService.validateToken();
+
+      if (isValid) {
+        // Token is valid, update state with fresh data
+        const [tokenAge] = await Promise.all([authService.getTokenAge()]);
+
+        set({
+          isAuthenticated: true,
+          token: token,
+          tokenAge: tokenAge,
+          isLoading: false,
+          error: null,
+        });
+      } else {
+        // Token was invalid and has been cleared
+        set({
+          isAuthenticated: false,
+          token: null,
+          tokenAge: null,
+          isLoading: false,
+          error: null, // Don't show error, just update state
+        });
+      }
+    } catch (error) {
+      set({
+        isLoading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to validate authentication',
+      });
+    }
   },
 
   // Clear authentication
