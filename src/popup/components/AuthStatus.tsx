@@ -7,6 +7,30 @@
 import type { ReactElement } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
+/**
+ * Refresh TrainingPeaks tab or open a new one
+ * Helps users get authenticated by ensuring they're on TrainingPeaks
+ */
+async function refreshTrainingPeaksTab(): Promise<void> {
+  // Find all TrainingPeaks tabs
+  const tabs = await chrome.tabs.query({
+    url: 'https://app.trainingpeaks.com/*',
+  });
+
+  if (tabs.length > 0 && tabs[0].id) {
+    // Refresh the first TrainingPeaks tab
+    await chrome.tabs.reload(tabs[0].id);
+    // Focus the tab so user sees it
+    await chrome.tabs.update(tabs[0].id, { active: true });
+  } else {
+    // No TrainingPeaks tab open - open one
+    await chrome.tabs.create({
+      url: 'https://app.trainingpeaks.com',
+      active: true,
+    });
+  }
+}
+
 export function AuthStatus(): ReactElement {
   const { isAuthenticated, isLoading, error, tokenAge, refreshAuth } =
     useAuth();
@@ -44,6 +68,15 @@ export function AuthStatus(): ReactElement {
   }
 
   if (!isAuthenticated) {
+    const handleRefreshClick = async (): Promise<void> => {
+      // Refresh TrainingPeaks tab to help user log in
+      await refreshTrainingPeaksTab();
+      // Wait a moment for the page to load, then check auth again
+      setTimeout(() => {
+        refreshAuth();
+      }, 2000);
+    };
+
     return (
       <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
         <div className="flex items-start justify-between">
@@ -52,14 +85,14 @@ export function AuthStatus(): ReactElement {
               Not Authenticated
             </p>
             <p className="mt-1 text-xs text-yellow-700">
-              Please log in to TrainingPeaks and refresh this page
+              Log in to TrainingPeaks, then click Refresh
             </p>
           </div>
           <button
-            onClick={refreshAuth}
+            onClick={handleRefreshClick}
             className="ml-3 text-sm text-yellow-600 hover:text-yellow-800 font-medium"
           >
-            Retry
+            Refresh
           </button>
         </div>
       </div>
