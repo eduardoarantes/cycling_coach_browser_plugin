@@ -23,16 +23,15 @@ export function useAuth(): {
     error,
     token,
     tokenAge,
-    checkAuth,
     refreshAuth,
     clearAuth,
     setError,
   } = useAuthStore();
 
-  // Check auth on mount
+  // Validate auth on mount (calls API to verify token is still valid)
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    refreshAuth();
+  }, [refreshAuth]);
 
   return {
     isAuthenticated,
