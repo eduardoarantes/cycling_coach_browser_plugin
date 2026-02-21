@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { AuthStatus } from './components/AuthStatus';
 import { UserInfo } from './components/UserInfo';
-import { EmptyState } from './components/EmptyState';
+import { LibraryList } from './components/LibraryList';
 import { useAuth } from '@/hooks/useAuth';
 import { useUser } from '@/hooks/useUser';
 
@@ -40,12 +40,7 @@ function App(): ReactElement {
               </button>
             </div>
           ) : (
-            <div className="mt-4">
-              <EmptyState
-                title="Libraries Coming Soon"
-                message="Library list will appear here once LibraryList component is implemented (Phase 4.2)"
-              />
-            </div>
+            <LibraryList onSelectLibrary={setSelectedLibraryId} />
           )}
         </>
       )}
