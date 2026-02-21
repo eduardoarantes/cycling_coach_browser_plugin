@@ -34,10 +34,10 @@ export function useAuth(): {
     refreshAuth();
   }, [refreshAuth]);
 
-  // Listen for NEW tokens being added to storage
-  // Ignore token removals (they'll be detected on next refresh)
+  // Listen for token changes in storage (additions and removals)
+  // This keeps UI state synchronized with background service worker
   useEffect(() => {
-    console.log('[useAuth] Setting up storage listener for new tokens...');
+    console.log('[useAuth] Setting up storage listener for token changes...');
 
     const handleStorageChange = (
       changes: { [key: string]: chrome.storage.StorageChange },
@@ -57,7 +57,7 @@ export function useAuth(): {
           newValueLength: typeof newValue === 'string' ? newValue.length : 0,
         });
 
-        // ONLY refresh when a NEW token is added (ignore removals)
+        // Handle both token additions AND removals
         if (newValue && typeof newValue === 'string' && newValue.length > 0) {
           // Ignore if this is just the same token being re-stored
           if (newValue === oldValue) {
@@ -67,12 +67,13 @@ export function useAuth(): {
 
           console.log('[useAuth] ✅ New token detected, refreshing auth...');
           refreshAuth();
-        } else {
-          // Token was removed - just log it, don't clear auth
-          // The next manual refresh will detect the missing token
+        } else if (oldValue && !newValue) {
+          // Token was REMOVED (401 response cleared it)
+          // Immediately update UI to show not authenticated
           console.log(
-            '[useAuth] ℹ️ Token removed from storage (will be detected on next refresh, not clearing)'
+            '[useAuth] 🚨 Token removed from storage, clearing auth state...'
           );
+          clearAuth();
         }
       }
     };
