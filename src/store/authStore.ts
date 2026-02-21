@@ -62,14 +62,24 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   // Refresh authentication (re-check and validate with API)
   refreshAuth: async () => {
+    console.log('[authStore] refreshAuth() called');
     set({ isLoading: true, error: null });
 
     try {
       // First check if token exists
       const token = await authService.getAuthToken();
+      console.log(
+        '[authStore] Token from storage:',
+        token
+          ? `${token.substring(0, 20)}... (length: ${token.length})`
+          : 'NULL'
+      );
 
       if (!token) {
         // No token, just update state
+        console.log(
+          '[authStore] No token found, setting isAuthenticated=false'
+        );
         set({
           isAuthenticated: false,
           token: null,
@@ -80,12 +90,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       // Validate token with TrainingPeaks API
+      console.log('[authStore] Validating token with API...');
       const isValid = await authService.validateToken();
+      console.log('[authStore] Validation result:', isValid);
 
       if (isValid) {
         // Token is valid, update state with fresh data
         const [tokenAge] = await Promise.all([authService.getTokenAge()]);
 
+        console.log('[authStore] ✅ Setting isAuthenticated=true');
         set({
           isAuthenticated: true,
           token: token,
@@ -95,6 +108,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       } else {
         // Token was invalid and has been cleared
+        console.log(
+          '[authStore] ❌ Token invalid, setting isAuthenticated=false'
+        );
         set({
           isAuthenticated: false,
           token: null,
@@ -104,6 +120,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       }
     } catch (error) {
+      console.error('[authStore] Error in refreshAuth:', error);
       set({
         isLoading: false,
         error:

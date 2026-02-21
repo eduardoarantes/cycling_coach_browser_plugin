@@ -8,8 +8,10 @@ export interface WorkoutCardProps {
 
 /**
  * Format duration in seconds to "Xh Ym" format
+ * Returns "N/A" if duration is null (e.g., for swim workouts)
  */
-function formatDuration(seconds: number): string {
+function formatDuration(seconds: number | null): string {
+  if (seconds === null) return 'N/A';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   return `${hours}h ${minutes}m`;
@@ -17,8 +19,10 @@ function formatDuration(seconds: number): string {
 
 /**
  * Format distance from meters to kilometers
+ * Returns "N/A" if distance is null
  */
-function formatDistance(meters: number): string {
+function formatDistance(meters: number | null): string {
+  if (meters === null) return 'N/A';
   const km = meters / 1000;
   return `${km.toFixed(0)} km`;
 }

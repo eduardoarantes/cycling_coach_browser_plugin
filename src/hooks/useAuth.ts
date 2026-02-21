@@ -36,10 +36,14 @@ export function useAuth(): {
   // Listen for token storage changes and auto-refresh auth state
   // This handles the race condition where token is intercepted AFTER popup opens
   useEffect(() => {
+    console.log('[useAuth] Setting up storage change listener...');
+
     const handleStorageChange = (
       changes: { [key: string]: chrome.storage.StorageChange },
       areaName: string
     ): void => {
+      console.log('[useAuth] Storage changed:', { areaName, changes });
+
       // Only listen to local storage changes
       if (areaName !== 'local') return;
 
@@ -48,24 +52,34 @@ export function useAuth(): {
         const newValue = changes.auth_token.newValue;
         const oldValue = changes.auth_token.oldValue;
 
+        console.log('[useAuth] auth_token changed:', {
+          hadOldValue: !!oldValue,
+          hasNewValue: !!newValue,
+          newValueLength: typeof newValue === 'string' ? newValue.length : 0,
+        });
+
         // Token was added or changed (not removed)
         if (newValue && newValue !== oldValue) {
           console.log(
-            '[useAuth] Token detected in storage, refreshing auth state...'
+            '[useAuth] ✅ Token detected in storage, refreshing auth state...'
           );
           refreshAuth();
         }
         // Token was removed
         else if (!newValue && oldValue) {
-          console.log('[useAuth] Token removed from storage, clearing auth...');
+          console.log(
+            '[useAuth] ❌ Token removed from storage, clearing auth...'
+          );
           clearAuth();
         }
       }
     };
 
     chrome.storage.onChanged.addListener(handleStorageChange);
+    console.log('[useAuth] ✅ Storage listener registered');
 
     return () => {
+      console.log('[useAuth] Removing storage listener');
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
   }, [refreshAuth, clearAuth]);
