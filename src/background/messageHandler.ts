@@ -136,6 +136,9 @@ async function handleValidateToken(): Promise<{
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        Accept: 'application/json, text/javascript, */*; q=0.01',
+        Origin: 'https://app.trainingpeaks.com',
+        Referer: 'https://app.trainingpeaks.com/',
       },
     });
 
@@ -157,25 +160,29 @@ async function handleValidateToken(): Promise<{
       return { valid: true, userId: data.user?.userId };
     }
 
-    // Token is invalid
+    // Token validation failed
     const errorText = await response.text();
     console.error(
-      '[TP Extension - Background] ❌ Token invalid - Status:',
+      '[TP Extension - Background] ❌ Token validation failed - Status:',
       response.status,
       'Response:',
       errorText
     );
     logger.error(
-      'Token invalid - Status:',
+      'Token validation failed - Status:',
       response.status,
       'Response:',
       errorText
     );
 
-    // Clear invalid token
-    await chrome.storage.local.remove(['auth_token', 'token_timestamp']);
-    console.log('[TP Extension - Background] 🗑️ Token cleared from storage');
-    logger.warn('Token validation failed, token cleared');
+    // Don't automatically clear the token - it might still work for other API calls
+    // Let the user clear it manually if needed
+    console.log(
+      '[TP Extension - Background] ⚠️ Token validation failed, but keeping token (might work for other endpoints)'
+    );
+    logger.warn(
+      'Token validation failed, but keeping token (might work for other endpoints)'
+    );
 
     return { valid: false };
   } catch (error) {
