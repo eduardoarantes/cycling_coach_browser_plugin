@@ -33,6 +33,15 @@ export const STORAGE_KEYS = {
 } as const;
 
 /**
+ * Date range constants for training plan API endpoints
+ * These dates represent the widest possible range supported by the API
+ */
+export const PLAN_DATE_RANGE = {
+  START_DATE: '2010-12-15',
+  END_DATE: '2038-09-13',
+} as const;
+
+/**
  * Create headers for TrainingPeaks API requests
  *
  * Headers match exactly what TrainingPeaks web app sends for authentication.
