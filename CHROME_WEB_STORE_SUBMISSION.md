@@ -1,6 +1,6 @@
 # Chrome Web Store Submission Guide
 
-**Version**: 1.0.29
+**Version**: 1.0.34
 **Visibility**: Private (Trusted Testers Only)
 **Distribution Type**: Limited to specific Google accounts
 
@@ -10,7 +10,7 @@
 
 ### ✅ Required Files (Already Complete)
 
-- [x] `manifest.json` with correct version (1.0.29)
+- [x] `manifest.json` with correct version (1.0.34)
 - [x] Icons: 16x16, 48x48, 128x128 (in `public/icons/`)
 - [x] Working extension build (in `dist/`)
 - [x] Privacy policy (`PRIVACY.md`)
@@ -56,7 +56,7 @@ You need to take screenshots of your extension in action:
 ### Item Title (Max 45 characters)
 
 ```
-PlanMyPeak Integration
+PlanMyPeak Importer
 ```
 
 ### Short Description (Max 132 characters)
@@ -68,7 +68,7 @@ Access your TrainingPeaks workout libraries directly from your browser. View, se
 ### Detailed Description (Max 16,000 characters)
 
 ```
-# PlanMyPeak Integration
+# PlanMyPeak Importer
 
 Browse your TrainingPeaks workout libraries without leaving your browser.
 
@@ -134,25 +134,25 @@ npm run build
 
 # Create distribution zip
 cd dist
-zip -r ../trainingpeaks-extension-v1.0.29.zip .
+zip -r ../planmypeak-importer-v1.0.34.zip .
 cd ..
 
 # Verify the zip
-unzip -l trainingpeaks-extension-v1.0.29.zip
+unzip -l planmypeak-importer-v1.0.34.zip
 ```
 
 ### Step 3: Upload Extension
 
 1. Go to [Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 2. Click **"New Item"**
-3. Upload `trainingpeaks-extension-v1.0.29.zip`
+3. Upload `planmypeak-importer-v1.0.34.zip`
 4. Wait for upload to complete
 
 ### Step 4: Fill Out Store Listing
 
 **Item Details**:
 
-- Product name: `PlanMyPeak Integration`
+- Product name: `PlanMyPeak Importer`
 - Summary: (use short description above)
 - Description: (use detailed description above)
 - Category: `Productivity`
@@ -213,7 +213,7 @@ When you make changes:
 npm run build
 
 # Create new zip
-cd dist && zip -r ../trainingpeaks-extension-v1.0.XX.zip . && cd ..
+cd dist && zip -r ../planmypeak-importer-v1.0.XX.zip . && cd ..
 
 # Upload to Chrome Web Store
 # Go to dashboard → Select item → Upload new version

@@ -1,10 +1,10 @@
-# Privacy Policy - PlanMyPeak Integration Extension
+# Privacy Policy - PlanMyPeak Importer Extension
 
 **Last Updated**: February 21, 2026
 
 ## Overview
 
-PlanMyPeak Integration is a Chrome browser extension that helps you access your TrainingPeaks workout libraries directly from your browser.
+PlanMyPeak Importer is a Chrome browser extension that helps you access your TrainingPeaks workout libraries directly from your browser.
 
 ## Data Collection and Storage
 
