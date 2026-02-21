@@ -28,22 +28,21 @@ export function useAuth(): {
     setError,
   } = useAuthStore();
 
-  // Validate auth on mount (calls API to verify token is still valid)
+  // Check auth on mount
   useEffect(() => {
+    console.log('[useAuth] Component mounted, checking auth...');
     refreshAuth();
   }, [refreshAuth]);
 
-  // Listen for token storage changes and auto-refresh auth state
-  // This handles the race condition where token is intercepted AFTER popup opens
+  // Listen for NEW tokens being added to storage
+  // Ignore token removals (they'll be detected on next refresh)
   useEffect(() => {
-    console.log('[useAuth] Setting up storage change listener...');
+    console.log('[useAuth] Setting up storage listener for new tokens...');
 
     const handleStorageChange = (
       changes: { [key: string]: chrome.storage.StorageChange },
       areaName: string
     ): void => {
-      console.log('[useAuth] Storage changed:', { areaName, changes });
-
       // Only listen to local storage changes
       if (areaName !== 'local') return;
 
@@ -52,25 +51,28 @@ export function useAuth(): {
         const newValue = changes.auth_token.newValue;
         const oldValue = changes.auth_token.oldValue;
 
-        console.log('[useAuth] auth_token changed:', {
+        console.log('[useAuth] Storage change detected:', {
           hadOldValue: !!oldValue,
           hasNewValue: !!newValue,
           newValueLength: typeof newValue === 'string' ? newValue.length : 0,
         });
 
-        // Token was added or changed (not removed)
-        if (newValue && newValue !== oldValue) {
-          console.log(
-            '[useAuth] ✅ Token detected in storage, refreshing auth state...'
-          );
+        // ONLY refresh when a NEW token is added (ignore removals)
+        if (newValue && typeof newValue === 'string' && newValue.length > 0) {
+          // Ignore if this is just the same token being re-stored
+          if (newValue === oldValue) {
+            console.log('[useAuth] ℹ️ Same token re-stored, ignoring');
+            return;
+          }
+
+          console.log('[useAuth] ✅ New token detected, refreshing auth...');
           refreshAuth();
-        }
-        // Token was removed
-        else if (!newValue && oldValue) {
+        } else {
+          // Token was removed - just log it, don't clear auth
+          // The next manual refresh will detect the missing token
           console.log(
-            '[useAuth] ❌ Token removed from storage, clearing auth...'
+            '[useAuth] ℹ️ Token removed from storage (will be detected on next refresh, not clearing)'
           );
-          clearAuth();
         }
       }
     };
@@ -82,7 +84,7 @@ export function useAuth(): {
       console.log('[useAuth] Removing storage listener');
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, [refreshAuth, clearAuth]);
+  }, [refreshAuth]);
 
   return {
     isAuthenticated,
