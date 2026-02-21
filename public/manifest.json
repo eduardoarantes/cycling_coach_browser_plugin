@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TrainingPeaks Library Access",
-  "version": "1.0.0",
+  "version": "1.0.11",
   "description": "Access your TrainingPeaks workout libraries directly from your browser",
   "permissions": ["storage"],
   "host_permissions": [
@@ -23,8 +23,15 @@
   "content_scripts": [
     {
       "matches": ["https://app.trainingpeaks.com/*"],
-      "js": ["src/content/tokenInterceptor.ts"],
-      "run_at": "document_start"
+      "js": ["src/content/mainWorldInterceptor.ts"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://app.trainingpeaks.com/*"],
+      "js": ["src/content/isolatedWorldBridge.ts"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
     }
   ],
   "icons": {
