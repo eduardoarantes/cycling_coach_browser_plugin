@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { useUser } from '@/hooks/useUser';
 import type { ApiResponse } from '@/types/api.types';
 import type { UserProfile } from '@/types/api.types';
-import type { ReactNode } from 'react';
+import type { ReactNode, ReactElement } from 'react';
 
 // Test wrapper provider
 function createWrapper() {
@@ -99,7 +99,7 @@ describe('useUser', () => {
         },
       });
 
-      const wrapper = ({ children }: { children: ReactNode }) =>
+      const wrapper = ({ children }: { children: ReactNode }): ReactElement =>
         createElement(QueryClientProvider, { client: queryClient }, children);
 
       // First render

@@ -9,7 +9,7 @@
 import { handleMessage } from './messageHandler';
 
 const DEBUG = true;
-const logDebug = (...args: unknown[]) => {
+const logDebug = (...args: unknown[]): void => {
   if (DEBUG) {
     console.log('[TP Extension - Background]', ...args);
   }

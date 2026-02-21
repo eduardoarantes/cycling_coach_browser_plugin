@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { useLibraries } from '@/hooks/useLibraries';
 import type { ApiResponse } from '@/types/api.types';
 import type { Library } from '@/types/api.types';
-import type { ReactNode } from 'react';
+import type { ReactNode, ReactElement } from 'react';
 
 // Test wrapper provider
 function createWrapper() {
@@ -140,7 +140,7 @@ describe('useLibraries', () => {
         },
       });
 
-      const wrapper = ({ children }: { children: ReactNode }) =>
+      const wrapper = ({ children }: { children: ReactNode }): ReactElement =>
         createElement(QueryClientProvider, { client: queryClient }, children);
 
       // First render

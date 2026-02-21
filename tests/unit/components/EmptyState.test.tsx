@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { EmptyState } from '@/popup/components/EmptyState';
+import type { ReactElement } from 'react';
 
 describe('EmptyState', () => {
   describe('Rendering', () => {
@@ -28,7 +29,9 @@ describe('EmptyState', () => {
     });
 
     it('should render custom icon when provided', () => {
-      const CustomIcon = () => <div data-testid="custom-icon">Icon</div>;
+      const CustomIcon = (): ReactElement => (
+        <div data-testid="custom-icon">Icon</div>
+      );
       render(
         <EmptyState title="No Data" message="Empty" icon={<CustomIcon />} />
       );
