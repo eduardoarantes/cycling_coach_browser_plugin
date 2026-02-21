@@ -35,20 +35,21 @@ export const STORAGE_KEYS = {
 /**
  * Create headers for TrainingPeaks API requests
  *
- * Includes all required headers for CORS and authentication:
- * - Authorization with bearer token
- * - Accept, Content-Type for JSON
- * - Origin, Referer for CORS compliance
+ * Headers match exactly what TrainingPeaks web app sends for authentication.
+ * Some headers (sec-*) are automatically added by the browser.
  *
  * @param token - Bearer token for authentication
  * @returns Headers object for fetch requests
  */
 export function createApiHeaders(token: string): HeadersInit {
   return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    Accept: 'application/json, text/javascript, */*; q=0.01',
-    Origin: 'https://app.trainingpeaks.com',
-    Referer: 'https://app.trainingpeaks.com/',
+    accept: 'application/json, text/javascript, */*; q=0.01',
+    'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
+    authorization: `Bearer ${token}`,
+    'content-type': 'application/json',
+    origin: 'https://app.trainingpeaks.com',
+    referer: 'https://app.trainingpeaks.com/',
+    // Note: sec-fetch-* headers are automatically added by Chrome
+    // Note: user-agent is a forbidden header and cannot be set by extensions
   };
 }
