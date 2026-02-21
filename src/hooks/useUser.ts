@@ -22,8 +22,11 @@ async function fetchUserProfile(): Promise<UserProfile> {
     logger.debug('User profile fetched successfully:', response.data.userId);
     return response.data;
   } else {
-    logger.error('Failed to fetch user profile:', response.error);
-    throw new Error(response.error.message);
+    logger.error(
+      'Failed to fetch user profile:',
+      response.error.message || 'Unknown error'
+    );
+    throw new Error(response.error.message || 'Failed to fetch user profile');
   }
 }
 
