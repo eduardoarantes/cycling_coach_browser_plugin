@@ -1,0 +1,89 @@
+================================================================================
+PLANMYPEAK IMPORTER - INSTALLATION INSTRUCTIONS
+================================================================================
+
+Quick Installation (2 minutes):
+
+1. EXTRACT THE ZIP FILE
+   - Right-click the zip file → Extract All (Windows)
+   - Or double-click the zip (Mac)
+   - Save to a permanent location (e.g., Documents/PlanMyPeak)
+   - Don't delete this folder - Chrome loads from here!
+
+2. OPEN CHROME EXTENSIONS
+   - Copy and paste this in Chrome: chrome://extensions
+   - Or: Menu (⋮) → Extensions → Manage Extensions
+
+3. ENABLE DEVELOPER MODE
+   - Look for "Developer mode" toggle in the top-right corner
+   - Turn it ON
+
+4. LOAD THE EXTENSION
+   - Click "Load unpacked" button
+   - Browse to the extracted folder
+   - Select the folder and click "Select Folder"
+
+5. PIN TO TOOLBAR (OPTIONAL)
+   - Click the puzzle piece icon in Chrome toolbar
+   - Find "PlanMyPeak Importer"
+   - Click the pin icon to keep it visible
+
+================================================================================
+TESTING THE EXTENSION
+================================================================================
+
+1. Go to: https://app.trainingpeaks.com
+2. Log in with your TrainingPeaks account
+3. Click the PlanMyPeak Importer icon in your toolbar
+4. You should see your workout libraries!
+
+================================================================================
+IMPORTANT NOTES
+================================================================================
+
+⚠️  Developer Mode Warning: Chrome shows a warning banner saying "Extensions
+    in developer mode" - this is NORMAL for manually installed extensions.
+    It's safe to use!
+
+📁  Keep the Folder: Don't delete the extracted folder. Chrome loads the
+    extension from there. If you delete it, the extension will stop working.
+
+🔄  No Auto-Updates: This is a test version. If you receive an updated version,
+    extract the new files to the same location and click the reload button (⟳)
+    in chrome://extensions
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+❌ Extension not working?
+   → Go to chrome://extensions
+   → Find PlanMyPeak Importer
+   → Click the reload button (⟳)
+
+❌ "Not Authenticated" message?
+   → Make sure you're logged into TrainingPeaks first
+   → Click around on TrainingPeaks to trigger token detection
+   → Open the extension again
+
+❌ Extension disappeared?
+   → You may have deleted the extracted folder
+   → Re-extract the zip file
+   → Load unpacked again
+
+================================================================================
+UNINSTALLING
+================================================================================
+
+When you're done testing:
+
+1. Go to: chrome://extensions
+2. Find "PlanMyPeak Importer"
+3. Click "Remove"
+4. Delete the extracted folder
+
+================================================================================
+
+Questions? Issues? Let me know!
+
+Enjoy testing PlanMyPeak Importer! 🚴
