@@ -17,7 +17,7 @@ import type {
   Library,
   LibraryItem,
 } from '@/types/api.types';
-import { ZodError } from 'zod';
+import { ZodError, type z } from 'zod';
 
 /**
  * Get authentication token from storage
@@ -66,15 +66,23 @@ async function makeApiRequest(endpoint: string): Promise<Response> {
 }
 
 /**
- * Fetch user profile from TrainingPeaks API
+ * Generic API request handler with Zod validation
  *
- * @returns User profile data or error
+ * @template T - The expected response type
+ * @param endpoint - API endpoint path
+ * @param schema - Zod schema for response validation
+ * @param operationName - Description for logging (e.g., "user profile", "libraries")
+ * @returns Type-safe API response with success/error discriminated union
  */
-export async function fetchUser(): Promise<ApiResponse<UserProfile>> {
+async function apiRequest<T>(
+  endpoint: string,
+  schema: z.ZodSchema<T>,
+  operationName: string
+): Promise<ApiResponse<T>> {
   try {
-    logger.debug('Fetching user profile');
+    logger.debug(`Fetching ${operationName}`);
 
-    const response = await makeApiRequest('/users/v3/user');
+    const response = await makeApiRequest(endpoint);
 
     if (!response.ok) {
       return {
@@ -89,69 +97,9 @@ export async function fetchUser(): Promise<ApiResponse<UserProfile>> {
     const json = await response.json();
 
     // Validate response with Zod schema
-    const validated = UserApiResponseSchema.parse(json);
+    const validated = schema.parse(json);
 
-    logger.info('User profile fetched successfully');
-    return { success: true, data: validated.user };
-  } catch (error) {
-    if (error instanceof Error && error.message === 'NO_TOKEN') {
-      return {
-        success: false,
-        error: {
-          message: 'Not authenticated',
-          code: 'NO_TOKEN',
-        },
-      };
-    }
-
-    if (error instanceof ZodError) {
-      logger.error('User API response validation failed:', error);
-      return {
-        success: false,
-        error: {
-          message: 'Response validation failed',
-          code: 'VALIDATION_ERROR',
-        },
-      };
-    }
-
-    logger.error('Error fetching user:', error);
-    return {
-      success: false,
-      error: {
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-    };
-  }
-}
-
-/**
- * Fetch libraries list from TrainingPeaks API
- *
- * @returns Array of libraries or error
- */
-export async function fetchLibraries(): Promise<ApiResponse<Library[]>> {
-  try {
-    logger.debug('Fetching libraries');
-
-    const response = await makeApiRequest('/exerciselibrary/v2/libraries');
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: {
-          message: `HTTP ${response.status}`,
-          status: response.status,
-        },
-      };
-    }
-
-    const json = await response.json();
-
-    // Validate response with Zod schema
-    const validated = LibrariesApiResponseSchema.parse(json);
-
-    logger.info(`Fetched ${validated.length} libraries`);
+    logger.info(`${operationName} fetched successfully`);
     return { success: true, data: validated };
   } catch (error) {
     if (error instanceof Error && error.message === 'NO_TOKEN') {
@@ -165,7 +113,7 @@ export async function fetchLibraries(): Promise<ApiResponse<Library[]>> {
     }
 
     if (error instanceof ZodError) {
-      logger.error('Libraries API response validation failed:', error);
+      logger.error(`${operationName} validation failed:`, error);
       return {
         success: false,
         error: {
@@ -175,7 +123,7 @@ export async function fetchLibraries(): Promise<ApiResponse<Library[]>> {
       };
     }
 
-    logger.error('Error fetching libraries:', error);
+    logger.error(`Error fetching ${operationName}:`, error);
     return {
       success: false,
       error: {
@@ -183,6 +131,39 @@ export async function fetchLibraries(): Promise<ApiResponse<Library[]>> {
       },
     };
   }
+}
+
+/**
+ * Fetch user profile from TrainingPeaks API
+ *
+ * @returns User profile data or error
+ */
+export async function fetchUser(): Promise<ApiResponse<UserProfile>> {
+  const result = await apiRequest(
+    '/users/v3/user',
+    UserApiResponseSchema,
+    'user profile'
+  );
+
+  // Extract user from wrapper response
+  if (result.success) {
+    return { success: true, data: result.data.user };
+  }
+
+  return result;
+}
+
+/**
+ * Fetch libraries list from TrainingPeaks API
+ *
+ * @returns Array of libraries or error
+ */
+export async function fetchLibraries(): Promise<ApiResponse<Library[]>> {
+  return apiRequest(
+    '/exerciselibrary/v2/libraries',
+    LibrariesApiResponseSchema,
+    'libraries'
+  );
 }
 
 /**
@@ -194,58 +175,9 @@ export async function fetchLibraries(): Promise<ApiResponse<Library[]>> {
 export async function fetchLibraryItems(
   libraryId: number
 ): Promise<ApiResponse<LibraryItem[]>> {
-  try {
-    logger.debug(`Fetching items for library ${libraryId}`);
-
-    const response = await makeApiRequest(
-      `/exerciselibrary/v2/libraries/${libraryId}/items`
-    );
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: {
-          message: `HTTP ${response.status}`,
-          status: response.status,
-        },
-      };
-    }
-
-    const json = await response.json();
-
-    // Validate response with Zod schema
-    const validated = LibraryItemsApiResponseSchema.parse(json);
-
-    logger.info(`Fetched ${validated.length} items from library ${libraryId}`);
-    return { success: true, data: validated };
-  } catch (error) {
-    if (error instanceof Error && error.message === 'NO_TOKEN') {
-      return {
-        success: false,
-        error: {
-          message: 'Not authenticated',
-          code: 'NO_TOKEN',
-        },
-      };
-    }
-
-    if (error instanceof ZodError) {
-      logger.error('Library items API response validation failed:', error);
-      return {
-        success: false,
-        error: {
-          message: 'Response validation failed',
-          code: 'VALIDATION_ERROR',
-        },
-      };
-    }
-
-    logger.error(`Error fetching library items for ${libraryId}:`, error);
-    return {
-      success: false,
-      error: {
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-    };
-  }
+  return apiRequest(
+    `/exerciselibrary/v2/libraries/${libraryId}/items`,
+    LibraryItemsApiResponseSchema,
+    `library ${libraryId} items`
+  );
 }
