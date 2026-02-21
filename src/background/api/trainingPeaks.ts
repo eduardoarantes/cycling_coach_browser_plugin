@@ -54,6 +54,9 @@ async function makeApiRequest(endpoint: string): Promise<Response> {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
+      Accept: 'application/json, text/javascript, */*; q=0.01',
+      Origin: 'https://app.trainingpeaks.com',
+      Referer: 'https://app.trainingpeaks.com/',
     },
   });
 
