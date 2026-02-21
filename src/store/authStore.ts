@@ -60,13 +60,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  // Refresh authentication (re-check and validate with API)
+  // Refresh authentication (optimistic check - no API validation)
+  // API validation happens lazily when user actually fetches data
   refreshAuth: async () => {
     console.log('[authStore] refreshAuth() called');
     set({ isLoading: true, error: null });
 
     try {
-      // First check if token exists
+      // Check if token exists and get its age
       const token = await authService.getAuthToken();
       console.log(
         '[authStore] Token from storage:',
@@ -76,7 +77,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       );
 
       if (!token) {
-        // No token, just update state
+        // No token, set as not authenticated
         console.log(
           '[authStore] No token found, setting isAuthenticated=false'
         );
@@ -89,34 +90,34 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       }
 
-      // Validate token with TrainingPeaks API
-      console.log('[authStore] Validating token with API...');
-      const isValid = await authService.validateToken();
-      console.log('[authStore] Validation result:', isValid);
+      // Token exists, check if expired by age
+      const tokenAge = await authService.getTokenAge();
+      const isExpired = await authService.isTokenExpired();
+      console.log('[authStore] Token age:', tokenAge, 'ms');
+      console.log('[authStore] Token expired:', isExpired);
 
-      if (isValid) {
-        // Token is valid, update state with fresh data
-        const [tokenAge] = await Promise.all([authService.getTokenAge()]);
-
-        console.log('[authStore] ✅ Setting isAuthenticated=true');
+      if (isExpired) {
+        // Token is too old, clear it
+        console.log('[authStore] ⏰ Token expired by age, clearing...');
+        await authService.clearAuth();
+        set({
+          isAuthenticated: false,
+          token: null,
+          tokenAge: null,
+          isLoading: false,
+        });
+      } else {
+        // Token exists and is not expired - optimistically trust it
+        // API validation will happen when user actually tries to fetch data
+        console.log(
+          '[authStore] ✅ Token exists and not expired, setting isAuthenticated=true (optimistic)'
+        );
         set({
           isAuthenticated: true,
           token: token,
           tokenAge: tokenAge,
           isLoading: false,
           error: null,
-        });
-      } else {
-        // Token was invalid and has been cleared
-        console.log(
-          '[authStore] ❌ Token invalid, setting isAuthenticated=false'
-        );
-        set({
-          isAuthenticated: false,
-          token: null,
-          tokenAge: null,
-          isLoading: false,
-          error: null, // Don't show error, just update state
         });
       }
     } catch (error) {
@@ -126,7 +127,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         error:
           error instanceof Error
             ? error.message
-            : 'Failed to validate authentication',
+            : 'Failed to check authentication',
       });
     }
   },
