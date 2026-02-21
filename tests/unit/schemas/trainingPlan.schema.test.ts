@@ -53,6 +53,22 @@ describe('PlanAccessSchema', () => {
 
     expect(() => PlanAccessSchema.parse(invalidPlanAccess)).toThrow();
   });
+
+  it('should accept plan access with null grantedFromPersonId', () => {
+    const validPlanAccessWithNullGrantedFrom = {
+      planAccessId: 0,
+      personId: 6240623,
+      planId: 624432,
+      accessFromPayment: false,
+      accessFromShare: false,
+      grantedFromPersonId: null,
+      planAccessType: 2,
+    };
+
+    const result = PlanAccessSchema.parse(validPlanAccessWithNullGrantedFrom);
+    expect(result).toEqual(validPlanAccessWithNullGrantedFrom);
+    expect(result.grantedFromPersonId).toBeNull();
+  });
 });
 
 describe('TrainingPlanSchema', () => {
