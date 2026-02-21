@@ -12,7 +12,7 @@ import type {
   ApiResponse,
 } from '@/types/api.types';
 import { logger } from '@/utils/logger';
-import { API_BASE_URL } from '@/utils/constants';
+import { API_BASE_URL, createApiHeaders } from '@/utils/constants';
 import {
   fetchUser,
   fetchLibraries,
@@ -133,13 +133,7 @@ async function handleValidateToken(): Promise<{
 
     const response = await fetch(endpoint, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/javascript, */*; q=0.01',
-        Origin: 'https://app.trainingpeaks.com',
-        Referer: 'https://app.trainingpeaks.com/',
-      },
+      headers: createApiHeaders(token),
     });
 
     console.log(

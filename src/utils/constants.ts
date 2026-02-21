@@ -31,3 +31,24 @@ export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   TOKEN_TIMESTAMP: 'token_timestamp',
 } as const;
+
+/**
+ * Create headers for TrainingPeaks API requests
+ *
+ * Includes all required headers for CORS and authentication:
+ * - Authorization with bearer token
+ * - Accept, Content-Type for JSON
+ * - Origin, Referer for CORS compliance
+ *
+ * @param token - Bearer token for authentication
+ * @returns Headers object for fetch requests
+ */
+export function createApiHeaders(token: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/javascript, */*; q=0.01',
+    Origin: 'https://app.trainingpeaks.com',
+    Referer: 'https://app.trainingpeaks.com/',
+  };
+}

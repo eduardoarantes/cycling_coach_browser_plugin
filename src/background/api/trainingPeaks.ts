@@ -4,7 +4,11 @@
  * Handles authenticated requests to TrainingPeaks API with Zod validation
  */
 
-import { API_BASE_URL, STORAGE_KEYS } from '@/utils/constants';
+import {
+  API_BASE_URL,
+  STORAGE_KEYS,
+  createApiHeaders,
+} from '@/utils/constants';
 import { logger } from '@/utils/logger';
 import {
   UserApiResponseSchema,
@@ -51,13 +55,7 @@ async function makeApiRequest(endpoint: string): Promise<Response> {
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json, text/javascript, */*; q=0.01',
-      Origin: 'https://app.trainingpeaks.com',
-      Referer: 'https://app.trainingpeaks.com/',
-    },
+    headers: createApiHeaders(token),
   });
 
   // Handle 401 Unauthorized - clear invalid token
