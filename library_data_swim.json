@@ -1,0 +1,2409 @@
+[
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980014,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "100 Reps",
+    "workoutTypeId": 1,
+    "distancePlanned": null,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "WU:\n2 x 150 easy each done as 50 pull, 50 kick, 50 swim.\n200 kick easy.\n2 x 50 (10”) moderate.\nMS:\n4 x 100 at T-pace (10”).\n300 time trial.\nCD: 200 pull easy.\nTotal: 1500",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "repetition",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "type": "step",
+              "name": "Pull",
+              "length": {
+                "unit": "meter",
+                "value": 50
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "type": "step",
+              "name": "Kick",
+              "length": {
+                "unit": "meter",
+                "value": 50
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "type": "step",
+              "name": "Swim",
+              "length": {
+                "unit": "meter",
+                "value": 50
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 0,
+          "end": 150
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Recovery",
+              "length": {
+                "value": 10,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 0
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 150,
+          "end": 396.42857142857144
+        },
+        {
+          "type": "repetition",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "type": "step",
+              "name": "Pull",
+              "length": {
+                "unit": "meter",
+                "value": 50
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "type": "step",
+              "name": "Kick",
+              "length": {
+                "unit": "meter",
+                "value": 50
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "type": "step",
+              "name": "Swim",
+              "length": {
+                "unit": "meter",
+                "value": 50
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 396.42857142857144,
+          "end": 546.42857142857144
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Kick",
+              "length": {
+                "value": 200,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 546.42857142857144,
+          "end": 746.42857142857144
+        },
+        {
+          "type": "repetition",
+          "length": {
+            "value": 2,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "type": "step",
+              "name": "Hard",
+              "length": {
+                "unit": "meter",
+                "value": 50
+              },
+              "targets": [
+                {
+                  "minValue": 90
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "type": "step",
+              "name": "Rest",
+              "length": {
+                "unit": "second",
+                "value": 10
+              },
+              "targets": [
+                {
+                  "minValue": 0
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 746.42857142857144,
+          "end": 1339.2857142857142
+        },
+        {
+          "type": "repetition",
+          "length": {
+            "value": 4,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "type": "step",
+              "name": "Hard",
+              "length": {
+                "unit": "meter",
+                "value": 100
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "type": "step",
+              "name": "Rest",
+              "length": {
+                "unit": "second",
+                "value": 10
+              },
+              "targets": [
+                {
+                  "minValue": 0
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 1339.2857142857142,
+          "end": 2725
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Time Trial",
+              "length": {
+                "value": 300,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 2725,
+          "end": 3025
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down",
+              "length": {
+                "value": 200,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 3025,
+          "end": 3225
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.682],
+        [0.016, 0.682],
+        [0.016, 0],
+        [0.016, 0.682],
+        [0.031, 0.682],
+        [0.031, 0],
+        [0.031, 0.682],
+        [0.047, 0.682],
+        [0.047, 0],
+        [0.047, 0],
+        [0.123, 0],
+        [0.123, 0],
+        [0.123, 0.682],
+        [0.138, 0.682],
+        [0.138, 0],
+        [0.138, 0.682],
+        [0.154, 0.682],
+        [0.154, 0],
+        [0.154, 0.682],
+        [0.169, 0.682],
+        [0.169, 0],
+        [0.169, 0.682],
+        [0.231, 0.682],
+        [0.231, 0],
+        [0.231, 0.818],
+        [0.247, 0.818],
+        [0.247, 0],
+        [0.247, 0],
+        [0.323, 0],
+        [0.323, 0],
+        [0.323, 0.818],
+        [0.339, 0.818],
+        [0.339, 0],
+        [0.339, 0],
+        [0.415, 0],
+        [0.415, 0],
+        [0.415, 0.909],
+        [0.446, 0.909],
+        [0.446, 0],
+        [0.446, 0],
+        [0.523, 0],
+        [0.523, 0],
+        [0.523, 0.909],
+        [0.554, 0.909],
+        [0.554, 0],
+        [0.554, 0],
+        [0.63, 0],
+        [0.63, 0],
+        [0.63, 0.909],
+        [0.661, 0.909],
+        [0.661, 0],
+        [0.661, 0],
+        [0.738, 0],
+        [0.738, 0],
+        [0.738, 0.909],
+        [0.769, 0.909],
+        [0.769, 0],
+        [0.769, 0],
+        [0.845, 0],
+        [0.845, 0],
+        [0.845, 1],
+        [0.938, 1],
+        [0.938, 0],
+        [0.938, 0.682],
+        [1, 0.682],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "percentOfThresholdPace",
+      "visualizationDistanceUnit": "meter"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980015,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "75s Descending ",
+    "workoutTypeId": 1,
+    "distancePlanned": null,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "WU:\n50 pull, 50 kick, 50 swim done 3 times.\nMS:\n4 x 75 descending times (30”).\n50 kick easy.\n4 x 75 descending times (30”).\n50 kick easy.\n4 x 75 descending times (30”).\n50 kick easy.\n4 x 75 descending times (30”).\n50 kick easy.\n1 x 75 fastest of workout (easy 25 swim).\nCD: 100 easy swim.\nTotal—1925",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": null,
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980016,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Aerobic Efforts",
+    "workoutTypeId": 1,
+    "distancePlanned": null,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "Aerobic Intervals\nWarm-up: 100 swim easy, 50 drill (your choice), 100 swim moderate, 50 drill, 100 swim build speed, 50 drill.\nMainset: For the first set decrease times with each work interval. All aerobic—easy breathing.\nSet #1: 3 x 200 (10sec rest between 200s) moderate.\nRest 2 minutes.\nSet #2: Swim 300 easy.\nSet #3: 6 x 50 relaxed speed (15sec).\nCool down: 100 easy swim.\nTotal: 1750",
+    "coachComments": "Some abbreviations used in this plan: WU=warm-up, CD=cool down, MS=mainset, sec=seconds, min=minutes, RM=repetitions max (the most reps possible for a given load).",
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 100 swim easy",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 0,
+          "end": 91.4399998610112
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 50 Drill of choice",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 91.4399998610112,
+          "end": 137.15999979151681
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 100 swim moderate",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 85
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 137.15999979151681,
+          "end": 228.59999965252803
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 50 Drill of choice",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 228.59999965252803,
+          "end": 274.31999958303362
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 100 swim build speed",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 92
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 274.31999958303362,
+          "end": 365.75999944404481
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 50 Drill of choice",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 365.75999944404481,
+          "end": 411.4799993745504
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "3 x 200 (10 sec rest)",
+              "length": {
+                "value": 548.63999916606724,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 92
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 411.4799993745504,
+          "end": 960.11999854061764
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "2min rest",
+              "length": {
+                "value": 119.78639981792469,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 0
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 960.11999854061764,
+          "end": 1105.5927255922263
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "300 easy",
+              "length": {
+                "value": 274.31999958303362,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 80
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1105.5927255922263,
+          "end": 1379.91272517526
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "6 x 50 relaxed speed (15sec)",
+              "length": {
+                "value": 274.31999958303362,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1379.91272517526,
+          "end": 1654.2327247582937
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down 100 easy",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 1654.2327247582937,
+          "end": 1745.672724619305
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.682],
+        [0.052, 0.682],
+        [0.052, 0],
+        [0.052, 0.682],
+        [0.079, 0.682],
+        [0.079, 0],
+        [0.079, 0.773],
+        [0.131, 0.773],
+        [0.131, 0],
+        [0.131, 0.682],
+        [0.157, 0.682],
+        [0.157, 0],
+        [0.157, 0.836],
+        [0.21, 0.836],
+        [0.21, 0],
+        [0.21, 0.682],
+        [0.236, 0.682],
+        [0.236, 0],
+        [0.236, 0.836],
+        [0.55, 0.836],
+        [0.55, 0],
+        [0.55, 0],
+        [0.633, 0],
+        [0.633, 0],
+        [0.633, 0.727],
+        [0.79, 0.727],
+        [0.79, 0],
+        [0.79, 1],
+        [0.948, 1],
+        [0.948, 0],
+        [0.948, 0.682],
+        [1, 0.682],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "percentOfThresholdPace",
+      "visualizationDistanceUnit": "yard"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980017,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Long Sets With Aids",
+    "workoutTypeId": 1,
+    "distancePlanned": 2743.2001953125,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "Long Sets With Aids.\nYou may substitute a masters swim session for this workout.\n\nWU:\n500 your choice of swim and drills.\nMS:\n500 paddles and buoy moderate (30sec rest).\n500 buoy only moderate (30sec).\n500 swim moderate (30sec).\n500 fins moderate (30sec).\nCD: 500 easy.\nTotal: 3000",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 500 swim & drills",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 80
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 0,
+          "end": 457.19999930505605
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "500 paddles & buoy (30sec)",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 90
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 457.19999930505605,
+          "end": 914.39999861011211
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "500 buoy only (30sec)",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 90
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 914.39999861011211,
+          "end": 1371.5999979151682
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "500 swim mod (30sec)",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 90
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1371.5999979151682,
+          "end": 1828.7999972202242
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "500 fins mod (30sec)",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 90
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1828.7999972202242,
+          "end": 2285.99999652528
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down 500 easy",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 2285.99999652528,
+          "end": 2743.1999958303359
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.889],
+        [0.167, 0.889],
+        [0.167, 0],
+        [0.167, 1],
+        [0.333, 1],
+        [0.333, 0],
+        [0.333, 1],
+        [0.5, 1],
+        [0.5, 0],
+        [0.5, 1],
+        [0.667, 1],
+        [0.667, 0],
+        [0.667, 1],
+        [0.833, 1],
+        [0.833, 0],
+        [0.833, 0.833],
+        [1, 0.833],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "percentOfThresholdPace",
+      "visualizationDistanceUnit": "yard"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980018,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Moderate 100s",
+    "workoutTypeId": 1,
+    "distancePlanned": 1325.8800048828125,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "(You may substitute a masters swim workout.) WU: All easy.\n100 swim, 100 drill (your choice), 100 pull buoy, 100 swim.\nMS:\n3 x 100 mod (10sec rest).\n50 easy swim\n3 x 100 mod (10sec).\n50 easy swim\n3 x 100 mod (10sec).\n50 easy swim\n3 x 100 mod (10sec).\n2 x 75 (20sec) done as 25 easy, 25 fast, 25 easy.\nCD: 300 easy swim.\nTotal: 2250\n\nOR ALTERNATIVE PDLC SWIM (your choice)\nFor 30-45 minutes swim 25 repeats moderately fast while focusing on only Posture, Direction, Length, or Catch. (20-30sec rest after each)",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 100 swim, 100 drill, 100 pull buoy, 100 swim",
+              "length": {
+                "value": 365.75999944404481,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 0,
+          "end": 365.75999944404481
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "3 x 100 mod (10sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 88
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 365.75999944404481,
+          "end": 457.199999305056
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Recovery",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 70
+                }
+              ],
+              "intensityClass": "rest",
+              "openDuration": false
+            }
+          ],
+          "begin": 457.199999305056,
+          "end": 502.91999923556159
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "3 x 100 mod (10sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 88
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 502.91999923556159,
+          "end": 594.35999909657278
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Recovery",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 70
+                }
+              ],
+              "intensityClass": "rest",
+              "openDuration": false
+            }
+          ],
+          "begin": 594.35999909657278,
+          "end": 640.07999902707843
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "3 x 100 mod (10sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 88
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 640.07999902707843,
+          "end": 731.51999888808962
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Recovery",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 70
+                }
+              ],
+              "intensityClass": "rest",
+              "openDuration": false
+            }
+          ],
+          "begin": 731.51999888808962,
+          "end": 777.23999881859527
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "3 x 100 mod (10sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 88
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 777.23999881859527,
+          "end": 868.67999867960646
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Recovery",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 70
+                }
+              ],
+              "intensityClass": "rest",
+              "openDuration": false
+            }
+          ],
+          "begin": 868.67999867960646,
+          "end": 914.39999861011211
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "2 x 75 (20sec) as 25 easy, 25 fast, 25 easy",
+              "length": {
+                "value": 137.15999979151681,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 95
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 914.39999861011211,
+          "end": 1051.5599984016289
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down 300 easy swim",
+              "length": {
+                "value": 274.31999958303362,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 1051.5599984016289,
+          "end": 1325.8799979846626
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.789],
+        [0.276, 0.789],
+        [0.276, 0],
+        [0.276, 0.926],
+        [0.345, 0.926],
+        [0.345, 0],
+        [0.345, 0.737],
+        [0.379, 0.737],
+        [0.379, 0],
+        [0.379, 0.926],
+        [0.448, 0.926],
+        [0.448, 0],
+        [0.448, 0.737],
+        [0.483, 0.737],
+        [0.483, 0],
+        [0.483, 0.926],
+        [0.552, 0.926],
+        [0.552, 0],
+        [0.552, 0.737],
+        [0.586, 0.737],
+        [0.586, 0],
+        [0.586, 0.926],
+        [0.655, 0.926],
+        [0.655, 0],
+        [0.655, 0.737],
+        [0.69, 0.737],
+        [0.69, 0],
+        [0.69, 1],
+        [0.793, 1],
+        [0.793, 0],
+        [0.793, 0.789],
+        [1, 0.789],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "percentOfThresholdPace",
+      "visualizationDistanceUnit": "yard"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980019,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Mixing Paces",
+    "workoutTypeId": 1,
+    "distancePlanned": null,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "(You may substitute a masters swim workout.) WU:\n100 swim easy.\n(20sec rest)\n50 swim moderately fast.\n(20sec rest)\n100 swim moderate.\n(20sec)\n50 swim fast.\n100 swim building speed throughout.\n(20sec)\n50 swim fast.\n(20sec)\nMS:\n300 constant, moderate pace. Rest 1 minute.\n3 x 100 (20sec) Start easy. Make each 100 faster.\n200 constant, moderate pace. Rest 1 minute.\n2 x 100 (20sec) Start easy. Start easy. Make each 100 faster.\nCD: 200 easy swim.\nTotal: 1650\n\nOR ALTERNATIVE PDLC SWIM (your choice)\nFor 30-45 minutes swim 25 repeats moderately fast while focusing on only Posture, Direction, Length, or Catch. (20-30sec rest after each)",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "rampUp",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "100 swim easy (20sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 80
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "50 mod fast (20sec)",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 96
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "100 swim mod (20sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 88
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "50 swim fast (20sec)",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 96
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "100 build speed (20sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 93
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "50 swim fast (20sec)",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 0,
+          "end": 411.4799993745504
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "300 constant mod pace",
+              "length": {
+                "value": 274.31999958303362,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 88
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 411.4799993745504,
+          "end": 685.799998957584
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "1 min rest",
+              "length": {
+                "value": 60.3503999082674,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 0
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 685.799998957584,
+          "end": 874.39499867091956
+        },
+        {
+          "type": "rampUp",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "3 x 100 (20sec) ",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 80
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "(20sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 90
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "(20sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 874.39499867091956,
+          "end": 1148.7149982539531
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "200 constant mod pace",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 88
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1148.7149982539531,
+          "end": 1331.5949979759755
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "1 min rest",
+              "length": {
+                "value": 60.3503999082674,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 0
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 1331.5949979759755,
+          "end": 1520.1899976893112
+        },
+        {
+          "type": "rampUp",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "2 x 100 (20sec) ",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 80
+                }
+              ],
+              "intensityClass": "active"
+            },
+            {
+              "name": "(20sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 90
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1520.1899976893112,
+          "end": 1703.0699974113336
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down 200 easy swim",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 1703.0699974113336,
+          "end": 1885.949997133356
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.727],
+        [0.048, 0.727],
+        [0.048, 0],
+        [0.048, 0.873],
+        [0.073, 0.873],
+        [0.073, 0],
+        [0.073, 0.8],
+        [0.121, 0.8],
+        [0.121, 0],
+        [0.121, 0.873],
+        [0.145, 0.873],
+        [0.145, 0],
+        [0.145, 0.845],
+        [0.194, 0.845],
+        [0.194, 0],
+        [0.194, 1],
+        [0.218, 1],
+        [0.218, 0],
+        [0.218, 0.8],
+        [0.364, 0.8],
+        [0.364, 0],
+        [0.364, 0],
+        [0.464, 0],
+        [0.464, 0],
+        [0.464, 0.727],
+        [0.512, 0.727],
+        [0.512, 0],
+        [0.512, 0.818],
+        [0.561, 0.818],
+        [0.561, 0],
+        [0.561, 0.909],
+        [0.609, 0.909],
+        [0.609, 0],
+        [0.609, 0.8],
+        [0.706, 0.8],
+        [0.706, 0],
+        [0.706, 0],
+        [0.806, 0],
+        [0.806, 0],
+        [0.806, 0.727],
+        [0.855, 0.727],
+        [0.855, 0],
+        [0.855, 0.818],
+        [0.903, 0.818],
+        [0.903, 0],
+        [0.903, 0.682],
+        [1, 0.682],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "percentOfThresholdPace",
+      "visualizationDistanceUnit": "yard"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980020,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Form Work",
+    "workoutTypeId": 1,
+    "distancePlanned": null,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "Swim several long, easy sets. Focus on form. Count strokes per length trying to reduce them with efficient technique. Cadence should be in the range of 45-55 strokes per minute.",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": null,
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980021,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Descending Ladder",
+    "workoutTypeId": 1,
+    "distancePlanned": null,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "You may substitute a masters swim session for this workout.\n\nWU: 5-10 minutes of mixed swimming and drills.\nMS:\n400 at T-pace (60sec rest).\n300 faster than preceding 300 pace (60sec).\n200 faster than preceding 200 pace (60sec).\n100 faster than preceding 200 pace.\nCD: 500 easy swim.\nTotal—1500+",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 5-10 mins mixed swim & drills",
+              "length": {
+                "value": 299.92319954411676,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 0,
+          "end": 299
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "400 at T-pace (60sec rest)",
+              "length": {
+                "value": 365.75999944404481,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 299,
+          "end": 664.75999944404475
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "300 faster (60sec)",
+              "length": {
+                "value": 274.31999958303362,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 105
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 664.75999944404475,
+          "end": 939.07999902707843
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "200 faster (60sec)",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 939.07999902707843,
+          "end": 1121.9599987491008
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "100 faster ",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 115
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1121.9599987491008,
+          "end": 1213.3999986101121
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down 500 easy swim",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 1213.3999986101121,
+          "end": 1670.5999979151682
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.652],
+        [0.179, 0.652],
+        [0.179, 0],
+        [0.179, 0.87],
+        [0.398, 0.87],
+        [0.398, 0],
+        [0.398, 0.913],
+        [0.562, 0.913],
+        [0.562, 0],
+        [0.562, 0.957],
+        [0.672, 0.957],
+        [0.672, 0],
+        [0.672, 1],
+        [0.726, 1],
+        [0.726, 0],
+        [0.726, 0.652],
+        [1, 0.652],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "percentOfThresholdPace",
+      "visualizationDistanceUnit": "yard"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980022,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Ladder Down",
+    "workoutTypeId": 1,
+    "distancePlanned": 2148.840087890625,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "(You may substitute a masters swim workout.) WU: 6 x 50 done as 25 drill of choice, 25 building speed.\nMS:\n500 at T-pace (50sec rest).\n5 x 25 fast (20sec rest between).\n400 at T-pace (40sec).\n4 x 25 fast (20sec).\n300 at T-pace (30sec).\n3 x 25 fast (20sec).\n200 at T-pace (20sec).\n2 x 25 fast (20sec).\n100 at T-pace.\nCD: 200 easy drills and swims of your choice.\nTotal—2350",
+    "coachComments": null,
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 6 x 50 as 25 drill, 25 building speed",
+              "length": {
+                "value": 274.31999958303362,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 0,
+          "end": 274.31999958303362
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "500 at T-pace (50sec)",
+              "length": {
+                "value": 457.19999930505605,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 274.31999958303362,
+          "end": 731.51999888808973
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "5 x 25 fast (20sec)",
+              "length": {
+                "value": 114.29999982626401,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 731.51999888808973,
+          "end": 845.81999871435369
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "400 at T-pace (50sec)",
+              "length": {
+                "value": 365.75999944404481,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 845.81999871435369,
+          "end": 1211.5799981583984
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "4 x 25 fast (20sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1211.5799981583984,
+          "end": 1303.0199980194097
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "300 at T-pace (50sec)",
+              "length": {
+                "value": 274.31999958303362,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1303.0199980194097,
+          "end": 1577.3399976024434
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "3 x 25 fast (20sec)",
+              "length": {
+                "value": 68.5799998957584,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1577.3399976024434,
+          "end": 1645.9199974982018
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "200 at T-pace (50sec)",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1645.9199974982018,
+          "end": 1828.7999972202242
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "2 x 25 fast (20sec)",
+              "length": {
+                "value": 45.7199999305056,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 110
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1828.7999972202242,
+          "end": 1874.5199971507298
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "100 at T-pace (50sec)",
+              "length": {
+                "value": 91.4399998610112,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 100
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1874.5199971507298,
+          "end": 1965.9599970117411
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down 200 easy drills & swims ",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 75
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 1965.9599970117411,
+          "end": 2148.8399967337637
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.682],
+        [0.128, 0.682],
+        [0.128, 0],
+        [0.128, 0.909],
+        [0.34, 0.909],
+        [0.34, 0],
+        [0.34, 1],
+        [0.394, 1],
+        [0.394, 0],
+        [0.394, 0.909],
+        [0.564, 0.909],
+        [0.564, 0],
+        [0.564, 1],
+        [0.606, 1],
+        [0.606, 0],
+        [0.606, 0.909],
+        [0.734, 0.909],
+        [0.734, 0],
+        [0.734, 1],
+        [0.766, 1],
+        [0.766, 0],
+        [0.766, 0.909],
+        [0.851, 0.909],
+        [0.851, 0],
+        [0.851, 1],
+        [0.872, 1],
+        [0.872, 0],
+        [0.872, 0.909],
+        [0.915, 0.909],
+        [0.915, 0],
+        [0.915, 0.682],
+        [1, 0.682],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "percentOfThresholdPace",
+      "visualizationDistanceUnit": "yard"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "exerciseLibraryItemId": 7980024,
+    "exerciseLibraryItemType": "WorkoutTemplate",
+    "itemName": "Continuous Swim",
+    "workoutTypeId": 1,
+    "distancePlanned": null,
+    "totalTimePlanned": null,
+    "caloriesPlanned": null,
+    "tssPlanned": null,
+    "ifPlanned": null,
+    "velocityPlanned": null,
+    "energyPlanned": null,
+    "elevationGainPlanned": null,
+    "description": "You may substitute a similar masters swim session for this workout.\n\nWarm-up:\nA. 5-minute swim with your choice of drills and swims. Focus on how well you do the drills, not on how fast.\nB. 3 x (4 x 50 done as 25 slow and easy, 25 moderately fast emphasizing form). (10sec rest between 50s)\nMainset:\nA. 2 x 300 swim (1min rest between) at moderate/aerobic effort.\n(1min rest).\nB. Swim 400 moderate effort.\nCool down:\n5 minutes of easy swimming.\nTotal: 1600+",
+    "coachComments": "Some abbreviations used in this plan: WU=warm-up, CD=cool down, MS=mainset, sec=seconds, min=minutes, RM=repetitions max (the most reps possible for a given load).",
+    "fileAttachments": null,
+    "structure": {
+      "structure": [
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Warm up 5 min with drills",
+              "length": {
+                "value": 299.92319954411676,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 5
+                }
+              ],
+              "intensityClass": "warmUp"
+            }
+          ],
+          "begin": 0,
+          "end": 411.4799993745504
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "4 x 50 (10\") as 25 slow&easy/25 moderately fast",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 6
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 411.4799993745504,
+          "end": 594.35999909657278
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "4 x 50 (10\") as 25 slow&easy/25 moderately fast",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 6
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 594.35999909657278,
+          "end": 777.23999881859515
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "4 x 50 (10\") as 25 slow&easy/25 moderately fast",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 6
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 777.23999881859515,
+          "end": 960.11999854061753
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "2 x 300 swim (1' rest)",
+              "length": {
+                "value": 182.8799997220224,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 7
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 960.11999854061753,
+          "end": 1142.99999826264
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "1' Rest",
+              "length": {
+                "value": 60.3503999082674,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 1
+                }
+              ],
+              "intensityClass": "rest"
+            }
+          ],
+          "begin": 1142.99999826264,
+          "end": 1554.4799976371905
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "400 moderate effort",
+              "length": {
+                "value": 365.75999944404481,
+                "unit": "meter"
+              },
+              "targets": [
+                {
+                  "minValue": 7
+                }
+              ],
+              "intensityClass": "active"
+            }
+          ],
+          "begin": 1554.4799976371905,
+          "end": 1920.2399970812353
+        },
+        {
+          "type": "step",
+          "length": {
+            "value": 1,
+            "unit": "repetition"
+          },
+          "steps": [
+            {
+              "name": "Cool Down 5 mins easy swimming",
+              "length": {
+                "value": 5,
+                "unit": "second"
+              },
+              "targets": [
+                {
+                  "minValue": 4
+                }
+              ],
+              "intensityClass": "coolDown"
+            }
+          ],
+          "begin": 1920.2399970812353,
+          "end": 2331.7199964557858
+        }
+      ],
+      "polyline": [
+        [0, 0],
+        [0, 0.714],
+        [0.176, 0.714],
+        [0.176, 0],
+        [0.176, 0.857],
+        [0.255, 0.857],
+        [0.255, 0],
+        [0.255, 0.857],
+        [0.333, 0.857],
+        [0.333, 0],
+        [0.333, 0.857],
+        [0.412, 0.857],
+        [0.412, 0],
+        [0.412, 1],
+        [0.49, 1],
+        [0.49, 0],
+        [0.49, 0.143],
+        [0.667, 0.143],
+        [0.667, 0],
+        [0.667, 1],
+        [0.824, 1],
+        [0.824, 0],
+        [0.824, 0.571],
+        [1, 0.571],
+        [1, 0]
+      ],
+      "primaryLengthMetric": "distance",
+      "primaryIntensityMetric": "rpe",
+      "visualizationDistanceUnit": "yard"
+    },
+    "fromLegacy": false,
+    "workoutSubTypeId": null
+  }
+]

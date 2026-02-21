@@ -107,23 +107,28 @@ async function handleValidateToken(): Promise<{
   userId?: number;
 }> {
   try {
+    console.log('[TP Extension - Background] 🔍 Starting token validation...');
     logger.debug('Starting token validation...');
 
     // Get token from storage
     const data = await chrome.storage.local.get(['auth_token']);
     const token = data.auth_token as string | undefined;
 
+    console.log('[TP Extension - Background] Has token:', !!token);
     logger.debug('Has token:', !!token);
 
     if (!token) {
+      console.log('[TP Extension - Background] ❌ No token to validate');
       logger.debug('No token to validate');
       return { valid: false };
     }
 
+    console.log('[TP Extension - Background] Token length:', token.length);
     logger.debug('Token length:', token.length);
 
     // Call TrainingPeaks API from background context (has host_permissions)
     const endpoint = `${API_BASE_URL}/users/v3/user`;
+    console.log('[TP Extension - Background] 🌐 Calling API:', endpoint);
     logger.debug('Calling API:', endpoint);
 
     const response = await fetch(endpoint, {
@@ -134,17 +139,32 @@ async function handleValidateToken(): Promise<{
       },
     });
 
+    console.log(
+      '[TP Extension - Background] 📡 Response status:',
+      response.status
+    );
+    console.log('[TP Extension - Background] Response ok:', response.ok);
     logger.debug('Response status:', response.status);
     logger.debug('Response ok:', response.ok);
 
     if (response.ok) {
       const data = await response.json();
+      console.log(
+        '[TP Extension - Background] ✅ Token is valid! User ID:',
+        data.user?.userId
+      );
       logger.info('Token is valid, User ID:', data.user?.userId);
       return { valid: true, userId: data.user?.userId };
     }
 
     // Token is invalid
     const errorText = await response.text();
+    console.error(
+      '[TP Extension - Background] ❌ Token invalid - Status:',
+      response.status,
+      'Response:',
+      errorText
+    );
     logger.error(
       'Token invalid - Status:',
       response.status,
@@ -154,10 +174,15 @@ async function handleValidateToken(): Promise<{
 
     // Clear invalid token
     await chrome.storage.local.remove(['auth_token', 'token_timestamp']);
+    console.log('[TP Extension - Background] 🗑️ Token cleared from storage');
     logger.warn('Token validation failed, token cleared');
 
     return { valid: false };
   } catch (error) {
+    console.error(
+      '[TP Extension - Background] ❌ ERROR validating token:',
+      error
+    );
     logger.error('Error validating token:', error);
     // On network error, don't clear token (might be temporary)
     return { valid: false };

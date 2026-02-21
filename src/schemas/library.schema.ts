@@ -40,7 +40,7 @@ export const LibraryItemSchema = z.object({
   itemName: z.string(),
   workoutTypeId: z.number(),
   distancePlanned: z.number().nullable(),
-  totalTimePlanned: z.number(),
+  totalTimePlanned: z.number().nullable(), // Can be null for swim workouts
   caloriesPlanned: z.number().nullable(),
   tssPlanned: z.number().nullable(),
   ifPlanned: z.number().nullable(),
