@@ -25,8 +25,11 @@ async function fetchLibrariesList(): Promise<Library[]> {
     );
     return response.data;
   } else {
-    logger.error('Failed to fetch libraries:', response.error);
-    throw new Error(response.error.message);
+    logger.error(
+      'Failed to fetch libraries:',
+      response.error.message || 'Unknown error'
+    );
+    throw new Error(response.error.message || 'Failed to fetch libraries');
   }
 }
 

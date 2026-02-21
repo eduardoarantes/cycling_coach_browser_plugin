@@ -30,8 +30,11 @@ async function fetchLibraryItemsList(
     );
     return response.data;
   } else {
-    logger.error('Failed to fetch library items:', response.error);
-    throw new Error(response.error.message);
+    logger.error(
+      'Failed to fetch library items:',
+      response.error.message || 'Unknown error'
+    );
+    throw new Error(response.error.message || 'Failed to fetch library items');
   }
 }
 
