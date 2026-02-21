@@ -16,7 +16,7 @@ export const PlanAccessSchema = z.object({
   planId: z.number(),
   accessFromPayment: z.boolean(),
   accessFromShare: z.boolean(),
-  grantedFromPersonId: z.number(),
+  grantedFromPersonId: z.number().nullable(),
   planAccessType: z.number(),
 });
 
