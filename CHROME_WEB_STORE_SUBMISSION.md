@@ -1,0 +1,310 @@
+# Chrome Web Store Submission Guide
+
+**Version**: 1.0.29
+**Visibility**: Private (Trusted Testers Only)
+**Distribution Type**: Limited to specific Google accounts
+
+---
+
+## Pre-Submission Checklist
+
+### ✅ Required Files (Already Complete)
+
+- [x] `manifest.json` with correct version (1.0.29)
+- [x] Icons: 16x16, 48x48, 128x128 (in `public/icons/`)
+- [x] Working extension build (in `dist/`)
+- [x] Privacy policy (`PRIVACY.md`)
+- [x] README with installation instructions
+
+### 📸 Screenshots Needed (NEXT STEP)
+
+You need to take screenshots of your extension in action:
+
+**Requirements**:
+
+- **Minimum**: 1 screenshot
+- **Recommended**: 3-5 screenshots
+- **Size**: 1280x800 or 640x400 pixels
+- **Format**: PNG or JPEG
+
+**Suggested Screenshots**:
+
+1. Extension popup showing "Authenticated" status
+2. Library list view (showing your workout libraries)
+3. Library details view (showing workouts in a library)
+4. Workout card with metrics (TSS, IF, distance, etc.)
+
+**How to take screenshots**:
+
+```bash
+# Option 1: Use Chrome DevTools
+1. Open extension popup
+2. Right-click → Inspect
+3. Click the device toolbar icon (mobile view)
+4. Set dimensions to 1280x800
+5. Screenshot with Cmd+Shift+4 (Mac) or built-in screenshot tool
+
+# Option 2: Use Chrome extension screenshot
+1. Install a screenshot extension
+2. Capture the popup at 1280x800
+```
+
+---
+
+## Store Listing Details
+
+### Item Title (Max 45 characters)
+
+```
+PlanMyPeak Integration
+```
+
+### Short Description (Max 132 characters)
+
+```
+Access your TrainingPeaks workout libraries directly from your browser. View, search, and explore your training plans.
+```
+
+### Detailed Description (Max 16,000 characters)
+
+```
+# PlanMyPeak Integration
+
+Browse your TrainingPeaks workout libraries without leaving your browser.
+
+## Features
+
+✅ **Instant Authentication** - Automatically detects when you're logged into TrainingPeaks
+✅ **Library Browser** - View all your workout libraries in one place
+✅ **Workout Details** - See key metrics: TSS, IF, distance, elevation, duration
+✅ **Multi-Sport Support** - Cycling, running, and swimming workouts
+✅ **Search & Filter** - Quickly find the workouts you need
+✅ **Privacy First** - All data stays local, no third-party tracking
+
+## How It Works
+
+1. **Log into TrainingPeaks** at app.trainingpeaks.com
+2. **Click the extension icon** in your browser toolbar
+3. **Browse your libraries** - all your workouts at your fingertips
+
+## Privacy & Security
+
+- Your authentication token is stored securely in your browser
+- No data is sent to third parties
+- All communication is directly with TrainingPeaks API
+- Open source code available for review
+
+## Requirements
+
+- Active TrainingPeaks account
+- Chrome browser
+- Internet connection
+
+## Support
+
+- GitHub: https://github.com/eduardoarantes/cycling_coach_browser_plugin
+- Issues: https://github.com/eduardoarantes/cycling_coach_browser_plugin/issues
+
+**Note**: This is an independent project and is not affiliated with TrainingPeaks.
+```
+
+### Category
+
+**Productivity** (or **Sports** if available)
+
+### Language
+
+**English (United States)**
+
+---
+
+## Step-by-Step Submission Process
+
+### Step 1: Create Developer Account
+
+1. Go to [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+2. Pay **$5 one-time registration fee**
+3. Complete developer registration
+
+### Step 2: Prepare the Package
+
+```bash
+# Build the latest version
+npm run build
+
+# Create distribution zip
+cd dist
+zip -r ../trainingpeaks-extension-v1.0.29.zip .
+cd ..
+
+# Verify the zip
+unzip -l trainingpeaks-extension-v1.0.29.zip
+```
+
+### Step 3: Upload Extension
+
+1. Go to [Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+2. Click **"New Item"**
+3. Upload `trainingpeaks-extension-v1.0.29.zip`
+4. Wait for upload to complete
+
+### Step 4: Fill Out Store Listing
+
+**Item Details**:
+
+- Product name: `PlanMyPeak Integration`
+- Summary: (use short description above)
+- Description: (use detailed description above)
+- Category: `Productivity`
+- Language: `English (United States)`
+
+**Privacy**:
+
+- Single purpose: `Access and display TrainingPeaks workout library data`
+- Permission justification:
+  - `storage`: Store authentication token locally
+  - `https://tpapi.trainingpeaks.com/*`: Fetch workout library data
+  - `https://app.trainingpeaks.com/*`: Intercept authentication token
+- Host permissions: Clearly justified above
+- Privacy policy: Upload `PRIVACY.md` or host on GitHub Pages
+
+**Graphic Assets**:
+
+- Icon: Upload `public/icons/icon128.png`
+- Screenshots: Upload 3-5 screenshots (1280x800)
+- Promotional tile (optional): 440x280 image
+
+### Step 5: Set Visibility to PRIVATE
+
+**CRITICAL STEP** for limited distribution:
+
+1. Go to **"Distribution"** tab
+2. Select **"Private"**
+3. Add trusted tester email addresses (Google accounts):
+   ```
+   tester1@gmail.com
+   tester2@gmail.com
+   tester3@gmail.com
+   ```
+4. **DO NOT** select "Public" or "Unlisted"
+
+### Step 6: Submit for Review
+
+1. Click **"Submit for review"**
+2. Review process takes **1-3 business days**
+3. You'll receive email when approved
+
+### Step 7: Share with Testers
+
+Once approved:
+
+1. Get your extension URL (format: `https://chrome.google.com/webstore/detail/[extension-id]`)
+2. Share link ONLY with email addresses you added as trusted testers
+3. Those users can install directly from Chrome Web Store
+
+---
+
+## Updating the Extension
+
+When you make changes:
+
+```bash
+# Update version in package.json (done automatically by prebuild)
+npm run build
+
+# Create new zip
+cd dist && zip -r ../trainingpeaks-extension-v1.0.XX.zip . && cd ..
+
+# Upload to Chrome Web Store
+# Go to dashboard → Select item → Upload new version
+```
+
+Trusted testers will receive automatic updates.
+
+---
+
+## Troubleshooting
+
+### Extension Rejected?
+
+Common reasons:
+
+- **Single Purpose violation**: Ensure description clearly states single purpose
+- **Privacy policy missing**: Must be publicly accessible
+- **Permissions not justified**: Add clear justification for each permission
+- **Manifest issues**: Review manifest.json for errors
+
+### Can't Add Testers?
+
+- Testers must have Google accounts
+- Email addresses must be exact (case-sensitive)
+- Maximum 100 trusted testers for private distribution
+
+---
+
+## Privacy Policy Hosting Options
+
+### Option 1: GitHub Pages (Recommended)
+
+```bash
+# Commit PRIVACY.md
+git add PRIVACY.md
+git commit -m "docs: add privacy policy for Chrome Web Store"
+git push
+
+# Enable GitHub Pages
+# Go to repo settings → Pages → Source: main branch
+# Privacy policy will be at:
+# https://eduardoarantes.github.io/cycling_coach_browser_plugin/PRIVACY
+```
+
+### Option 2: Raw GitHub File
+
+```
+https://raw.githubusercontent.com/eduardoarantes/cycling_coach_browser_plugin/main/PRIVACY.md
+```
+
+### Option 3: Host on Your Website
+
+Upload `PRIVACY.md` as HTML to your personal website.
+
+---
+
+## Cost Summary
+
+- **Developer Account**: $5 (one-time)
+- **Hosting**: Free (GitHub)
+- **Distribution**: Free (Chrome Web Store)
+- **Updates**: Free (unlimited)
+
+---
+
+## Timeline
+
+1. **Account setup**: 15 minutes
+2. **Package preparation**: 30 minutes
+3. **Store listing**: 30-60 minutes
+4. **Review process**: 1-3 business days
+5. **Total time**: ~2-4 days
+
+---
+
+## Next Steps
+
+1. [ ] Take 3-5 screenshots of the extension
+2. [ ] Create Chrome Web Store Developer account ($5)
+3. [ ] Create distribution zip package
+4. [ ] Fill out store listing with details from this document
+5. [ ] Set visibility to "Private"
+6. [ ] Add trusted tester email addresses
+7. [ ] Submit for review
+8. [ ] Wait for approval (1-3 days)
+9. [ ] Share installation link with testers
+
+---
+
+## Questions?
+
+- Chrome Web Store Policies: https://developer.chrome.com/docs/webstore/program-policies/
+- Review Process: https://developer.chrome.com/docs/webstore/review-process/
+- Privacy Requirements: https://developer.chrome.com/docs/webstore/privacy/
