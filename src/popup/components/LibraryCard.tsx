@@ -13,6 +13,7 @@ export function LibraryCard({
   return (
     <button
       onClick={() => onClick(library.exerciseLibraryId)}
+      aria-label={`View ${library.libraryName} library by ${library.ownerName}`}
       className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
     >
       <h3 className="text-base font-semibold text-gray-900 truncate">

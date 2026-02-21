@@ -52,7 +52,7 @@ describe('EmptyState', () => {
       render(<EmptyState title="No Data" message="Empty" action={action} />);
 
       expect(
-        screen.getByRole('button', { name: 'Try Again' })
+        screen.getByRole('button', { name: 'Try Again - No Data' })
       ).toBeInTheDocument();
     });
   });
@@ -73,7 +73,7 @@ describe('EmptyState', () => {
         />
       );
 
-      const button = screen.getByRole('button', { name: 'Retry' });
+      const button = screen.getByRole('button', { name: 'Retry - Error' });
       fireEvent.click(button);
 
       expect(onClick).toHaveBeenCalledTimes(1);
@@ -96,9 +96,9 @@ describe('EmptyState', () => {
 
       render(<EmptyState title="Title" message="Message" action={action} />);
 
-      const button = screen.getByRole('button', { name: 'Click Me' });
+      const button = screen.getByRole('button', { name: 'Click Me - Title' });
       expect(button).toBeInTheDocument();
-      expect(button).toHaveAccessibleName('Click Me');
+      expect(button).toHaveAccessibleName('Click Me - Title');
     });
   });
 });
