@@ -1,7 +1,7 @@
 {
-  "name": "cycling_coach_browser_plugin",
-  "version": "1.0.29",
-  "description": "TrainingPeaks Browser Extension for Workout Library Access",
+  "name": "planmypeak-integration",
+  "version": "1.0.30",
+  "description": "PlanMyPeak Integration - Browser Extension for Workout Library Access",
   "type": "module",
   "scripts": {
     "dev": "vite",

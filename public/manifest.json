@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "TrainingPeaks Library Access",
-  "version": "1.0.29",
-  "description": "Access your TrainingPeaks workout libraries directly from your browser",
+  "name": "PlanMyPeak Integration",
+  "version": "1.0.30",
+  "description": "Access your workout libraries and training plans directly from your browser",
   "permissions": ["storage"],
   "host_permissions": [
     "https://tpapi.trainingpeaks.com/*",
