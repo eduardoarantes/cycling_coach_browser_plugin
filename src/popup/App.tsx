@@ -4,6 +4,8 @@ import { AuthStatus } from './components/AuthStatus';
 import { UserInfo } from './components/UserInfo';
 import { LibraryList } from './components/LibraryList';
 import { LibraryDetails } from './components/LibraryDetails';
+import { TabNavigation } from './components/TabNavigation';
+import { TrainingPlanList } from './components/TrainingPlanList';
 import { useAuth } from '@/hooks/useAuth';
 import { useUser } from '@/hooks/useUser';
 import { useLibraries } from '@/hooks/useLibraries';
@@ -11,6 +13,9 @@ import { useLibraries } from '@/hooks/useLibraries';
 function App(): ReactElement {
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(
     null
+  );
+  const [activeTab, setActiveTab] = useState<'libraries' | 'plans'>(
+    'libraries'
   );
   const { isAuthenticated } = useAuth();
 
@@ -30,6 +35,17 @@ function App(): ReactElement {
     setSelectedLibraryId(null);
   };
 
+  const handleTabChange = (tab: 'libraries' | 'plans'): void => {
+    setActiveTab(tab);
+    // Reset selections when switching tabs
+    setSelectedLibraryId(null);
+  };
+
+  const handleSelectPlan = (planId: number): void => {
+    // TODO: Implement plan detail view in Phase 5 (Calendar Grid)
+    console.log('Selected plan:', planId);
+  };
+
   return (
     <div className="w-96 min-h-96 p-4 bg-gray-50">
       <div className="mb-4">
@@ -43,14 +59,20 @@ function App(): ReactElement {
         <>
           <UserInfo user={user} isLoading={userLoading} />
 
-          {selectedLibraryId !== null ? (
-            <LibraryDetails
-              libraryId={selectedLibraryId}
-              libraryName={selectedLibraryName}
-              onBack={handleBackToLibraries}
-            />
+          <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+
+          {activeTab === 'libraries' ? (
+            selectedLibraryId !== null ? (
+              <LibraryDetails
+                libraryId={selectedLibraryId}
+                libraryName={selectedLibraryName}
+                onBack={handleBackToLibraries}
+              />
+            ) : (
+              <LibraryList onSelectLibrary={setSelectedLibraryId} />
+            )
           ) : (
-            <LibraryList onSelectLibrary={setSelectedLibraryId} />
+            <TrainingPlanList onSelectPlan={handleSelectPlan} />
           )}
         </>
       )}
