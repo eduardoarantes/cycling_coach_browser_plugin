@@ -26,6 +26,7 @@ export function useAuth(): {
     refreshAuth,
     clearAuth,
     setError,
+    setAuthState,
   } = useAuthStore();
 
   // Check auth on mount
@@ -68,12 +69,12 @@ export function useAuth(): {
           console.log('[useAuth] ✅ New token detected, refreshing auth...');
           refreshAuth();
         } else if (oldValue && !newValue) {
-          // Token was REMOVED (401 response cleared it)
-          // Immediately update UI to show not authenticated
+          // Token was REMOVED (401 response cleared it by background service)
+          // Immediately update UI state to reflect removal - don't try to clear storage again!
           console.log(
-            '[useAuth] 🚨 Token removed from storage, clearing auth state...'
+            '[useAuth] 🚨 Token removed from storage (by background), updating UI state...'
           );
-          clearAuth();
+          setAuthState(false, null, null);
         }
       }
     };
@@ -85,7 +86,7 @@ export function useAuth(): {
       console.log('[useAuth] Removing storage listener');
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, [refreshAuth]);
+  }, [refreshAuth, setAuthState]);
 
   return {
     isAuthenticated,

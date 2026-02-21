@@ -33,12 +33,15 @@ async function fetchUserProfile(): Promise<UserProfile> {
 /**
  * Custom hook for user profile data
  *
+ * @param options - Optional configuration
+ * @param options.enabled - Whether to auto-fetch (default: true)
  * @returns React Query result with user profile data
  *
  * @example
  * ```tsx
  * function UserProfile() {
- *   const { data: user, isLoading, error } = useUser();
+ *   const { isAuthenticated } = useAuth();
+ *   const { data: user, isLoading, error } = useUser({ enabled: isAuthenticated });
  *
  *   if (isLoading) return <div>Loading...</div>;
  *   if (error) return <div>Error: {error.message}</div>;
@@ -48,11 +51,15 @@ async function fetchUserProfile(): Promise<UserProfile> {
  * }
  * ```
  */
-export function useUser(): UseQueryResult<UserProfile, Error> {
+export function useUser(options?: {
+  enabled?: boolean;
+}): UseQueryResult<UserProfile, Error> {
   return useQuery<UserProfile, Error>({
     queryKey: ['user'],
     queryFn: fetchUserProfile,
     // User data is critical, don't retry too aggressively
     retry: 1,
+    // Only fetch when enabled (typically when authenticated)
+    enabled: options?.enabled ?? true,
   });
 }

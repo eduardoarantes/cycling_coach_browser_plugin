@@ -36,12 +36,15 @@ async function fetchLibrariesList(): Promise<Library[]> {
 /**
  * Custom hook for libraries list
  *
+ * @param options - Optional configuration
+ * @param options.enabled - Whether to auto-fetch (default: true)
  * @returns React Query result with libraries array
  *
  * @example
  * ```tsx
  * function LibraryList() {
- *   const { data: libraries, isLoading, error, refetch } = useLibraries();
+ *   const { isAuthenticated } = useAuth();
+ *   const { data: libraries, isLoading, error, refetch } = useLibraries({ enabled: isAuthenticated });
  *
  *   if (isLoading) return <LoadingSpinner />;
  *   if (error) return <ErrorMessage error={error} onRetry={refetch} />;
@@ -57,11 +60,15 @@ async function fetchLibrariesList(): Promise<Library[]> {
  * }
  * ```
  */
-export function useLibraries(): UseQueryResult<Library[], Error> {
+export function useLibraries(options?: {
+  enabled?: boolean;
+}): UseQueryResult<Library[], Error> {
   return useQuery<Library[], Error>({
     queryKey: ['libraries'],
     queryFn: fetchLibrariesList,
     // Libraries change infrequently, cache aggressively
     staleTime: 10 * 60 * 1000, // 10 minutes
+    // Only fetch when enabled (typically when authenticated)
+    enabled: options?.enabled ?? true,
   });
 }
