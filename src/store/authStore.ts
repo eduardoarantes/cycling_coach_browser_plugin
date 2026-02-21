@@ -20,6 +20,11 @@ interface AuthState {
   refreshAuth: () => Promise<void>;
   clearAuth: () => Promise<void>;
   setError: (error: string | null) => void;
+  setAuthState: (
+    isAuthenticated: boolean,
+    token: string | null,
+    tokenAge: number | null
+  ) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -157,5 +162,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   // Set error
   setError: (error: string | null) => {
     set({ error });
+  },
+
+  // Update auth state without modifying storage
+  // Used by storage listener to sync UI with storage changes made by background
+  setAuthState: (
+    isAuthenticated: boolean,
+    token: string | null,
+    tokenAge: number | null
+  ) => {
+    console.log(
+      '[authStore] setAuthState() - direct state update from storage listener'
+    );
+    set({ isAuthenticated, token, tokenAge, error: null });
   },
 }));

@@ -13,8 +13,12 @@ function App(): ReactElement {
     null
   );
   const { isAuthenticated } = useAuth();
-  const { data: user, isLoading: userLoading } = useUser();
-  const { data: libraries } = useLibraries();
+
+  // Only fetch data when authenticated to avoid 401 errors
+  const { data: user, isLoading: userLoading } = useUser({
+    enabled: isAuthenticated,
+  });
+  const { data: libraries } = useLibraries({ enabled: isAuthenticated });
 
   // Find the selected library name
   const selectedLibrary = libraries?.find(
