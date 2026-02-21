@@ -17,7 +17,6 @@ function createWrapper() {
     },
   });
 
-  // eslint-disable-next-line react/display-name
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
@@ -243,13 +242,7 @@ describe('useUser', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      // Access the query client from the result
-      const queryCache = result.current['queryClient']
-        ? result.current['queryClient'].getQueryCache()
-        : undefined;
-
-      // Since we can't access queryClient directly from result,
-      // we'll just verify the hook was called correctly
+      // Verify the hook was called correctly
       expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
         type: 'GET_USER',
       });

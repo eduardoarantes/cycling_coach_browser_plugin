@@ -37,7 +37,7 @@ async function loadExtension(): Promise<BrowserContext> {
  * Get extension popup page
  * The popup is opened as a new page when clicking the extension icon
  */
-async function getExtensionPopup(
+async function _getExtensionPopup(
   context: BrowserContext
 ): Promise<string | null> {
   // Get all pages (including extension pages)
