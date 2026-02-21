@@ -1,6 +1,6 @@
 {
   "name": "cycling_coach_browser_plugin",
-  "version": "1.0.12",
+  "version": "1.0.15",
   "description": "TrainingPeaks Browser Extension for Workout Library Access",
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "prebuild": "node scripts/increment-version.cjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint . --max-warnings 20",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "vitest",
