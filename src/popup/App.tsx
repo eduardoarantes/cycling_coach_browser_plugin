@@ -29,7 +29,7 @@ function App(): ReactElement {
   return (
     <div className="w-96 min-h-96 p-4 bg-gray-50">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-800">TrainingPeaks</h1>
+        <h1 className="text-xl font-bold text-gray-800">PlanMyPeak Importer</h1>
         <p className="text-sm text-gray-600">Workout Library Access</p>
       </div>
 

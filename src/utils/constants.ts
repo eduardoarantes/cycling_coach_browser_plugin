@@ -17,7 +17,7 @@ export const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000;
 /**
  * Extension display name
  */
-export const EXTENSION_NAME = 'PlanMyPeak Integration';
+export const EXTENSION_NAME = 'PlanMyPeak Importer';
 
 /**
  * Extension version (should match manifest.json)
