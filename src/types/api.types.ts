@@ -17,6 +17,17 @@ export type {
   LibraryItemsApiResponse,
 } from '@/schemas/library.schema';
 
+export type {
+  TrainingPlan,
+  TrainingPlansApiResponse,
+  PlanWorkout,
+  PlanWorkoutsApiResponse,
+  CalendarNote,
+  CalendarNotesApiResponse,
+  CalendarEvent,
+  CalendarEventsApiResponse,
+} from '@/schemas/trainingPlan.schema';
+
 export type { ApiError } from '@/schemas/api.schema';
 
 /**

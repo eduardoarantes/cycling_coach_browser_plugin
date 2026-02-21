@@ -7,6 +7,7 @@
 import {
   API_BASE_URL,
   STORAGE_KEYS,
+  PLAN_DATE_RANGE,
   createApiHeaders,
 } from '@/utils/constants';
 import { logger } from '@/utils/logger';
@@ -14,12 +15,20 @@ import {
   UserApiResponseSchema,
   LibrariesApiResponseSchema,
   LibraryItemsApiResponseSchema,
+  TrainingPlansApiResponseSchema,
+  PlanWorkoutsApiResponseSchema,
+  CalendarNotesApiResponseSchema,
+  CalendarEventsApiResponseSchema,
 } from '@/schemas';
 import type {
   ApiResponse,
   UserProfile,
   Library,
   LibraryItem,
+  TrainingPlan,
+  PlanWorkout,
+  CalendarNote,
+  CalendarEvent,
 } from '@/types/api.types';
 import { ZodError, type z } from 'zod';
 
@@ -175,5 +184,68 @@ export async function fetchLibraryItems(
     `/exerciselibrary/v2/libraries/${libraryId}/items`,
     LibraryItemsApiResponseSchema,
     `library ${libraryId} items`
+  );
+}
+
+/**
+ * Fetch training plans from TrainingPeaks API
+ *
+ * @returns Array of training plans or error
+ */
+export async function fetchTrainingPlans(): Promise<
+  ApiResponse<TrainingPlan[]>
+> {
+  return apiRequest(
+    '/plans/v1/plansWithAccess',
+    TrainingPlansApiResponseSchema,
+    'training plans'
+  );
+}
+
+/**
+ * Fetch workouts for a specific training plan from TrainingPeaks API
+ *
+ * @param planId - ID of the training plan to fetch workouts from
+ * @returns Array of plan workouts or error
+ */
+export async function fetchPlanWorkouts(
+  planId: number
+): Promise<ApiResponse<PlanWorkout[]>> {
+  return apiRequest(
+    `/plans/v1/plans/${planId}/workouts/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
+    PlanWorkoutsApiResponseSchema,
+    `plan ${planId} workouts`
+  );
+}
+
+/**
+ * Fetch calendar notes for a specific training plan from TrainingPeaks API
+ *
+ * @param planId - ID of the training plan to fetch notes from
+ * @returns Array of calendar notes or error
+ */
+export async function fetchPlanNotes(
+  planId: number
+): Promise<ApiResponse<CalendarNote[]>> {
+  return apiRequest(
+    `/plans/v1/plans/${planId}/calendarNote/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
+    CalendarNotesApiResponseSchema,
+    `plan ${planId} notes`
+  );
+}
+
+/**
+ * Fetch events for a specific training plan from TrainingPeaks API
+ *
+ * @param planId - ID of the training plan to fetch events from
+ * @returns Array of calendar events or error
+ */
+export async function fetchPlanEvents(
+  planId: number
+): Promise<ApiResponse<CalendarEvent[]>> {
+  return apiRequest(
+    `/plans/v1/plans/${planId}/events/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
+    CalendarEventsApiResponseSchema,
+    `plan ${planId} events`
   );
 }
