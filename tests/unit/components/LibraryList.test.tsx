@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LibraryList } from '@/popup/components/LibraryList';
 import type { Library } from '@/types/api.types';
 import type { ApiResponse } from '@/types/api.types';
+import type { ReactElement } from 'react';
 
 const mockLibraries: Library[] = [
   {
@@ -43,7 +44,7 @@ function createTestQueryClient(): QueryClient {
   });
 }
 
-function renderWithClient(ui: React.ReactElement): ReturnType<typeof render> {
+function renderWithClient(ui: ReactElement): ReturnType<typeof render> {
   const queryClient = createTestQueryClient();
   return render(
     <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
