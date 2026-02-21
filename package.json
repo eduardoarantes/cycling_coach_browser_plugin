@@ -1,12 +1,13 @@
 {
   "name": "planmypeak-importer",
-  "version": "1.0.39",
+  "version": "1.0.45",
   "description": "PlanMyPeak Importer - Browser Extension for Workout Library Access",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "prebuild": "node scripts/increment-version.cjs",
     "build": "tsc && vite build",
+    "package": "npm run build && ./scripts/package-for-distribution.sh",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 20",
     "type-check": "tsc --noEmit",

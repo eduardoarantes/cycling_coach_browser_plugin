@@ -37,8 +37,12 @@ export function useAuth(): {
 
   // Listen for token changes in storage (additions and removals)
   // This keeps UI state synchronized with background service worker
+  // Uses debouncing to prevent rapid-fire refreshAuth calls
   useEffect(() => {
     console.log('[useAuth] Setting up storage listener for token changes...');
+
+    // Debounce timer for refreshAuth calls (prevents rapid-fire updates)
+    let debounceTimer: number | null = null;
 
     const handleStorageChange = (
       changes: { [key: string]: chrome.storage.StorageChange },
@@ -66,14 +70,34 @@ export function useAuth(): {
             return;
           }
 
-          console.log('[useAuth] ✅ New token detected, refreshing auth...');
-          refreshAuth();
+          // Clear any pending debounced refresh
+          if (debounceTimer) {
+            console.log('[useAuth] ⏱️ Clearing previous debounce timer...');
+            clearTimeout(debounceTimer);
+          }
+
+          // Debounce refreshAuth to prevent rapid-fire calls
+          console.log(
+            '[useAuth] ✅ New token detected, scheduling debounced refresh (150ms)...'
+          );
+          debounceTimer = setTimeout(() => {
+            console.log('[useAuth] 🔄 Executing debounced refreshAuth...');
+            refreshAuth();
+            debounceTimer = null;
+          }, 150);
         } else if (oldValue && !newValue) {
           // Token was REMOVED (401 response cleared it by background service)
           // Immediately update UI state to reflect removal - don't try to clear storage again!
           console.log(
             '[useAuth] 🚨 Token removed from storage (by background), updating UI state...'
           );
+
+          // Cancel any pending refresh since token is gone
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+          }
+
           setAuthState(false, null, null);
         }
       }
@@ -83,7 +107,13 @@ export function useAuth(): {
     console.log('[useAuth] ✅ Storage listener registered');
 
     return () => {
-      console.log('[useAuth] Removing storage listener');
+      console.log('[useAuth] Removing storage listener and clearing timers');
+
+      // Clean up debounce timer on unmount
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
   }, [refreshAuth, setAuthState]);

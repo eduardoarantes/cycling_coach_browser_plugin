@@ -34,17 +34,6 @@ async function getAuthToken(): Promise<string | null> {
 }
 
 /**
- * Clear authentication token from storage
- */
-async function clearAuthToken(): Promise<void> {
-  await chrome.storage.local.remove([
-    STORAGE_KEYS.AUTH_TOKEN,
-    STORAGE_KEYS.TOKEN_TIMESTAMP,
-  ]);
-  logger.warn('Authentication token cleared due to 401 response');
-}
-
-/**
  * Make authenticated API request
  */
 async function makeApiRequest(endpoint: string): Promise<Response> {
@@ -60,7 +49,13 @@ async function makeApiRequest(endpoint: string): Promise<Response> {
 
   // Handle 401 Unauthorized - clear invalid token
   if (response.status === 401) {
-    await clearAuthToken();
+    logger.warn(`401 Unauthorized on ${endpoint} - Token may be expired`);
+    console.warn(
+      `[TP Extension - Background] ⚠️ 401 on ${endpoint} - NOT clearing token automatically`
+    );
+    // DON'T automatically clear token - let the user see they need to re-authenticate
+    // The content script will capture a fresh token when they refresh TrainingPeaks
+    // await clearAuthToken();
   }
 
   return response;

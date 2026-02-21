@@ -14,6 +14,7 @@ interface AuthState {
   error: string | null;
   token: string | null;
   tokenAge: number | null;
+  isRefreshing: boolean; // Internal flag to prevent concurrent refreshAuth calls
 
   // Actions
   checkAuth: () => Promise<void>;
@@ -27,13 +28,14 @@ interface AuthState {
   ) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   // Initial state
   isAuthenticated: false,
   isLoading: false,
   error: null,
   token: null,
   tokenAge: null,
+  isRefreshing: false,
 
   // Check authentication status
   checkAuth: async () => {
@@ -68,8 +70,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   // Refresh authentication (optimistic check - no API validation)
   // API validation happens lazily when user actually fetches data
   refreshAuth: async () => {
+    // Prevent concurrent calls - if already refreshing, skip
+    if (get().isRefreshing) {
+      console.log(
+        '[authStore] ⏭️ refreshAuth() already in progress, skipping...'
+      );
+      return;
+    }
+
     console.log('[authStore] refreshAuth() called');
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, isRefreshing: true });
 
     try {
       // Check if token exists and get its age
@@ -91,6 +101,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           token: null,
           tokenAge: null,
           isLoading: false,
+          isRefreshing: false,
         });
         return;
       }
@@ -103,13 +114,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       if (isExpired) {
         // Token is too old, clear it
-        console.log('[authStore] ⏰ Token expired by age, clearing...');
+        console.warn(
+          `[authStore] ⏰ Token expired by age (${tokenAge}ms > 24h), clearing from storage...`
+        );
+        console.trace('[authStore] Token expiration clear stack trace:');
         await authService.clearAuth();
         set({
           isAuthenticated: false,
           token: null,
           tokenAge: null,
           isLoading: false,
+          isRefreshing: false,
         });
       } else {
         // Token exists and is not expired - optimistically trust it
@@ -122,6 +137,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           token: token,
           tokenAge: tokenAge,
           isLoading: false,
+          isRefreshing: false,
           error: null,
         });
       }
@@ -129,6 +145,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.error('[authStore] Error in refreshAuth:', error);
       set({
         isLoading: false,
+        isRefreshing: false,
         error:
           error instanceof Error
             ? error.message

@@ -33,21 +33,40 @@ window.fetch = async function (...args) {
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
+
+      // Only capture TrainingPeaks encrypted tokens (start with "gAAAA")
+      // NOT JWT tokens (start with "eyJ")
+      const isEncryptedToken = token.startsWith('gAAAA');
+      const isApiCall = urlStr.includes('tpapi.trainingpeaks.com');
+
       log('  🎫 BEARER TOKEN FOUND! Length:', token.length);
-      log('  📤 Posting token to isolated world...');
-
-      // Send token to isolated world content script via postMessage
-      window.postMessage(
-        {
-          type: 'TP_TOKEN_FOUND',
-          token: token,
-          timestamp: Date.now(),
-          source: 'trainingpeaks-extension-main',
-        },
-        '*'
+      log(
+        '  🔍 Token type:',
+        isEncryptedToken ? 'Encrypted (gAAAA)' : 'JWT (eyJ)'
       );
+      log('  🌐 API call:', isApiCall ? 'YES' : 'NO');
 
-      log('  ✅ Token posted');
+      if (isEncryptedToken && isApiCall) {
+        log('  ✅ Valid TrainingPeaks API token! Posting to isolated world...');
+
+        // Send token to isolated world content script via postMessage
+        window.postMessage(
+          {
+            type: 'TP_TOKEN_FOUND',
+            token: token,
+            timestamp: Date.now(),
+            source: 'trainingpeaks-extension-main',
+          },
+          '*'
+        );
+
+        log('  ✅ Token posted');
+      } else {
+        log(
+          '  ⏭️ Skipping token (not encrypted API token):',
+          token.substring(0, 20) + '...'
+        );
+      }
     }
   } else {
     log('  ℹ️  No headers');
@@ -94,19 +113,39 @@ XMLHttpRequest.prototype.open = function (
       const authHeader = headers.get('authorization');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
+
+        // Only capture TrainingPeaks encrypted tokens (start with "gAAAA")
+        // NOT JWT tokens (start with "eyJ")
+        const isEncryptedToken = token.startsWith('gAAAA');
+        const isApiCall = url.toString().includes('tpapi.trainingpeaks.com');
+
         log('  🎫 BEARER TOKEN FOUND (XHR)! Length:', token.length);
-
-        window.postMessage(
-          {
-            type: 'TP_TOKEN_FOUND',
-            token: token,
-            timestamp: Date.now(),
-            source: 'trainingpeaks-extension-main',
-          },
-          '*'
+        log(
+          '  🔍 Token type:',
+          isEncryptedToken ? 'Encrypted (gAAAA)' : 'JWT (eyJ)'
         );
+        log('  🌐 API call:', isApiCall ? 'YES' : 'NO');
 
-        log('  ✅ Token posted (XHR)');
+        if (isEncryptedToken && isApiCall) {
+          log('  ✅ Valid TrainingPeaks API token! Posting...');
+
+          window.postMessage(
+            {
+              type: 'TP_TOKEN_FOUND',
+              token: token,
+              timestamp: Date.now(),
+              source: 'trainingpeaks-extension-main',
+            },
+            '*'
+          );
+
+          log('  ✅ Token posted (XHR)');
+        } else {
+          log(
+            '  ⏭️ Skipping token (not encrypted API token):',
+            token.substring(0, 20) + '...'
+          );
+        }
       }
     }
   });
