@@ -4,7 +4,8 @@
  * Mocks Chrome extension APIs for testing
  */
 
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 
 // Create a storage map to simulate chrome.storage.local
 const storageMap = new Map<string, unknown>();
