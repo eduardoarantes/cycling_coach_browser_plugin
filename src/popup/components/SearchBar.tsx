@@ -33,6 +33,7 @@ export function SearchBar({
       value={localValue}
       onChange={(e) => setLocalValue(e.target.value)}
       placeholder={placeholder}
+      aria-label="Search libraries"
       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
     />
   );

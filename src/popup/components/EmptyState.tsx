@@ -27,6 +27,7 @@ export function EmptyState({
       {action && (
         <button
           onClick={action.onClick}
+          aria-label={`${action.label} - ${title}`}
           className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition"
         >
           {action.label}
