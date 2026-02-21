@@ -33,6 +33,43 @@ export function useAuth(): {
     refreshAuth();
   }, [refreshAuth]);
 
+  // Listen for token storage changes and auto-refresh auth state
+  // This handles the race condition where token is intercepted AFTER popup opens
+  useEffect(() => {
+    const handleStorageChange = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      areaName: string
+    ): void => {
+      // Only listen to local storage changes
+      if (areaName !== 'local') return;
+
+      // Check if auth_token was added or changed
+      if (changes.auth_token) {
+        const newValue = changes.auth_token.newValue;
+        const oldValue = changes.auth_token.oldValue;
+
+        // Token was added or changed (not removed)
+        if (newValue && newValue !== oldValue) {
+          console.log(
+            '[useAuth] Token detected in storage, refreshing auth state...'
+          );
+          refreshAuth();
+        }
+        // Token was removed
+        else if (!newValue && oldValue) {
+          console.log('[useAuth] Token removed from storage, clearing auth...');
+          clearAuth();
+        }
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, [refreshAuth, clearAuth]);
+
   return {
     isAuthenticated,
     isLoading,
