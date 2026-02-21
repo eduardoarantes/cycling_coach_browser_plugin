@@ -7,14 +7,19 @@ export interface WorkoutCardProps {
 }
 
 /**
- * Format duration in seconds to "Xh Ym" format
+ * Format duration from hours (decimal) to "Xh Ym" format
  * Returns "N/A" if duration is null (e.g., for swim workouts)
+ * Note: TrainingPeaks API returns duration as decimal hours, not seconds
  */
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) return 'N/A';
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
+function formatDuration(hours: number | null): string {
+  if (hours === null) return 'N/A';
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+
+  if (wholeHours === 0) {
+    return `${minutes}m`;
+  }
+  return `${wholeHours}h ${minutes}m`;
 }
 
 /**
@@ -45,7 +50,7 @@ export function WorkoutCard({
 }: WorkoutCardProps): ReactElement {
   const duration = formatDuration(workout.totalTimePlanned);
   const ariaLabel = workout.tssPlanned
-    ? `${workout.itemName}, ${duration}, TSS ${workout.tssPlanned}`
+    ? `${workout.itemName}, ${duration}, TSS ${Math.round(workout.tssPlanned)}`
     : `${workout.itemName}, ${duration}`;
 
   return (
@@ -69,7 +74,7 @@ export function WorkoutCard({
       <div className="flex flex-wrap gap-2 mb-3">
         {workout.tssPlanned !== null && (
           <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-            TSS {workout.tssPlanned}
+            TSS {Math.round(workout.tssPlanned)}
           </span>
         )}
         {workout.ifPlanned !== null && (
