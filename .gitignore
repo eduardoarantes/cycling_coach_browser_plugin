@@ -45,3 +45,6 @@ playwright-report/
 *.swp
 *.swo
 *~
+
+# Test/example data
+workout_examples/
