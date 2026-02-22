@@ -1,10 +1,12 @@
 import type { ReactElement } from 'react';
 import { useLibraryItems } from '@/hooks/useLibraryItems';
+import { useExport } from '@/hooks/useExport';
 import { LibraryHeader } from './LibraryHeader';
 import { WorkoutCard } from './WorkoutCard';
 import { WorkoutGrid } from './WorkoutGrid';
 import { LoadingSpinner } from './LoadingSpinner';
 import { EmptyState } from './EmptyState';
+import { ExportButton, ExportDialog, ExportResult } from './export';
 
 export interface LibraryDetailsProps {
   libraryId: number;
@@ -49,6 +51,17 @@ export function LibraryDetails({
     refetch,
   } = useLibraryItems(libraryId);
 
+  // Export functionality
+  const {
+    isDialogOpen,
+    isExporting,
+    exportResult,
+    openDialog,
+    closeDialog,
+    executeExport,
+    closeResult,
+  } = useExport(workouts ?? []);
+
   // Get workout count (0 if loading or error)
   const workoutCount = workouts?.length ?? 0;
 
@@ -66,6 +79,19 @@ export function LibraryDetails({
         workoutCount={workoutCount}
         onBack={onBack}
       />
+
+      {/* Export Button - shown when workouts are available */}
+      {!isLoading && !error && workouts && workouts.length > 0 && (
+        <div className="px-4 mb-4">
+          <ExportButton
+            onClick={openDialog}
+            disabled={isExporting}
+            itemCount={workouts.length}
+            variant="secondary"
+            fullWidth
+          />
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading && (
@@ -111,6 +137,20 @@ export function LibraryDetails({
             />
           ))}
         </WorkoutGrid>
+      )}
+
+      {/* Export Dialog */}
+      <ExportDialog
+        isOpen={isDialogOpen}
+        onClose={closeDialog}
+        onExport={executeExport}
+        itemCount={workoutCount}
+        isExporting={isExporting}
+      />
+
+      {/* Export Result */}
+      {exportResult && (
+        <ExportResult result={exportResult} onClose={closeResult} />
       )}
     </div>
   );
