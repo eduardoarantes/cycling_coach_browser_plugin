@@ -20,6 +20,7 @@ import {
   organizeByWeek,
 } from '@/utils/dateUtils';
 import { logger } from '@/utils/logger';
+import { is401Error, openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
 import type {
   PlanWorkout,
   RxBuilderWorkout,
@@ -291,23 +292,41 @@ export function PlanCalendar({
           : { type: 'events', error: eventsError!, retry: refetchEvents };
 
     const errorMessage = `Failed to load ${errorContext.type}: ${errorContext.error.message}`;
-    const errorMsg = errorContext.error.message;
+    const isAuthError = is401Error(errorContext.error);
+
+    const handleRetry = async (): Promise<void> => {
+      if (isAuthError) {
+        // For 401 errors, open TrainingPeaks to get a fresh token
+        await openTrainingPeaksTab();
+      } else {
+        // For other errors, just retry the request
+        errorContext.retry();
+      }
+    };
 
     return (
       <div className="flex flex-col items-center justify-center p-8">
         <p className="text-red-600 font-semibold text-center">{errorMessage}</p>
-        <p className="text-gray-500 text-xs mt-1 text-center">
-          {errorMsg.includes('401') &&
-            'Please refresh TrainingPeaks to re-authenticate'}
-          {errorMsg.includes('Network') && 'Check your internet connection'}
-          {errorMsg.includes('NO_TOKEN') &&
-            'Not authenticated - please visit TrainingPeaks'}
-        </p>
+        {isAuthError && (
+          <p className="text-gray-500 text-xs mt-1 text-center">
+            Opening TrainingPeaks to refresh your authentication...
+          </p>
+        )}
+        {!isAuthError && errorContext.error.message.includes('Network') && (
+          <p className="text-gray-500 text-xs mt-1 text-center">
+            Check your internet connection
+          </p>
+        )}
+        {!isAuthError && errorContext.error.message.includes('NO_TOKEN') && (
+          <p className="text-gray-500 text-xs mt-1 text-center">
+            Not authenticated - please visit TrainingPeaks
+          </p>
+        )}
         <button
-          onClick={() => errorContext.retry()}
+          onClick={handleRetry}
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
-          Retry
+          {isAuthError ? 'Open TrainingPeaks' : 'Retry'}
         </button>
         {onBack && (
           <button

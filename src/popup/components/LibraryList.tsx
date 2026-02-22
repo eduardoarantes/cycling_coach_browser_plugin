@@ -5,6 +5,7 @@ import { LibraryGrid } from './LibraryGrid';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
+import { is401Error, openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
 
 export interface LibraryListProps {
   onSelectLibrary: (libraryId: number) => void;
@@ -40,6 +41,18 @@ export function LibraryList({
 
   // Error state
   if (error) {
+    const isAuthError = is401Error(error);
+
+    const handleRetry = async (): Promise<void> => {
+      if (isAuthError) {
+        // For 401 errors, open TrainingPeaks to get a fresh token
+        await openTrainingPeaksTab();
+      } else {
+        // For other errors, just retry the request
+        refetch();
+      }
+    };
+
     return (
       <div className="p-4">
         <div className="p-4 bg-red-50 rounded-lg border border-red-200">
@@ -47,11 +60,16 @@ export function LibraryList({
             Failed to Load Data
           </p>
           <p className="mt-1 text-xs text-red-600">{error.message}</p>
+          {isAuthError && (
+            <p className="mt-2 text-xs text-red-500">
+              Opening TrainingPeaks to refresh your authentication...
+            </p>
+          )}
           <button
-            onClick={() => refetch()}
+            onClick={handleRetry}
             className="mt-3 text-sm text-red-600 hover:text-red-800 font-medium"
           >
-            Retry
+            {isAuthError ? 'Open TrainingPeaks' : 'Retry'}
           </button>
         </div>
       </div>
