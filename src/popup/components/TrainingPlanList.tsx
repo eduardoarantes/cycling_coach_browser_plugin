@@ -4,9 +4,10 @@
  * Displays list of training plans with loading, error, and empty states
  */
 
-import type { ReactElement } from 'react';
+import { useState, useMemo, type ReactElement } from 'react';
 import { useTrainingPlans } from '@/hooks/useTrainingPlans';
 import { TrainingPlanCard } from './TrainingPlanCard';
+import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
 import { is401Error, openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
@@ -18,7 +19,21 @@ export interface TrainingPlanListProps {
 export function TrainingPlanList({
   onSelectPlan,
 }: TrainingPlanListProps): ReactElement {
+  const [searchQuery, setSearchQuery] = useState('');
   const { data: plans, isLoading, error, refetch } = useTrainingPlans();
+
+  // Filter plans based on search query
+  const filteredPlans = useMemo(() => {
+    if (!plans) return [];
+    if (!searchQuery) return plans;
+
+    const query = searchQuery.toLowerCase();
+    return plans.filter(
+      (plan) =>
+        plan.title.toLowerCase().includes(query) ||
+        plan.author.toLowerCase().includes(query)
+    );
+  }, [plans, searchQuery]);
 
   // Loading state
   if (isLoading) {
@@ -78,16 +93,34 @@ export function TrainingPlanList({
     );
   }
 
+  // No search results state
+  if (filteredPlans.length === 0) {
+    return (
+      <div className="mt-4">
+        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        <div className="mt-4">
+          <EmptyState
+            title="No Training Plans Found"
+            message={`No plans match "${searchQuery}"`}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Success state with plans
   return (
-    <div className="mt-4 space-y-3">
-      {plans.map((plan) => (
-        <TrainingPlanCard
-          key={plan.planId}
-          plan={plan}
-          onClick={onSelectPlan}
-        />
-      ))}
+    <div className="mt-4">
+      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      <div className="mt-4 space-y-3">
+        {filteredPlans.map((plan) => (
+          <TrainingPlanCard
+            key={plan.planId}
+            plan={plan}
+            onClick={onSelectPlan}
+          />
+        ))}
+      </div>
     </div>
   );
 }
