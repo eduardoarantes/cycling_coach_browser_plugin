@@ -55,8 +55,8 @@ export function CalendarWeekRow({
       aria-label={ariaLabel}
     >
       {/* Week Number Column */}
-      <div className="bg-gray-100 border-r border-gray-300 p-3 flex items-center justify-center">
-        <h3 className="text-sm font-bold text-gray-700">Week {weekNumber}</h3>
+      <div className="bg-gray-100 border-r border-gray-300 p-2 flex items-center justify-center">
+        <h3 className="text-xs font-bold text-gray-700">Week {weekNumber}</h3>
       </div>
 
       {/* Monday (dayOfWeek=0) */}

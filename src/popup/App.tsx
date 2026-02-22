@@ -47,11 +47,15 @@ function App(): ReactElement {
     setSelectedPlanId(planId);
   };
 
+  // Use wider layout for calendar view
+  const isCalendarView = activeTab === 'plans' && selectedPlanId !== null;
+  const containerWidth = isCalendarView ? 'w-[900px]' : 'w-96';
+
   return (
-    <div className="w-96 min-h-96 p-4 bg-gray-50">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-800">PlanMyPeak Importer</h1>
-        <p className="text-sm text-gray-600">Workout Library Access</p>
+    <div className={`${containerWidth} min-h-96 p-4 bg-gray-50`}>
+      <div className="mb-3">
+        <h1 className="text-lg font-bold text-gray-800">PlanMyPeak Importer</h1>
+        <p className="text-xs text-gray-600">Workout Library Access</p>
       </div>
 
       <AuthStatus />
