@@ -6,6 +6,7 @@ import { LibraryList } from './components/LibraryList';
 import { LibraryDetails } from './components/LibraryDetails';
 import { TabNavigation } from './components/TabNavigation';
 import { TrainingPlanList } from './components/TrainingPlanList';
+import { PlanCalendar } from './components/PlanCalendar';
 import { useAuth } from '@/hooks/useAuth';
 import { useUser } from '@/hooks/useUser';
 import { useLibraries } from '@/hooks/useLibraries';
@@ -14,6 +15,7 @@ function App(): ReactElement {
   const [selectedLibraryId, setSelectedLibraryId] = useState<number | null>(
     null
   );
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'libraries' | 'plans'>(
     'libraries'
   );
@@ -35,15 +37,19 @@ function App(): ReactElement {
     setSelectedLibraryId(null);
   };
 
+  const handleBackToPlans = (): void => {
+    setSelectedPlanId(null);
+  };
+
   const handleTabChange = (tab: 'libraries' | 'plans'): void => {
     setActiveTab(tab);
     // Reset selections when switching tabs
     setSelectedLibraryId(null);
+    setSelectedPlanId(null);
   };
 
   const handleSelectPlan = (planId: number): void => {
-    // TODO: Implement plan detail view in Phase 5 (Calendar Grid)
-    console.log('Selected plan:', planId);
+    setSelectedPlanId(planId);
   };
 
   return (
@@ -71,6 +77,8 @@ function App(): ReactElement {
             ) : (
               <LibraryList onSelectLibrary={setSelectedLibraryId} />
             )
+          ) : selectedPlanId !== null ? (
+            <PlanCalendar planId={selectedPlanId} onBack={handleBackToPlans} />
           ) : (
             <TrainingPlanList onSelectPlan={handleSelectPlan} />
           )}
