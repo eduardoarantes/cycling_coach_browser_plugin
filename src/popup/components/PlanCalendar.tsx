@@ -258,46 +258,47 @@ export function PlanCalendar({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-300">
-        <h2 className="text-xl font-bold text-gray-800">
+      <div className="flex items-center justify-between p-2 border-b border-gray-300">
+        <h2 className="text-base font-bold text-gray-800">
           {planName || 'Training Plan'}
         </h2>
         {onBack && (
           <button
             onClick={onBack}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 flex items-center space-x-1"
           >
-            Back to Plans
+            <span>←</span>
+            <span>Back</span>
           </button>
         )}
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-2">
         {/* Calendar Header */}
         <div className="grid grid-cols-8 gap-0 border border-gray-300 mb-0 sticky top-0 bg-white z-10">
-          <div className="bg-gray-100 border-r border-gray-300 p-2 font-bold text-center text-sm">
+          <div className="bg-gray-100 border-r border-gray-300 p-1 font-bold text-center text-xs">
             Week
           </div>
-          <div className="bg-gray-50 border-r border-gray-300 p-2 font-semibold text-center text-sm">
+          <div className="bg-gray-50 border-r border-gray-300 p-1 font-semibold text-center text-xs">
             Mon
           </div>
-          <div className="bg-gray-50 border-r border-gray-300 p-2 font-semibold text-center text-sm">
+          <div className="bg-gray-50 border-r border-gray-300 p-1 font-semibold text-center text-xs">
             Tue
           </div>
-          <div className="bg-gray-50 border-r border-gray-300 p-2 font-semibold text-center text-sm">
+          <div className="bg-gray-50 border-r border-gray-300 p-1 font-semibold text-center text-xs">
             Wed
           </div>
-          <div className="bg-gray-50 border-r border-gray-300 p-2 font-semibold text-center text-sm">
+          <div className="bg-gray-50 border-r border-gray-300 p-1 font-semibold text-center text-xs">
             Thu
           </div>
-          <div className="bg-gray-50 border-r border-gray-300 p-2 font-semibold text-center text-sm">
+          <div className="bg-gray-50 border-r border-gray-300 p-1 font-semibold text-center text-xs">
             Fri
           </div>
-          <div className="bg-gray-50 border-r border-gray-300 p-2 font-semibold text-center text-sm">
+          <div className="bg-gray-50 border-r border-gray-300 p-1 font-semibold text-center text-xs">
             Sat
           </div>
-          <div className="bg-gray-50 p-2 font-semibold text-center text-sm">
+          <div className="bg-gray-50 p-1 font-semibold text-center text-xs">
             Sun
           </div>
         </div>
