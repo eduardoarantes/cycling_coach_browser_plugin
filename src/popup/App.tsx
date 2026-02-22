@@ -1,14 +1,12 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { AuthStatus } from './components/AuthStatus';
-import { UserInfo } from './components/UserInfo';
 import { LibraryList } from './components/LibraryList';
 import { LibraryDetails } from './components/LibraryDetails';
 import { TabNavigation } from './components/TabNavigation';
 import { TrainingPlanList } from './components/TrainingPlanList';
 import { PlanCalendar } from './components/PlanCalendar';
 import { useAuth } from '@/hooks/useAuth';
-import { useUser } from '@/hooks/useUser';
 import { useLibraries } from '@/hooks/useLibraries';
 
 function App(): ReactElement {
@@ -22,9 +20,6 @@ function App(): ReactElement {
   const { isAuthenticated } = useAuth();
 
   // Only fetch data when authenticated to avoid 401 errors
-  const { data: user, isLoading: userLoading } = useUser({
-    enabled: isAuthenticated,
-  });
   const { data: libraries } = useLibraries({ enabled: isAuthenticated });
 
   // Find the selected library name
@@ -63,8 +58,6 @@ function App(): ReactElement {
 
       {isAuthenticated && (
         <>
-          <UserInfo user={user} isLoading={userLoading} />
-
           <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
 
           {activeTab === 'libraries' ? (
