@@ -122,17 +122,41 @@ export function PlanCalendar({
     refetch: refetchEvents,
   } = usePlanEvents(planId);
 
-  // Merge classic and RxBuilder workouts into unified array
+  // Merge classic and RxBuilder workouts into unified array with deduplication
   const workouts = useMemo((): UnifiedWorkout[] => {
-    const classic: UnifiedWorkout[] = (classicWorkouts || []).map((w) => ({
-      ...w,
-      workoutSource: 'classic' as const,
-    }));
+    const seen = new Set<string>();
 
-    const rx: UnifiedWorkout[] = (rxWorkouts || []).map((w) => ({
-      ...w,
-      workoutSource: 'rxBuilder' as const,
-    }));
+    // Process classic workouts first
+    const classic: UnifiedWorkout[] = (classicWorkouts || [])
+      .map((w) => ({
+        ...w,
+        workoutSource: 'classic' as const,
+      }))
+      .filter((w) => {
+        const key = `classic-${w.workoutId}`;
+        if (seen.has(key)) {
+          logger.warn('Duplicate classic workout detected:', w.workoutId);
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+
+    // Process RxBuilder workouts with separate namespace
+    const rx: UnifiedWorkout[] = (rxWorkouts || [])
+      .map((w) => ({
+        ...w,
+        workoutSource: 'rxBuilder' as const,
+      }))
+      .filter((w) => {
+        const key = `rx-${w.id}`;
+        if (seen.has(key)) {
+          logger.warn('Duplicate RxBuilder workout detected:', w.id);
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
 
     return [...classic, ...rx];
   }, [classicWorkouts, rxWorkouts]);
@@ -245,28 +269,38 @@ export function PlanCalendar({
   // Error state
   const error = workoutsError || rxWorkoutsError || notesError || eventsError;
   if (error) {
-    const errorMessage = workoutsError
-      ? 'Failed to load workouts'
+    // Determine which data source failed and create detailed error message
+    const errorContext = workoutsError
+      ? {
+          type: 'classic workouts',
+          error: workoutsError,
+          retry: refetchWorkouts,
+        }
       : rxWorkoutsError
-        ? 'Failed to load strength workouts'
+        ? {
+            type: 'strength workouts',
+            error: rxWorkoutsError,
+            retry: refetchRxWorkouts,
+          }
         : notesError
-          ? 'Failed to load notes'
-          : 'Failed to load events';
+          ? { type: 'notes', error: notesError, retry: refetchNotes }
+          : { type: 'events', error: eventsError!, retry: refetchEvents };
 
-    const retryFn = workoutsError
-      ? refetchWorkouts
-      : rxWorkoutsError
-        ? refetchRxWorkouts
-        : notesError
-          ? refetchNotes
-          : refetchEvents;
+    const errorMessage = `Failed to load ${errorContext.type}: ${errorContext.error.message}`;
+    const errorMsg = errorContext.error.message;
 
     return (
       <div className="flex flex-col items-center justify-center p-8">
-        <p className="text-red-600 font-semibold">{errorMessage}</p>
-        <p className="text-gray-600 mt-2">{error.message}</p>
+        <p className="text-red-600 font-semibold text-center">{errorMessage}</p>
+        <p className="text-gray-500 text-xs mt-1 text-center">
+          {errorMsg.includes('401') &&
+            'Please refresh TrainingPeaks to re-authenticate'}
+          {errorMsg.includes('Network') && 'Check your internet connection'}
+          {errorMsg.includes('NO_TOKEN') &&
+            'Not authenticated - please visit TrainingPeaks'}
+        </p>
         <button
-          onClick={() => retryFn()}
+          onClick={() => errorContext.retry()}
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           Retry

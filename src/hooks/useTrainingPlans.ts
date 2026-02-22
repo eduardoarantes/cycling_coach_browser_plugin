@@ -3,6 +3,7 @@ import type { TrainingPlan } from '@/types/api.types';
 import type { GetTrainingPlansMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching training plans list
@@ -67,7 +68,7 @@ export function useTrainingPlans(options?: {
     queryKey: ['trainingPlans'],
     queryFn: fetchTrainingPlansList,
     // Training plans change infrequently, cache aggressively
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: CACHE_DURATIONS.TRAINING_PLANS,
     // Retry once on failure
     retry: 1,
     // Only fetch when enabled (typically when authenticated)

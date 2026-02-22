@@ -3,6 +3,7 @@ import type { CalendarEvent } from '@/types/api.types';
 import type { GetPlanEventsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching plan events
@@ -69,7 +70,7 @@ export function usePlanEvents(
     queryKey: ['plans', planId, 'events'],
     queryFn: () => fetchPlanEventsList(planId),
     // Events may change, cache moderately
-    staleTime: 3 * 60 * 1000, // 3 minutes
+    staleTime: CACHE_DURATIONS.PLAN_EVENTS,
     // Only fetch when enabled
     enabled: options?.enabled ?? true,
   });

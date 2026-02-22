@@ -48,6 +48,21 @@ export const PLAN_DATE_RANGE = {
 } as const;
 
 /**
+ * React Query cache durations (in milliseconds)
+ * Controls how long data remains fresh before refetching
+ */
+export const CACHE_DURATIONS = {
+  USER: 5 * 60 * 1000, // 5 minutes - user profile rarely changes
+  LIBRARIES: 10 * 60 * 1000, // 10 minutes - library list is relatively static
+  LIBRARY_ITEMS: 3 * 60 * 1000, // 3 minutes - library items may be edited
+  TRAINING_PLANS: 10 * 60 * 1000, // 10 minutes - plan list rarely changes
+  PLAN_WORKOUTS: 3 * 60 * 1000, // 3 minutes - workouts may be modified
+  PLAN_NOTES: 3 * 60 * 1000, // 3 minutes - notes may be edited
+  PLAN_EVENTS: 3 * 60 * 1000, // 3 minutes - events may change
+  RX_BUILDER_WORKOUTS: 3 * 60 * 1000, // 3 minutes - strength workouts may be modified
+} as const;
+
+/**
  * Create headers for TrainingPeaks API requests
  *
  * Headers match exactly what TrainingPeaks web app sends for authentication.

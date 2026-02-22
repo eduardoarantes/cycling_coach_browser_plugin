@@ -1,0 +1,14 @@
+[
+  {
+    "id": 560805,
+    "planId": 624432,
+    "eventDate": "2026-03-14T00:00:00",
+    "name": "Husky",
+    "eventType": "MultisportTriathlon",
+    "description": "with description",
+    "comment": null,
+    "distance": null,
+    "distanceUnits": null,
+    "legs": []
+  }
+]

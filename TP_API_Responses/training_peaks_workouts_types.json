@@ -1,0 +1,290 @@
+[
+  {
+    "id": 1,
+    "name": "Swim",
+    "subTypes": [
+      {
+        "id": 1,
+        "name": "Open Water Swim"
+      },
+      {
+        "id": 2,
+        "name": "Pool Swim"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Bike",
+    "subTypes": [
+      {
+        "id": 3,
+        "name": "Road Bike"
+      },
+      {
+        "id": 4,
+        "name": "Gravel Bike"
+      },
+      {
+        "id": 5,
+        "name": "Track Bike"
+      },
+      {
+        "id": 6,
+        "name": "Indoor Bike"
+      },
+      {
+        "id": 7,
+        "name": "Cyclocross"
+      },
+      {
+        "id": 8,
+        "name": "E-Bike"
+      },
+      {
+        "id": 9,
+        "name": "Hand Cycling"
+      },
+      {
+        "id": 47,
+        "name": "Time Trial"
+      },
+      {
+        "id": 49,
+        "name": "Virtual Bike"
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Run",
+    "subTypes": [
+      {
+        "id": 10,
+        "name": "Road Run"
+      },
+      {
+        "id": 11,
+        "name": "Track Run"
+      },
+      {
+        "id": 12,
+        "name": "Trail Run"
+      },
+      {
+        "id": 13,
+        "name": "Indoor Run"
+      },
+      {
+        "id": 50,
+        "name": "Virtual Run"
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "Walk",
+    "subTypes": [
+      {
+        "id": 41,
+        "name": "Hike"
+      },
+      {
+        "id": 42,
+        "name": "Treadmill Walk"
+      },
+      {
+        "id": 43,
+        "name": "Mountaineering"
+      },
+      {
+        "id": 44,
+        "name": "Hunting"
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "Mountain Bike",
+    "subTypes": [
+      {
+        "id": 14,
+        "name": "XC-MTB"
+      },
+      {
+        "id": 15,
+        "name": "Enduro MTB"
+      },
+      {
+        "id": 16,
+        "name": "Downhill MTB"
+      },
+      {
+        "id": 17,
+        "name": "Short Track MTB"
+      },
+      {
+        "id": 18,
+        "name": "Fat Bike MTB"
+      },
+      {
+        "id": 19,
+        "name": "E-MTB"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "name": "XC-Ski",
+    "subTypes": [
+      {
+        "id": 26,
+        "name": "Classic Ski"
+      },
+      {
+        "id": 27,
+        "name": "Skate Ski"
+      },
+      {
+        "id": 28,
+        "name": "Alpine Ski"
+      },
+      {
+        "id": 29,
+        "name": "Ski Touring"
+      },
+      {
+        "id": 30,
+        "name": "Ski Mountaineering"
+      },
+      {
+        "id": 31,
+        "name": "Biathlon Ski"
+      },
+      {
+        "id": 32,
+        "name": "Roller Skiing"
+      },
+      {
+        "id": 33,
+        "name": "Nordic Combined Ski"
+      },
+      {
+        "id": 34,
+        "name": "Split Boarding"
+      },
+      {
+        "id": 46,
+        "name": "Cross Country Ski"
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "Rowing",
+    "subTypes": [
+      {
+        "id": 39,
+        "name": "Indoor Rowing"
+      },
+      {
+        "id": 51,
+        "name": "Virtual Rowing"
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Brick",
+    "subTypes": []
+  },
+  {
+    "id": 5,
+    "name": "Crosstrain",
+    "subTypes": []
+  },
+  {
+    "id": 6,
+    "name": "Race",
+    "subTypes": []
+  },
+  {
+    "id": 7,
+    "name": "Day Off",
+    "subTypes": []
+  },
+  {
+    "id": 9,
+    "name": "Strength",
+    "subTypes": []
+  },
+  {
+    "id": 10,
+    "name": "Custom",
+    "subTypes": []
+  },
+  {
+    "id": 29,
+    "name": "Strength",
+    "subTypes": [
+      {
+        "id": 20,
+        "name": "Mobility"
+      },
+      {
+        "id": 21,
+        "name": "Functional Fitness"
+      },
+      {
+        "id": 22,
+        "name": "Yoga"
+      },
+      {
+        "id": 23,
+        "name": "Rock Climbing"
+      },
+      {
+        "id": 24,
+        "name": "Hybrid Strength"
+      },
+      {
+        "id": 25,
+        "name": "Stretching"
+      }
+    ]
+  },
+  {
+    "id": 100,
+    "name": "Other",
+    "subTypes": [
+      {
+        "id": 45,
+        "name": "Speed Skating"
+      },
+      {
+        "id": 48,
+        "name": "Equestrian"
+      },
+      {
+        "id": 38,
+        "name": "Kayak"
+      },
+      {
+        "id": 37,
+        "name": "Sailing"
+      },
+      {
+        "id": 35,
+        "name": "Canoe"
+      },
+      {
+        "id": 36,
+        "name": "SUP"
+      },
+      {
+        "id": 40,
+        "name": "Surfing"
+      }
+    ]
+  }
+]

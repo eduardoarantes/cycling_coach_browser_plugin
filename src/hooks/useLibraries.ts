@@ -3,6 +3,7 @@ import type { Library } from '@/types/api.types';
 import type { GetLibrariesMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching libraries list
@@ -67,7 +68,7 @@ export function useLibraries(options?: {
     queryKey: ['libraries'],
     queryFn: fetchLibrariesList,
     // Libraries change infrequently, cache aggressively
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: CACHE_DURATIONS.LIBRARIES,
     // Only fetch when enabled (typically when authenticated)
     enabled: options?.enabled ?? true,
   });

@@ -3,6 +3,7 @@ import type { PlanWorkout } from '@/types/api.types';
 import type { GetPlanWorkoutsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching plan workouts
@@ -86,7 +87,7 @@ export function usePlanWorkouts(
     queryKey: ['plans', planId, 'workouts'],
     queryFn: () => fetchPlanWorkoutsList(planId),
     // Workouts may be edited, cache moderately
-    staleTime: 3 * 60 * 1000, // 3 minutes
+    staleTime: CACHE_DURATIONS.PLAN_WORKOUTS,
     // Only fetch when enabled
     enabled: options?.enabled ?? true,
   });

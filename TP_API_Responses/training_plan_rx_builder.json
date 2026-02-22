@@ -1,0 +1,100 @@
+[
+  {
+    "totalBlocks": 3,
+    "completedBlocks": 0,
+    "totalPrescriptions": 4,
+    "completedPrescriptions": 0,
+    "totalSets": 10,
+    "completedSets": 0,
+    "compliancePercent": 0.0,
+    "rpe": null,
+    "feel": null,
+    "sequenceSummary": [
+      {
+        "sequenceOrder": "A",
+        "title": "Warm Up",
+        "compliancePercent": 0.0
+      },
+      {
+        "sequenceOrder": "B",
+        "title": "90-90 to Lunge",
+        "compliancePercent": 0.0
+      },
+      {
+        "sequenceOrder": "C1",
+        "title": "Alternating DB Bent Over Row",
+        "compliancePercent": 0.0
+      },
+      {
+        "sequenceOrder": "C2",
+        "title": "90 Degree Iso Chin Up Hold",
+        "compliancePercent": 0.0
+      }
+    ],
+    "lastUpdatedAt": "2026-02-22T01:49:34",
+    "prescribedDate": "2026-03-04",
+    "prescribedStartTime": null,
+    "startDateTime": null,
+    "completedDateTime": null,
+    "calendarId": 6240625,
+    "title": "Strength Workout #1",
+    "instructions": null,
+    "prescribedDurationInSeconds": null,
+    "orderOnDay": 1,
+    "executedDurationInSeconds": null,
+    "isLocked": false,
+    "isHidden": false,
+    "workoutType": "StructuredStrength",
+    "workoutSubTypeId": null,
+    "id": "16628629"
+  },
+  {
+    "totalBlocks": 3,
+    "completedBlocks": 0,
+    "totalPrescriptions": 4,
+    "completedPrescriptions": 0,
+    "totalSets": 10,
+    "completedSets": 0,
+    "compliancePercent": 0.0,
+    "rpe": null,
+    "feel": null,
+    "sequenceSummary": [
+      {
+        "sequenceOrder": "A",
+        "title": "90-90 to Lunge",
+        "compliancePercent": 0.0
+      },
+      {
+        "sequenceOrder": "B1",
+        "title": "Ab Wheel",
+        "compliancePercent": 0.0
+      },
+      {
+        "sequenceOrder": "B2",
+        "title": "Alternating DB Bent Over Row",
+        "compliancePercent": 0.0
+      },
+      {
+        "sequenceOrder": "C",
+        "title": "Cool Down",
+        "compliancePercent": 0.0
+      }
+    ],
+    "lastUpdatedAt": "2026-02-22T02:45:31",
+    "prescribedDate": "2026-02-25",
+    "prescribedStartTime": null,
+    "startDateTime": null,
+    "completedDateTime": null,
+    "calendarId": 6240625,
+    "title": "Strength Workout New Builder # 2",
+    "instructions": "This is the instructions",
+    "prescribedDurationInSeconds": null,
+    "orderOnDay": null,
+    "executedDurationInSeconds": null,
+    "isLocked": false,
+    "isHidden": false,
+    "workoutType": "StructuredStrength",
+    "workoutSubTypeId": null,
+    "id": "16630274"
+  }
+]
