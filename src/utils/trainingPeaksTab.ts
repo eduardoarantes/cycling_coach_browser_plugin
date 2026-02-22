@@ -59,3 +59,50 @@ export function is401Error(error: Error): boolean {
     message.includes('no_token')
   );
 }
+
+/**
+ * Check if an error is a 403 forbidden/permission error
+ */
+export function is403Error(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return message.includes('403') || message.includes('forbidden');
+}
+
+/**
+ * Extract HTTP status code from error message
+ * Returns null if no status code found
+ */
+export function extractHttpStatus(error: Error): number | null {
+  const match = error.message.match(/HTTP\s+(\d{3})/i);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Get user-friendly error message based on error type
+ * Returns formatted message with HTTP status in parentheses if available
+ */
+export function getUserFriendlyErrorMessage(error: Error): string {
+  const httpStatus = extractHttpStatus(error);
+  const statusSuffix = httpStatus ? ` (HTTP ${httpStatus})` : '';
+
+  // Check for specific error types
+  if (is403Error(error)) {
+    return `You are not allowed to access this content${statusSuffix}`;
+  }
+
+  if (is401Error(error)) {
+    return `Authentication required${statusSuffix}`;
+  }
+
+  if (error.message.toLowerCase().includes('network')) {
+    return `Network error - check your internet connection${statusSuffix}`;
+  }
+
+  if (error.message.toLowerCase().includes('no_token')) {
+    return `Not authenticated - please visit TrainingPeaks${statusSuffix}`;
+  }
+
+  // Default: use original message with status code
+  const baseMessage = error.message.replace(/HTTP\s+\d{3}/i, '').trim();
+  return `${baseMessage}${statusSuffix}`;
+}

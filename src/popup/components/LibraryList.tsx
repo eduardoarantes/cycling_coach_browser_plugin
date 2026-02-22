@@ -5,7 +5,12 @@ import { LibraryGrid } from './LibraryGrid';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
-import { is401Error, openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
+import {
+  is401Error,
+  is403Error,
+  getUserFriendlyErrorMessage,
+  openTrainingPeaksTab,
+} from '@/utils/trainingPeaksTab';
 
 export interface LibraryListProps {
   onSelectLibrary: (libraryId: number) => void;
@@ -42,6 +47,8 @@ export function LibraryList({
   // Error state
   if (error) {
     const isAuthError = is401Error(error);
+    const isPermissionError = is403Error(error);
+    const friendlyMessage = getUserFriendlyErrorMessage(error);
 
     const handleRetry = async (): Promise<void> => {
       if (isAuthError) {
@@ -59,10 +66,15 @@ export function LibraryList({
           <p className="text-sm font-medium text-red-800">
             Failed to Load Data
           </p>
-          <p className="mt-1 text-xs text-red-600">{error.message}</p>
+          <p className="mt-1 text-xs text-red-600">{friendlyMessage}</p>
           {isAuthError && (
             <p className="mt-2 text-xs text-red-500">
               Opening TrainingPeaks to refresh your authentication...
+            </p>
+          )}
+          {isPermissionError && (
+            <p className="mt-2 text-xs text-red-500">
+              You don't have permission to access this content
             </p>
           )}
           <button

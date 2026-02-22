@@ -20,7 +20,12 @@ import {
   organizeByWeek,
 } from '@/utils/dateUtils';
 import { logger } from '@/utils/logger';
-import { is401Error, openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
+import {
+  is401Error,
+  is403Error,
+  getUserFriendlyErrorMessage,
+  openTrainingPeaksTab,
+} from '@/utils/trainingPeaksTab';
 import type {
   PlanWorkout,
   RxBuilderWorkout,
@@ -291,8 +296,10 @@ export function PlanCalendar({
           ? { type: 'notes', error: notesError, retry: refetchNotes }
           : { type: 'events', error: eventsError!, retry: refetchEvents };
 
-    const errorMessage = `Failed to load ${errorContext.type}: ${errorContext.error.message}`;
+    const friendlyMessage = getUserFriendlyErrorMessage(errorContext.error);
+    const errorMessage = `Failed to load ${errorContext.type}: ${friendlyMessage}`;
     const isAuthError = is401Error(errorContext.error);
+    const isPermissionError = is403Error(errorContext.error);
 
     const handleRetry = async (): Promise<void> => {
       if (isAuthError) {
@@ -312,14 +319,9 @@ export function PlanCalendar({
             Opening TrainingPeaks to refresh your authentication...
           </p>
         )}
-        {!isAuthError && errorContext.error.message.includes('Network') && (
+        {isPermissionError && (
           <p className="text-gray-500 text-xs mt-1 text-center">
-            Check your internet connection
-          </p>
-        )}
-        {!isAuthError && errorContext.error.message.includes('NO_TOKEN') && (
-          <p className="text-gray-500 text-xs mt-1 text-center">
-            Not authenticated - please visit TrainingPeaks
+            This training plan is not shared with you
           </p>
         )}
         <button
