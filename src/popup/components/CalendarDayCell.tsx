@@ -274,7 +274,7 @@ export function CalendarDayCell({
     workouts.length > 0 || notes.length > 0 || events.length > 0;
 
   return (
-    <div className="border-r border-gray-300 last:border-r-0 p-1 min-h-24 bg-white overflow-visible">
+    <div className="border-r border-gray-300 last:border-r-0 p-1 min-h-16 bg-white overflow-visible">
       {!hasContent ? (
         <div className="text-xs text-gray-400 text-center py-2">-</div>
       ) : (
