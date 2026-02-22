@@ -4,6 +4,7 @@
  * Displays a single day cell with compact activity icons and hover tooltips
  */
 
+import { useState } from 'react';
 import type { ReactElement } from 'react';
 import type {
   PlanWorkout,
@@ -68,6 +69,200 @@ function formatDistance(meters: number | null): string {
 }
 
 /**
+ * WorkoutBadge - Shows workout icon with detailed popup on hover
+ */
+interface WorkoutBadgeProps {
+  workout: PlanWorkout;
+}
+
+function WorkoutBadge({ workout }: WorkoutBadgeProps): ReactElement {
+  const [showPopup, setShowPopup] = useState(false);
+  const icon = getWorkoutIcon(workout.workoutTypeValueId);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setShowPopup(true)}
+      onMouseLeave={() => setShowPopup(false)}
+    >
+      <div className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-pointer text-lg">
+        {icon}
+      </div>
+
+      {showPopup && (
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 w-64">
+          <div className="bg-white border-2 border-blue-400 rounded-lg shadow-lg p-3">
+            {/* Workout Title */}
+            <h4 className="font-bold text-sm text-gray-900 mb-2">
+              {workout.title}
+            </h4>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {workout.totalTimePlanned !== null && (
+                <div>
+                  <span className="text-gray-600">Duration:</span>
+                  <span className="ml-1 font-semibold">
+                    {formatDuration(workout.totalTimePlanned)}
+                  </span>
+                </div>
+              )}
+
+              {workout.distancePlanned !== null && (
+                <div>
+                  <span className="text-gray-600">Distance:</span>
+                  <span className="ml-1 font-semibold">
+                    {formatDistance(workout.distancePlanned)}
+                  </span>
+                </div>
+              )}
+
+              {workout.tssPlanned !== null && (
+                <div>
+                  <span className="text-gray-600">TSS:</span>
+                  <span className="ml-1 font-semibold text-blue-600">
+                    {workout.tssPlanned}
+                  </span>
+                </div>
+              )}
+
+              {workout.ifPlanned !== null && (
+                <div>
+                  <span className="text-gray-600">IF:</span>
+                  <span className="ml-1 font-semibold text-purple-600">
+                    {workout.ifPlanned.toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              {workout.elevationGainPlanned !== null && (
+                <div>
+                  <span className="text-gray-600">Elevation:</span>
+                  <span className="ml-1 font-semibold">
+                    {workout.elevationGainPlanned}m
+                  </span>
+                </div>
+              )}
+
+              {workout.caloriesPlanned !== null && (
+                <div>
+                  <span className="text-gray-600">Calories:</span>
+                  <span className="ml-1 font-semibold">
+                    {workout.caloriesPlanned}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            {workout.description && (
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                <p className="text-xs text-gray-700 line-clamp-3">
+                  {workout.description}
+                </p>
+              </div>
+            )}
+
+            {/* Arrow pointing down */}
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-blue-400"></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * NoteBadge - Shows note icon with popup on hover
+ */
+interface NoteBadgeProps {
+  note: CalendarNote;
+}
+
+function NoteBadge({ note }: NoteBadgeProps): ReactElement {
+  const [showPopup, setShowPopup] = useState(false);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setShowPopup(true)}
+      onMouseLeave={() => setShowPopup(false)}
+    >
+      <div className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-pointer text-lg">
+        📝
+      </div>
+
+      {showPopup && (
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 w-56">
+          <div className="bg-white border-2 border-yellow-400 rounded-lg shadow-lg p-3">
+            <h4 className="font-bold text-sm text-gray-900 mb-1">
+              📝 {note.title}
+            </h4>
+            {note.description && (
+              <p className="text-xs text-gray-700">{note.description}</p>
+            )}
+
+            {/* Arrow pointing down */}
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-yellow-400"></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * EventBadge - Shows event icon with popup on hover
+ */
+interface EventBadgeProps {
+  event: CalendarEvent;
+}
+
+function EventBadge({ event }: EventBadgeProps): ReactElement {
+  const [showPopup, setShowPopup] = useState(false);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setShowPopup(true)}
+      onMouseLeave={() => setShowPopup(false)}
+    >
+      <div className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-pointer text-lg">
+        🏁
+      </div>
+
+      {showPopup && (
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 w-56">
+          <div className="bg-white border-2 border-green-400 rounded-lg shadow-lg p-3">
+            <h4 className="font-bold text-sm text-gray-900 mb-1">
+              🏁 {event.name}
+            </h4>
+            <p className="text-xs text-gray-600 mb-1">{event.eventType}</p>
+            {event.distance && (
+              <p className="text-xs text-gray-700">
+                Distance: {event.distance} {event.distanceUnits || ''}
+              </p>
+            )}
+            {event.description && (
+              <p className="text-xs text-gray-700 mt-1">{event.description}</p>
+            )}
+
+            {/* Arrow pointing down */}
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-green-400"></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * CalendarDayCell component displays workouts, notes, and events as compact icons
  */
 export function CalendarDayCell({
@@ -85,52 +280,19 @@ export function CalendarDayCell({
       ) : (
         <div className="flex flex-wrap gap-1">
           {/* Workouts */}
-          {workouts.map((workout) => {
-            const icon = getWorkoutIcon(workout.workoutTypeValueId);
-            const tooltip = `${workout.title}
-${formatDuration(workout.totalTimePlanned)} • ${formatDistance(workout.distancePlanned)}${workout.tssPlanned ? `\nTSS: ${workout.tssPlanned}` : ''}${workout.ifPlanned ? ` • IF: ${workout.ifPlanned.toFixed(2)}` : ''}`;
-
-            return (
-              <div
-                key={workout.workoutId}
-                className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-default text-lg"
-                title={tooltip}
-              >
-                {icon}
-              </div>
-            );
-          })}
+          {workouts.map((workout) => (
+            <WorkoutBadge key={workout.workoutId} workout={workout} />
+          ))}
 
           {/* Notes */}
-          {notes.map((note) => {
-            const tooltip = `📝 ${note.title}${note.description ? `\n${note.description}` : ''}`;
-
-            return (
-              <div
-                key={note.id}
-                className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-default text-lg"
-                title={tooltip}
-              >
-                📝
-              </div>
-            );
-          })}
+          {notes.map((note) => (
+            <NoteBadge key={note.id} note={note} />
+          ))}
 
           {/* Events */}
-          {events.map((event) => {
-            const tooltip = `🏁 ${event.name}
-${event.eventType}${event.distance ? `\n${event.distance} ${event.distanceUnits || ''}` : ''}`;
-
-            return (
-              <div
-                key={event.id}
-                className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-default text-lg"
-                title={tooltip}
-              >
-                🏁
-              </div>
-            );
-          })}
+          {events.map((event) => (
+            <EventBadge key={event.id} event={event} />
+          ))}
         </div>
       )}
     </div>
