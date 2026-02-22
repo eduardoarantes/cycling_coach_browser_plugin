@@ -47,24 +47,28 @@ export interface PlanCalendarProps {
  * IMPORTANT: All dates are created at UTC midnight to match dateUtils.ts
  * which uses UTC methods (getUTCDay, setUTCDate, etc.)
  *
- * Handles both formats:
- * - "2026-02-25" (RxBuilder date-only) → UTC midnight
- * - "2026-02-24T00:00:00" (classic datetime) → parsed as UTC
+ * Extracts only the date part (YYYY-MM-DD) from any format:
+ * - "2026-02-25" (RxBuilder date-only)
+ * - "2026-02-24T00:00:00" (classic datetime)
+ * - Future: "2026-02-24T00:00:00Z" (with timezone)
+ *
+ * This ensures consistent behavior regardless of:
+ * - User's local timezone
+ * - Whether API includes time/timezone info
+ * - Browser's date parsing quirks
  */
 function parseDate(dateStr: string | null): Date | null {
   if (!dateStr) return null;
 
-  // If it's a date-only string (YYYY-MM-DD), create UTC date at midnight
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(Date.UTC(year, month - 1, day)); // UTC midnight
+  // Extract YYYY-MM-DD from any ISO 8601 format
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) {
+    logger.warn('Invalid date format:', dateStr);
+    return null;
   }
 
-  // For ISO datetime strings, parse and normalize to UTC midnight
-  const date = new Date(dateStr);
-  return new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
-  );
+  const [, year, month, day] = match.map(Number);
+  return new Date(Date.UTC(year, month - 1, day)); // Always UTC midnight
 }
 
 /**
