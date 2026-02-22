@@ -6,7 +6,9 @@
 
 import {
   API_BASE_URL,
+  RX_API_BASE_URL,
   STORAGE_KEYS,
+  PLAN_DATE_RANGE,
   createApiHeaders,
 } from '@/utils/constants';
 import { logger } from '@/utils/logger';
@@ -14,12 +16,22 @@ import {
   UserApiResponseSchema,
   LibrariesApiResponseSchema,
   LibraryItemsApiResponseSchema,
+  TrainingPlansApiResponseSchema,
+  PlanWorkoutsApiResponseSchema,
+  CalendarNotesApiResponseSchema,
+  CalendarEventsApiResponseSchema,
 } from '@/schemas';
+import { RxBuilderWorkoutsApiResponseSchema } from '@/schemas/rxBuilder.schema';
 import type {
   ApiResponse,
   UserProfile,
   Library,
   LibraryItem,
+  TrainingPlan,
+  PlanWorkout,
+  CalendarNote,
+  CalendarEvent,
+  RxBuilderWorkout,
 } from '@/types/api.types';
 import { ZodError, type z } from 'zod';
 
@@ -35,15 +47,21 @@ async function getAuthToken(): Promise<string | null> {
 
 /**
  * Make authenticated API request
+ *
+ * @param endpoint - API endpoint path
+ * @param baseUrl - Base URL (defaults to API_BASE_URL, use RX_API_BASE_URL for RxBuilder)
  */
-async function makeApiRequest(endpoint: string): Promise<Response> {
+async function makeApiRequest(
+  endpoint: string,
+  baseUrl: string = API_BASE_URL
+): Promise<Response> {
   const token = await getAuthToken();
 
   if (!token) {
     throw new Error('NO_TOKEN');
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     headers: createApiHeaders(token),
   });
 
@@ -68,17 +86,19 @@ async function makeApiRequest(endpoint: string): Promise<Response> {
  * @param endpoint - API endpoint path
  * @param schema - Zod schema for response validation
  * @param operationName - Description for logging (e.g., "user profile", "libraries")
+ * @param baseUrl - Optional base URL (defaults to API_BASE_URL)
  * @returns Type-safe API response with success/error discriminated union
  */
 async function apiRequest<T>(
   endpoint: string,
   schema: z.ZodSchema<T>,
-  operationName: string
+  operationName: string,
+  baseUrl?: string
 ): Promise<ApiResponse<T>> {
   try {
     logger.debug(`Fetching ${operationName}`);
 
-    const response = await makeApiRequest(endpoint);
+    const response = await makeApiRequest(endpoint, baseUrl);
 
     if (!response.ok) {
       return {
@@ -175,5 +195,88 @@ export async function fetchLibraryItems(
     `/exerciselibrary/v2/libraries/${libraryId}/items`,
     LibraryItemsApiResponseSchema,
     `library ${libraryId} items`
+  );
+}
+
+/**
+ * Fetch training plans from TrainingPeaks API
+ *
+ * @returns Array of training plans or error
+ */
+export async function fetchTrainingPlans(): Promise<
+  ApiResponse<TrainingPlan[]>
+> {
+  return apiRequest(
+    '/plans/v1/plansWithAccess',
+    TrainingPlansApiResponseSchema,
+    'training plans'
+  );
+}
+
+/**
+ * Fetch workouts for a specific training plan from TrainingPeaks API
+ *
+ * @param planId - ID of the training plan to fetch workouts from
+ * @returns Array of plan workouts or error
+ */
+export async function fetchPlanWorkouts(
+  planId: number
+): Promise<ApiResponse<PlanWorkout[]>> {
+  return apiRequest(
+    `/plans/v1/plans/${planId}/workouts/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
+    PlanWorkoutsApiResponseSchema,
+    `plan ${planId} workouts`
+  );
+}
+
+/**
+ * Fetch calendar notes for a specific training plan from TrainingPeaks API
+ *
+ * @param planId - ID of the training plan to fetch notes from
+ * @returns Array of calendar notes or error
+ */
+export async function fetchPlanNotes(
+  planId: number
+): Promise<ApiResponse<CalendarNote[]>> {
+  return apiRequest(
+    `/plans/v1/plans/${planId}/calendarNote/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
+    CalendarNotesApiResponseSchema,
+    `plan ${planId} notes`
+  );
+}
+
+/**
+ * Fetch events for a specific training plan from TrainingPeaks API
+ *
+ * @param planId - ID of the training plan to fetch events from
+ * @returns Array of calendar events or error
+ */
+export async function fetchPlanEvents(
+  planId: number
+): Promise<ApiResponse<CalendarEvent[]>> {
+  return apiRequest(
+    `/plans/v1/plans/${planId}/events/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
+    CalendarEventsApiResponseSchema,
+    `plan ${planId} events`
+  );
+}
+
+/**
+ * Fetch RxBuilder (structured strength) workouts for a specific training plan
+ *
+ * RxBuilder is TrainingPeaks' new structured strength workout builder.
+ * These workouts use exercise sequences instead of traditional interval structures.
+ *
+ * @param planId - ID of the training plan to fetch RxBuilder workouts from
+ * @returns Array of RxBuilder workouts or error
+ */
+export async function fetchRxBuilderWorkouts(
+  planId: number
+): Promise<ApiResponse<RxBuilderWorkout[]>> {
+  return apiRequest(
+    `/rx/activity/v1/plans/${planId}/workouts/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
+    RxBuilderWorkoutsApiResponseSchema,
+    `plan ${planId} rx builder workouts`,
+    RX_API_BASE_URL // Use RxBuilder API domain
   );
 }

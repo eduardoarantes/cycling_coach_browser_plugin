@@ -5,9 +5,15 @@
  */
 
 /**
- * TrainingPeaks API base URL
+ * TrainingPeaks API base URLs
  */
 export const API_BASE_URL = 'https://tpapi.trainingpeaks.com';
+
+/**
+ * TrainingPeaks RxBuilder (structured strength) API base URL
+ * Uses a different domain from the classic API
+ */
+export const RX_API_BASE_URL = 'https://api.peakswaresb.com';
 
 /**
  * Token expiration threshold (24 hours in milliseconds)
@@ -30,6 +36,30 @@ export const EXTENSION_VERSION = '1.0.0';
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   TOKEN_TIMESTAMP: 'token_timestamp',
+} as const;
+
+/**
+ * Date range constants for training plan API endpoints
+ * These dates represent the widest possible range supported by the API
+ */
+export const PLAN_DATE_RANGE = {
+  START_DATE: '2010-12-15',
+  END_DATE: '2038-09-13',
+} as const;
+
+/**
+ * React Query cache durations (in milliseconds)
+ * Controls how long data remains fresh before refetching
+ */
+export const CACHE_DURATIONS = {
+  USER: 5 * 60 * 1000, // 5 minutes - user profile rarely changes
+  LIBRARIES: 10 * 60 * 1000, // 10 minutes - library list is relatively static
+  LIBRARY_ITEMS: 3 * 60 * 1000, // 3 minutes - library items may be edited
+  TRAINING_PLANS: 10 * 60 * 1000, // 10 minutes - plan list rarely changes
+  PLAN_WORKOUTS: 3 * 60 * 1000, // 3 minutes - workouts may be modified
+  PLAN_NOTES: 3 * 60 * 1000, // 3 minutes - notes may be edited
+  PLAN_EVENTS: 3 * 60 * 1000, // 3 minutes - events may change
+  RX_BUILDER_WORKOUTS: 3 * 60 * 1000, // 3 minutes - strength workouts may be modified
 } as const;
 
 /**

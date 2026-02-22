@@ -9,6 +9,11 @@ import type {
   UserProfile,
   Library,
   LibraryItem,
+  TrainingPlan,
+  PlanWorkout,
+  CalendarNote,
+  CalendarEvent,
+  RxBuilderWorkout,
   ApiResponse,
 } from '@/types/api.types';
 import { logger } from '@/utils/logger';
@@ -17,6 +22,11 @@ import {
   fetchUser,
   fetchLibraries,
   fetchLibraryItems,
+  fetchTrainingPlans,
+  fetchPlanWorkouts,
+  fetchPlanNotes,
+  fetchPlanEvents,
+  fetchRxBuilderWorkouts,
 } from './api/trainingPeaks';
 
 type MessageResponse =
@@ -26,7 +36,11 @@ type MessageResponse =
   | { valid: boolean; userId?: number }
   | ApiResponse<UserProfile>
   | ApiResponse<Library[]>
-  | ApiResponse<LibraryItem[]>;
+  | ApiResponse<LibraryItem[]>
+  | ApiResponse<TrainingPlan[]>
+  | ApiResponse<PlanWorkout[]>
+  | ApiResponse<CalendarNote[]>
+  | ApiResponse<CalendarEvent[]>;
 
 /**
  * Handle TOKEN_FOUND message from content script
@@ -220,6 +234,59 @@ async function handleGetLibraryItems(
 }
 
 /**
+ * Handle GET_TRAINING_PLANS message from popup
+ * Fetches training plans list from TrainingPeaks API
+ */
+async function handleGetTrainingPlans(): Promise<ApiResponse<TrainingPlan[]>> {
+  logger.debug('Handling GET_TRAINING_PLANS message');
+  return await fetchTrainingPlans();
+}
+
+/**
+ * Handle GET_PLAN_WORKOUTS message from popup
+ * Fetches plan workouts from TrainingPeaks API
+ */
+async function handleGetPlanWorkouts(
+  planId: number
+): Promise<ApiResponse<PlanWorkout[]>> {
+  logger.debug('Handling GET_PLAN_WORKOUTS message for plan:', planId);
+  return await fetchPlanWorkouts(planId);
+}
+
+/**
+ * Handle GET_PLAN_NOTES message from popup
+ * Fetches plan notes from TrainingPeaks API
+ */
+async function handleGetPlanNotes(
+  planId: number
+): Promise<ApiResponse<CalendarNote[]>> {
+  logger.debug('Handling GET_PLAN_NOTES message for plan:', planId);
+  return await fetchPlanNotes(planId);
+}
+
+/**
+ * Handle GET_PLAN_EVENTS message from popup
+ * Fetches plan events from TrainingPeaks API
+ */
+async function handleGetPlanEvents(
+  planId: number
+): Promise<ApiResponse<CalendarEvent[]>> {
+  logger.debug('Handling GET_PLAN_EVENTS message for plan:', planId);
+  return await fetchPlanEvents(planId);
+}
+
+/**
+ * Handle GET_RX_BUILDER_WORKOUTS message from popup
+ * Fetches RxBuilder (structured strength) workouts from TrainingPeaks API
+ */
+async function handleGetRxBuilderWorkouts(
+  planId: number
+): Promise<ApiResponse<RxBuilderWorkout[]>> {
+  logger.debug('Handling GET_RX_BUILDER_WORKOUTS message for plan:', planId);
+  return await fetchRxBuilderWorkouts(planId);
+}
+
+/**
  * Main message router
  */
 export async function handleMessage(
@@ -251,6 +318,21 @@ export async function handleMessage(
 
     case 'GET_LIBRARY_ITEMS':
       return await handleGetLibraryItems(message.libraryId);
+
+    case 'GET_TRAINING_PLANS':
+      return await handleGetTrainingPlans();
+
+    case 'GET_PLAN_WORKOUTS':
+      return await handleGetPlanWorkouts(message.planId);
+
+    case 'GET_PLAN_NOTES':
+      return await handleGetPlanNotes(message.planId);
+
+    case 'GET_PLAN_EVENTS':
+      return await handleGetPlanEvents(message.planId);
+
+    case 'GET_RX_BUILDER_WORKOUTS':
+      return await handleGetRxBuilderWorkouts(message.planId);
 
     default:
       logger.warn('Unknown message type received');

@@ -45,6 +45,45 @@ export interface GetLibraryItemsMessage {
   libraryId: number;
 }
 
+/**
+ * Message to request training plans list from API
+ */
+export interface GetTrainingPlansMessage {
+  type: 'GET_TRAINING_PLANS';
+}
+
+/**
+ * Message to request plan workouts from API
+ */
+export interface GetPlanWorkoutsMessage {
+  type: 'GET_PLAN_WORKOUTS';
+  planId: number;
+}
+
+/**
+ * Message to request plan notes from API
+ */
+export interface GetPlanNotesMessage {
+  type: 'GET_PLAN_NOTES';
+  planId: number;
+}
+
+/**
+ * Message to request plan events from API
+ */
+export interface GetPlanEventsMessage {
+  type: 'GET_PLAN_EVENTS';
+  planId: number;
+}
+
+/**
+ * Message to request RxBuilder (structured strength) workouts from API
+ */
+export interface GetRxBuilderWorkoutsMessage {
+  type: 'GET_RX_BUILDER_WORKOUTS';
+  planId: number;
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
   | GetTokenMessage
@@ -52,7 +91,12 @@ export type RuntimeMessage =
   | ValidateTokenMessage
   | GetUserMessage
   | GetLibrariesMessage
-  | GetLibraryItemsMessage;
+  | GetLibraryItemsMessage
+  | GetTrainingPlansMessage
+  | GetPlanWorkoutsMessage
+  | GetPlanNotesMessage
+  | GetPlanEventsMessage
+  | GetRxBuilderWorkoutsMessage;
 
 /**
  * Token storage structure
