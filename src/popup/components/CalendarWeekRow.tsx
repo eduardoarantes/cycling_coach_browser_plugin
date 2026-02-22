@@ -52,7 +52,7 @@ export function CalendarWeekRow({
   return (
     <div
       className="grid gap-0 border border-gray-300"
-      style={{ gridTemplateColumns: '60px repeat(7, 1fr)' }}
+      style={{ gridTemplateColumns: '50px repeat(7, 1fr)' }}
       aria-label={ariaLabel}
     >
       {/* Week Number Column */}

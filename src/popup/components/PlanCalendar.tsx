@@ -278,7 +278,7 @@ export function PlanCalendar({
         {/* Calendar Header */}
         <div
           className="grid gap-0 border border-gray-300 mb-0 sticky top-0 bg-white z-10"
-          style={{ gridTemplateColumns: '60px repeat(7, 1fr)' }}
+          style={{ gridTemplateColumns: '50px repeat(7, 1fr)' }}
         >
           <div className="bg-gray-100 border-r border-gray-300 p-1 font-bold text-center text-xs">
             Week
