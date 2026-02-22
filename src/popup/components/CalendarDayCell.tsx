@@ -90,8 +90,13 @@ function WorkoutBadge({ workout }: WorkoutBadgeProps): ReactElement {
       </div>
 
       {showPopup && (
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 w-64">
-          <div className="bg-white border-2 border-blue-400 rounded-lg shadow-lg p-3">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-[9999] w-64">
+          <div className="bg-white border-2 border-blue-400 rounded-lg shadow-xl p-3">
+            {/* Arrow pointing up */}
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-[-1px]">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-blue-400"></div>
+            </div>
+
             {/* Workout Title */}
             <h4 className="font-bold text-sm text-gray-900 mb-2">
               {workout.title}
@@ -162,11 +167,6 @@ function WorkoutBadge({ workout }: WorkoutBadgeProps): ReactElement {
                 </p>
               </div>
             )}
-
-            {/* Arrow pointing down */}
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-blue-400"></div>
-            </div>
           </div>
         </div>
       )}
@@ -195,19 +195,19 @@ function NoteBadge({ note }: NoteBadgeProps): ReactElement {
       </div>
 
       {showPopup && (
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 w-56">
-          <div className="bg-white border-2 border-yellow-400 rounded-lg shadow-lg p-3">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-[9999] w-56">
+          <div className="bg-white border-2 border-yellow-400 rounded-lg shadow-xl p-3">
+            {/* Arrow pointing up */}
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-[-1px]">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-yellow-400"></div>
+            </div>
+
             <h4 className="font-bold text-sm text-gray-900 mb-1">
               📝 {note.title}
             </h4>
             {note.description && (
               <p className="text-xs text-gray-700">{note.description}</p>
             )}
-
-            {/* Arrow pointing down */}
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-yellow-400"></div>
-            </div>
           </div>
         </div>
       )}
@@ -236,8 +236,13 @@ function EventBadge({ event }: EventBadgeProps): ReactElement {
       </div>
 
       {showPopup && (
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 w-56">
-          <div className="bg-white border-2 border-green-400 rounded-lg shadow-lg p-3">
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-[9999] w-56">
+          <div className="bg-white border-2 border-green-400 rounded-lg shadow-xl p-3">
+            {/* Arrow pointing up */}
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-[-1px]">
+              <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-green-400"></div>
+            </div>
+
             <h4 className="font-bold text-sm text-gray-900 mb-1">
               🏁 {event.name}
             </h4>
@@ -250,11 +255,6 @@ function EventBadge({ event }: EventBadgeProps): ReactElement {
             {event.description && (
               <p className="text-xs text-gray-700 mt-1">{event.description}</p>
             )}
-
-            {/* Arrow pointing down */}
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-green-400"></div>
-            </div>
           </div>
         </div>
       )}
@@ -274,7 +274,7 @@ export function CalendarDayCell({
     workouts.length > 0 || notes.length > 0 || events.length > 0;
 
   return (
-    <div className="border-r border-gray-300 last:border-r-0 p-1 min-h-24 bg-white">
+    <div className="border-r border-gray-300 last:border-r-0 p-1 min-h-24 bg-white overflow-visible">
       {!hasContent ? (
         <div className="text-xs text-gray-400 text-center py-2">-</div>
       ) : (
