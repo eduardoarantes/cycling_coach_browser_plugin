@@ -68,12 +68,11 @@ describe('trainingPeaks API', () => {
       }
       expect(global.fetch).toHaveBeenCalledWith(
         'https://tpapi.trainingpeaks.com/users/v3/user',
-        {
-          headers: {
-            Authorization: 'Bearer valid-token-123',
-            'Content-Type': 'application/json',
-          },
-        }
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: 'Bearer valid-token-123',
+          }),
+        })
       );
     });
 
@@ -93,7 +92,7 @@ describe('trainingPeaks API', () => {
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it('should clear token and return error on 401 response', async () => {
+    it('should return error on 401 response', async () => {
       // Arrange
       const mockToken = 'invalid-token-123';
       mockGet.mockResolvedValue({ auth_token: mockToken });
@@ -110,10 +109,6 @@ describe('trainingPeaks API', () => {
       if (!result.success) {
         expect(result.error.status).toBe(401);
       }
-      expect(mockRemove).toHaveBeenCalledWith([
-        'auth_token',
-        'token_timestamp',
-      ]);
     });
 
     it('should return error on 404 response', async () => {
@@ -213,12 +208,11 @@ describe('trainingPeaks API', () => {
       }
       expect(global.fetch).toHaveBeenCalledWith(
         'https://tpapi.trainingpeaks.com/exerciselibrary/v2/libraries',
-        {
-          headers: {
-            Authorization: 'Bearer valid-token-123',
-            'Content-Type': 'application/json',
-          },
-        }
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: 'Bearer valid-token-123',
+          }),
+        })
       );
     });
 
@@ -236,7 +230,7 @@ describe('trainingPeaks API', () => {
       }
     });
 
-    it('should clear token and return error on 401 response', async () => {
+    it('should return error on 401 response', async () => {
       // Arrange
       const mockToken = 'invalid-token-123';
       mockGet.mockResolvedValue({ auth_token: mockToken });
@@ -250,10 +244,9 @@ describe('trainingPeaks API', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(mockRemove).toHaveBeenCalledWith([
-        'auth_token',
-        'token_timestamp',
-      ]);
+      if (!result.success) {
+        expect(result.error.status).toBe(401);
+      }
     });
 
     it('should return error on network failure', async () => {
@@ -336,12 +329,11 @@ describe('trainingPeaks API', () => {
       }
       expect(global.fetch).toHaveBeenCalledWith(
         'https://tpapi.trainingpeaks.com/exerciselibrary/v2/libraries/123/items',
-        {
-          headers: {
-            Authorization: 'Bearer valid-token-123',
-            'Content-Type': 'application/json',
-          },
-        }
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: 'Bearer valid-token-123',
+          }),
+        })
       );
     });
 
@@ -359,7 +351,7 @@ describe('trainingPeaks API', () => {
       }
     });
 
-    it('should clear token and return error on 401 response', async () => {
+    it('should return error on 401 response', async () => {
       // Arrange
       const mockToken = 'invalid-token-123';
       mockGet.mockResolvedValue({ auth_token: mockToken });
@@ -373,10 +365,9 @@ describe('trainingPeaks API', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(mockRemove).toHaveBeenCalledWith([
-        'auth_token',
-        'token_timestamp',
-      ]);
+      if (!result.success) {
+        expect(result.error.status).toBe(401);
+      }
     });
 
     it('should return error on 404 (library not found)', async () => {

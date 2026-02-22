@@ -1,0 +1,58 @@
+[
+  {
+    "exerciseLibraryId": 2550514,
+    "libraryName": "My Library",
+    "ownerId": 4830660,
+    "ownerName": "Eduardo Rodrigues",
+    "imageUrl": "https://userdata.trainingpeaks.com/0660384/profile/person-photo-images/638420560120926980-300x300.jpeg",
+    "isDefaultContent": false
+  },
+  {
+    "exerciseLibraryId": 112352,
+    "libraryName": "Default Library",
+    "ownerId": 12,
+    "ownerName": "Joe Friel",
+    "imageUrl": "https://assets.trainingpeaks.com/images/icons/folder.svg",
+    "isDefaultContent": true
+  },
+  {
+    "exerciseLibraryId": 1059533,
+    "libraryName": "Other",
+    "ownerId": 2000301,
+    "ownerName": "TrainingPeaks",
+    "imageUrl": "https://assets.trainingpeaks.com/images/icons/other.svg",
+    "isDefaultContent": true
+  },
+  {
+    "exerciseLibraryId": 1925939,
+    "libraryName": "Bike",
+    "ownerId": 2000301,
+    "ownerName": "TrainingPeaks",
+    "imageUrl": "https://assets.trainingpeaks.com/images/icons/cycling.svg",
+    "isDefaultContent": true
+  },
+  {
+    "exerciseLibraryId": 1925942,
+    "libraryName": "Run",
+    "ownerId": 2000301,
+    "ownerName": "TrainingPeaks",
+    "imageUrl": "https://assets.trainingpeaks.com/images/icons/running.svg",
+    "isDefaultContent": true
+  },
+  {
+    "exerciseLibraryId": 1925945,
+    "libraryName": "Swim",
+    "ownerId": 2000301,
+    "ownerName": "TrainingPeaks",
+    "imageUrl": "https://assets.trainingpeaks.com/images/icons/swimming.svg",
+    "isDefaultContent": true
+  },
+  {
+    "exerciseLibraryId": 2976953,
+    "libraryName": "TrainingPeaks Virtual Workouts",
+    "ownerId": 2000301,
+    "ownerName": "TrainingPeaks",
+    "imageUrl": "https://assets.trainingpeaks.com/images/icons/cycling.svg",
+    "isDefaultContent": true
+  }
+]
