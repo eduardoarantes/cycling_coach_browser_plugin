@@ -107,8 +107,6 @@ export function CalendarDayCell({
                 elevationGainPlanned: workout.elevationGainPlanned,
                 description: workout.description,
                 coachComments: workout.coachComments,
-                fileAttachments: '',
-                structure: workout.structure,
               }}
               onClick={() => {
                 // No-op for calendar view (not clickable in calendar)

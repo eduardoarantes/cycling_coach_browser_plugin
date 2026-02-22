@@ -15,7 +15,6 @@ import {
   findEarliestDate,
   normalizeToMonday,
   organizeByWeek,
-  type WeekMap,
 } from '@/utils/dateUtils';
 import type {
   PlanWorkout,
