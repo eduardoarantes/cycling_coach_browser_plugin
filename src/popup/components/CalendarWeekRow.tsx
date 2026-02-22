@@ -51,12 +51,13 @@ export function CalendarWeekRow({
 
   return (
     <div
-      className="grid grid-cols-8 gap-0 border border-gray-300"
+      className="grid gap-0 border border-gray-300"
+      style={{ gridTemplateColumns: '60px repeat(7, 1fr)' }}
       aria-label={ariaLabel}
     >
       {/* Week Number Column */}
-      <div className="bg-gray-100 border-r border-gray-300 p-2 flex items-center justify-center">
-        <h3 className="text-xs font-bold text-gray-700">Week {weekNumber}</h3>
+      <div className="bg-gray-100 border-r border-gray-300 p-1 flex items-center justify-center">
+        <h3 className="text-xs font-bold text-gray-700">W{weekNumber}</h3>
       </div>
 
       {/* Monday (dayOfWeek=0) */}

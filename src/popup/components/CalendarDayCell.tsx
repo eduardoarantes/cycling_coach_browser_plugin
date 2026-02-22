@@ -1,7 +1,7 @@
 /**
  * CalendarDayCell component
  *
- * Displays a single day cell in the training plan calendar with workouts, notes, and events
+ * Displays a single day cell with compact activity icons and hover tooltips
  */
 
 import type { ReactElement } from 'react';
@@ -10,9 +10,6 @@ import type {
   CalendarNote,
   CalendarEvent,
 } from '@/types/api.types';
-import { WorkoutCard } from './WorkoutCard';
-import { NoteCard } from './NoteCard';
-import { EventCard } from './EventCard';
 
 export interface CalendarDayCellProps {
   dayOfWeek: number; // 0=Monday, 6=Sunday
@@ -22,113 +19,120 @@ export interface CalendarDayCellProps {
 }
 
 /**
- * Get day label from day of week number
+ * Get activity icon emoji based on workout type
  */
-function getDayLabel(dayOfWeek: number): string {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function getWorkoutIcon(workoutTypeId: number): string {
+  // Map workout type IDs to emojis
+  const iconMap: Record<number, string> = {
+    1: '🏊', // Swim
+    2: '🚴', // Bike
+    3: '🏃', // Run
+    4: '🔀', // Brick
+    5: '🏋️', // Crosstrain
+    6: '🏁', // Race
+    7: '😴', // Day Off
+    8: '🚵', // Mountain Bike
+    9: '💪', // Strength
+    10: '⚙️', // Custom
+    11: '⛷️', // XC-Ski
+    12: '🚣', // Rowing
+    13: '🚶', // Walk
+    29: '💪', // Strength (duplicate)
+    100: '🎯', // Other
+  };
 
-  if (dayOfWeek < 0 || dayOfWeek > 6) {
-    return 'Invalid';
-  }
-
-  return days[dayOfWeek];
+  return iconMap[workoutTypeId] || '🏃';
 }
 
 /**
- * Get full day name for accessibility
+ * Format duration from hours (decimal) to "Xh Ym" format
  */
-function getFullDayName(dayOfWeek: number): string {
-  const days = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
+function formatDuration(hours: number | null): string {
+  if (hours === null) return 'N/A';
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
 
-  if (dayOfWeek < 0 || dayOfWeek > 6) {
-    return 'Invalid day';
+  if (wholeHours === 0) {
+    return `${minutes}m`;
   }
-
-  return days[dayOfWeek];
+  return `${wholeHours}h ${minutes}m`;
 }
 
 /**
- * CalendarDayCell component displays workouts, notes, and events for a single day
- *
- * @param props.dayOfWeek - Day of week (0=Monday, 6=Sunday)
- * @param props.workouts - Array of workouts for this day
- * @param props.notes - Array of notes for this day
- * @param props.events - Array of events for this day
+ * Format distance from meters to kilometers
+ */
+function formatDistance(meters: number | null): string {
+  if (meters === null) return 'N/A';
+  const km = meters / 1000;
+  return `${km.toFixed(1)} km`;
+}
+
+/**
+ * CalendarDayCell component displays workouts, notes, and events as compact icons
  */
 export function CalendarDayCell({
-  dayOfWeek,
   workouts,
   notes,
   events,
 }: CalendarDayCellProps): ReactElement {
-  const dayLabel = getDayLabel(dayOfWeek);
-  const fullDayName = getFullDayName(dayOfWeek);
-  const totalItems = workouts.length + notes.length + events.length;
-
-  const ariaLabel = `${fullDayName} - ${totalItems} item${totalItems !== 1 ? 's' : ''}`;
+  const hasContent =
+    workouts.length > 0 || notes.length > 0 || events.length > 0;
 
   return (
-    <div
-      className="border border-gray-300 p-2 min-h-32 flex flex-col overflow-y-auto"
-      aria-label={ariaLabel}
-    >
-      {/* Day Label */}
-      <h3 className="text-sm font-semibold text-gray-700 mb-2 sticky top-0 bg-white">
-        {dayLabel}
-      </h3>
+    <div className="border-r border-gray-300 last:border-r-0 p-1 min-h-24 bg-white">
+      {!hasContent ? (
+        <div className="text-xs text-gray-400 text-center py-2">-</div>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {/* Workouts */}
+          {workouts.map((workout) => {
+            const icon = getWorkoutIcon(workout.workoutTypeValueId);
+            const tooltip = `${workout.title}
+${formatDuration(workout.totalTimePlanned)} • ${formatDistance(workout.distancePlanned)}${workout.tssPlanned ? `\nTSS: ${workout.tssPlanned}` : ''}${workout.ifPlanned ? ` • IF: ${workout.ifPlanned.toFixed(2)}` : ''}`;
 
-      {/* Content Area - Scrollable */}
-      <div className="flex-1 space-y-2">
-        {/* Workouts */}
-        {workouts.map((workout) => (
-          <div key={workout.workoutId} className="text-xs">
-            <WorkoutCard
-              workout={{
-                exerciseLibraryItemId: workout.workoutId,
-                exerciseLibraryId: 0, // Not applicable for plan workouts
-                exerciseLibraryItemType: 'WorkoutTemplate',
-                itemName: workout.title,
-                workoutTypeId: workout.workoutTypeValueId,
-                distancePlanned: workout.distancePlanned,
-                totalTimePlanned: workout.totalTimePlanned,
-                caloriesPlanned: workout.caloriesPlanned,
-                tssPlanned: workout.tssPlanned,
-                ifPlanned: workout.ifPlanned,
-                velocityPlanned: workout.velocityPlanned,
-                energyPlanned: workout.energyPlanned,
-                elevationGainPlanned: workout.elevationGainPlanned,
-                description: workout.description,
-                coachComments: workout.coachComments,
-              }}
-              onClick={() => {
-                // No-op for calendar view (not clickable in calendar)
-              }}
-            />
-          </div>
-        ))}
+            return (
+              <div
+                key={workout.workoutId}
+                className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-default text-lg"
+                title={tooltip}
+              >
+                {icon}
+              </div>
+            );
+          })}
 
-        {/* Notes */}
-        {notes.map((note) => (
-          <div key={note.id} className="text-xs">
-            <NoteCard note={note} />
-          </div>
-        ))}
+          {/* Notes */}
+          {notes.map((note) => {
+            const tooltip = `📝 ${note.title}${note.description ? `\n${note.description}` : ''}`;
 
-        {/* Events */}
-        {events.map((event) => (
-          <div key={event.id} className="text-xs">
-            <EventCard event={event} />
-          </div>
-        ))}
-      </div>
+            return (
+              <div
+                key={note.id}
+                className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-default text-lg"
+                title={tooltip}
+              >
+                📝
+              </div>
+            );
+          })}
+
+          {/* Events */}
+          {events.map((event) => {
+            const tooltip = `🏁 ${event.name}
+${event.eventType}${event.distance ? `\n${event.distance} ${event.distanceUnits || ''}` : ''}`;
+
+            return (
+              <div
+                key={event.id}
+                className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-default text-lg"
+                title={tooltip}
+              >
+                🏁
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
