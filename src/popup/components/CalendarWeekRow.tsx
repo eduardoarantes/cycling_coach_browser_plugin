@@ -5,19 +5,16 @@
  */
 
 import type { ReactElement } from 'react';
-import type {
-  PlanWorkout,
-  CalendarNote,
-  CalendarEvent,
-} from '@/types/api.types';
+import type { CalendarNote, CalendarEvent } from '@/types/api.types';
 import { CalendarDayCell } from './CalendarDayCell';
+import type { UnifiedWorkout } from './PlanCalendar';
 
 export interface CalendarWeekRowProps {
   weekNumber: number;
   weekData: Map<
     number,
     {
-      workouts: PlanWorkout[];
+      workouts: UnifiedWorkout[];
       notes: CalendarNote[];
       events: CalendarEvent[];
     }
@@ -30,10 +27,18 @@ export interface CalendarWeekRowProps {
 function getDayData(
   weekData: Map<
     number,
-    { workouts: PlanWorkout[]; notes: CalendarNote[]; events: CalendarEvent[] }
+    {
+      workouts: UnifiedWorkout[];
+      notes: CalendarNote[];
+      events: CalendarEvent[];
+    }
   >,
   dayOfWeek: number
-): { workouts: PlanWorkout[]; notes: CalendarNote[]; events: CalendarEvent[] } {
+): {
+  workouts: UnifiedWorkout[];
+  notes: CalendarNote[];
+  events: CalendarEvent[];
+} {
   return weekData.get(dayOfWeek) || { workouts: [], notes: [], events: [] };
 }
 

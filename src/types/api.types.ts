@@ -28,6 +28,12 @@ export type {
   CalendarEventsApiResponse,
 } from '@/schemas/trainingPlan.schema';
 
+export type {
+  RxBuilderWorkout,
+  RxBuilderWorkoutsApiResponse,
+  RxSequenceSummary,
+} from '@/schemas/rxBuilder.schema';
+
 export type { ApiError } from '@/schemas/api.schema';
 
 /**

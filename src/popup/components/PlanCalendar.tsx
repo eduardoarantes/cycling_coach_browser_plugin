@@ -6,9 +6,12 @@
  */
 
 import type { ReactElement } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePlanWorkouts } from '@/hooks/usePlanWorkouts';
 import { usePlanNotes } from '@/hooks/usePlanNotes';
 import { usePlanEvents } from '@/hooks/usePlanEvents';
+import { useRxBuilderWorkouts } from '@/hooks/useRxBuilderWorkouts';
 import { LoadingSpinner } from './LoadingSpinner';
 import { CalendarWeekRow } from './CalendarWeekRow';
 import {
@@ -16,11 +19,21 @@ import {
   normalizeToMonday,
   organizeByWeek,
 } from '@/utils/dateUtils';
+import { logger } from '@/utils/logger';
 import type {
   PlanWorkout,
+  RxBuilderWorkout,
   CalendarNote,
   CalendarEvent,
 } from '@/types/api.types';
+
+/**
+ * Unified workout type that includes both classic and RxBuilder workouts
+ * with a discriminator field to distinguish between them
+ */
+export type UnifiedWorkout =
+  | (PlanWorkout & { workoutSource: 'classic' })
+  | (RxBuilderWorkout & { workoutSource: 'rxBuilder' });
 
 export interface PlanCalendarProps {
   planId: number;
@@ -30,10 +43,39 @@ export interface PlanCalendarProps {
 
 /**
  * Parse date string to Date object
+ *
+ * IMPORTANT: All dates are created at UTC midnight to match dateUtils.ts
+ * which uses UTC methods (getUTCDay, setUTCDate, etc.)
+ *
+ * Handles both formats:
+ * - "2026-02-25" (RxBuilder date-only) → UTC midnight
+ * - "2026-02-24T00:00:00" (classic datetime) → parsed as UTC
  */
 function parseDate(dateStr: string | null): Date | null {
   if (!dateStr) return null;
-  return new Date(dateStr);
+
+  // If it's a date-only string (YYYY-MM-DD), create UTC date at midnight
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day)); // UTC midnight
+  }
+
+  // For ISO datetime strings, parse and normalize to UTC midnight
+  const date = new Date(dateStr);
+  return new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+  );
+}
+
+/**
+ * Extract date from unified workout (handles both classic and RxBuilder)
+ */
+function getWorkoutDate(workout: UnifiedWorkout): Date | null {
+  if (workout.workoutSource === 'classic') {
+    return parseDate(workout.workoutDay);
+  } else {
+    return parseDate(workout.prescribedDate);
+  }
 }
 
 /**
@@ -48,13 +90,23 @@ export function PlanCalendar({
   planName,
   onBack,
 }: PlanCalendarProps): ReactElement {
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Fetch all data in parallel
   const {
-    data: workouts,
+    data: classicWorkouts,
     isLoading: workoutsLoading,
     error: workoutsError,
     refetch: refetchWorkouts,
   } = usePlanWorkouts(planId);
+
+  const {
+    data: rxWorkouts,
+    isLoading: rxWorkoutsLoading,
+    error: rxWorkoutsError,
+    refetch: refetchRxWorkouts,
+  } = useRxBuilderWorkouts(planId);
 
   const {
     data: notes,
@@ -70,8 +122,117 @@ export function PlanCalendar({
     refetch: refetchEvents,
   } = usePlanEvents(planId);
 
+  // Merge classic and RxBuilder workouts into unified array
+  const workouts = useMemo((): UnifiedWorkout[] => {
+    const classic: UnifiedWorkout[] = (classicWorkouts || []).map((w) => ({
+      ...w,
+      workoutSource: 'classic' as const,
+    }));
+
+    const rx: UnifiedWorkout[] = (rxWorkouts || []).map((w) => ({
+      ...w,
+      workoutSource: 'rxBuilder' as const,
+    }));
+
+    return [...classic, ...rx];
+  }, [classicWorkouts, rxWorkouts]);
+
+  // Refresh all plan data
+  const handleRefresh = async (): Promise<void> => {
+    setIsRefreshing(true);
+    try {
+      logger.info('🔄 Refreshing plan data for planId:', planId);
+
+      // Remove all cached data for this plan and force network refetch
+      await queryClient.resetQueries({ queryKey: ['plans', planId] });
+
+      // Wait for all refetches to complete with fresh data
+      const results = await Promise.all([
+        refetchWorkouts(),
+        refetchRxWorkouts(),
+        refetchNotes(),
+        refetchEvents(),
+      ]);
+
+      logger.info('✅ Refresh complete:', {
+        classicWorkouts: results[0].data?.length || 0,
+        rxWorkouts: results[1].data?.length || 0,
+        notes: results[2].data?.length || 0,
+        events: results[3].data?.length || 0,
+      });
+
+      // Log all workout dates for debugging
+      if (results[0].data) {
+        logger.info('Classic workout dates:');
+        results[0].data.forEach((w) => {
+          logger.info(
+            `  - ${w.workoutDay}: ${w.title || '(no title)'} (Type: ${w.workoutTypeValueId})`
+          );
+        });
+      }
+      if (results[1].data) {
+        logger.info('RxBuilder workout dates:');
+        results[1].data.forEach((w) => {
+          logger.info(`  - ${w.prescribedDate}: ${w.title} (${w.workoutType})`);
+        });
+      }
+    } catch (error) {
+      logger.error('❌ Refresh failed:', error);
+    } finally {
+      // Keep spinner visible for at least 500ms for visual feedback
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  // Debug logging to see workout data
+  useEffect(() => {
+    if (workouts.length > 0) {
+      logger.info('Total workouts loaded:', workouts.length);
+      const classicCount = workouts.filter(
+        (w) => w.workoutSource === 'classic'
+      ).length;
+      const rxCount = workouts.filter(
+        (w) => w.workoutSource === 'rxBuilder'
+      ).length;
+      logger.info(`  - Classic: ${classicCount}, RxBuilder: ${rxCount}`);
+    }
+  }, [workouts]);
+
+  // Download training plan as JSON
+  const handleDownload = (): void => {
+    const planData = {
+      planId,
+      planName: planName || 'Training Plan',
+      exportDate: new Date().toISOString(),
+      classicWorkouts: classicWorkouts || [],
+      rxBuilderWorkouts: rxWorkouts || [],
+      notes: notes || [],
+      events: events || [],
+      summary: {
+        totalClassicWorkouts: classicWorkouts?.length || 0,
+        totalRxBuilderWorkouts: rxWorkouts?.length || 0,
+        totalNotes: notes?.length || 0,
+        totalEvents: events?.length || 0,
+      },
+    };
+
+    const jsonString = JSON.stringify(planData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `training-plan-${planId}-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    logger.info('📥 Training plan downloaded:', link.download);
+  };
+
   // Loading state
-  const isLoading = workoutsLoading || notesLoading || eventsLoading;
+  const isLoading =
+    workoutsLoading || rxWorkoutsLoading || notesLoading || eventsLoading;
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center p-8">
@@ -82,19 +243,23 @@ export function PlanCalendar({
   }
 
   // Error state
-  const error = workoutsError || notesError || eventsError;
+  const error = workoutsError || rxWorkoutsError || notesError || eventsError;
   if (error) {
     const errorMessage = workoutsError
       ? 'Failed to load workouts'
-      : notesError
-        ? 'Failed to load notes'
-        : 'Failed to load events';
+      : rxWorkoutsError
+        ? 'Failed to load strength workouts'
+        : notesError
+          ? 'Failed to load notes'
+          : 'Failed to load events';
 
     const retryFn = workoutsError
       ? refetchWorkouts
-      : notesError
-        ? refetchNotes
-        : refetchEvents;
+      : rxWorkoutsError
+        ? refetchRxWorkouts
+        : notesError
+          ? refetchNotes
+          : refetchEvents;
 
     return (
       <div className="flex flex-col items-center justify-center p-8">
@@ -144,9 +309,9 @@ export function PlanCalendar({
 
   // Organize data by week
   // 1. Find earliest date
-  const workoutsWithDates = (workouts || []).map((w) => ({
+  const workoutsWithDates = workouts.map((w) => ({
     ...w,
-    date: parseDate(w.workoutDay),
+    date: getWorkoutDate(w),
   }));
   const notesWithDates = (notes || []).map((n) => ({
     ...n,
@@ -184,11 +349,7 @@ export function PlanCalendar({
   const startDate = normalizeToMonday(earliestDate);
 
   // 3. Organize by week
-  const workoutsByWeek = organizeByWeek(
-    workouts || [],
-    (w) => parseDate(w.workoutDay),
-    startDate
-  );
+  const workoutsByWeek = organizeByWeek(workouts, getWorkoutDate, startDate);
   const notesByWeek = organizeByWeek(
     notes || [],
     (n) => parseDate(n.noteDate),
@@ -215,7 +376,7 @@ export function PlanCalendar({
     Map<
       number,
       {
-        workouts: PlanWorkout[];
+        workouts: UnifiedWorkout[];
         notes: CalendarNote[];
         events: CalendarEvent[];
       }
@@ -226,7 +387,7 @@ export function PlanCalendar({
     const weekMap = new Map<
       number,
       {
-        workouts: PlanWorkout[];
+        workouts: UnifiedWorkout[];
         notes: CalendarNote[];
         events: CalendarEvent[];
       }
@@ -262,15 +423,58 @@ export function PlanCalendar({
         <h2 className="text-base font-bold text-gray-800">
           {planName || 'Training Plan'}
         </h2>
-        {onBack && (
+        <div className="flex items-center space-x-2">
           <button
-            onClick={onBack}
-            className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 flex items-center space-x-1"
+            onClick={handleDownload}
+            className="p-1 text-gray-600 hover:text-gray-800"
+            title="Download plan as JSON"
+            aria-label="Download plan as JSON"
           >
-            <span>←</span>
-            <span>Back</span>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
+            </svg>
           </button>
-        )}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-1 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+            title="Refresh plan data"
+            aria-label="Refresh plan data"
+          >
+            <svg
+              className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 flex items-center space-x-1"
+            >
+              <span>←</span>
+              <span>Back</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Calendar Grid */}
