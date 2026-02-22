@@ -3,6 +3,7 @@ import type { RxBuilderWorkout } from '@/types/api.types';
 import type { GetRxBuilderWorkoutsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching RxBuilder (structured strength) workouts
@@ -78,7 +79,7 @@ export function useRxBuilderWorkouts(
     queryKey: ['plans', planId, 'rxWorkouts'],
     queryFn: () => fetchRxBuilderWorkoutsList(planId),
     // RxBuilder workouts may be edited, cache moderately
-    staleTime: 3 * 60 * 1000, // 3 minutes
+    staleTime: CACHE_DURATIONS.RX_BUILDER_WORKOUTS,
     // Only fetch when enabled
     enabled: options?.enabled ?? true,
   });

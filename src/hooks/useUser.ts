@@ -3,6 +3,7 @@ import type { UserProfile } from '@/types/api.types';
 import type { GetUserMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching user profile
@@ -57,6 +58,8 @@ export function useUser(options?: {
   return useQuery<UserProfile, Error>({
     queryKey: ['user'],
     queryFn: fetchUserProfile,
+    // User profile rarely changes
+    staleTime: CACHE_DURATIONS.USER,
     // User data is critical, don't retry too aggressively
     retry: 1,
     // Only fetch when enabled (typically when authenticated)

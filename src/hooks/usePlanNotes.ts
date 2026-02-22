@@ -3,6 +3,7 @@ import type { CalendarNote } from '@/types/api.types';
 import type { GetPlanNotesMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching plan notes
@@ -69,7 +70,7 @@ export function usePlanNotes(
     queryKey: ['plans', planId, 'notes'],
     queryFn: () => fetchPlanNotesList(planId),
     // Notes may change, cache moderately
-    staleTime: 3 * 60 * 1000, // 3 minutes
+    staleTime: CACHE_DURATIONS.PLAN_NOTES,
     // Only fetch when enabled
     enabled: options?.enabled ?? true,
   });

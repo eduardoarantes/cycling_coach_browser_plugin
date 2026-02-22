@@ -3,6 +3,7 @@ import type { LibraryItem } from '@/types/api.types';
 import type { GetLibraryItemsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
  * Query function for fetching library items
@@ -91,6 +92,6 @@ export function useLibraryItems(
     // Allow disabling auto-fetch (useful for on-demand loading)
     enabled: options?.enabled ?? true,
     // Library items can change, use shorter stale time
-    staleTime: options?.staleTime ?? 3 * 60 * 1000, // 3 minutes
+    staleTime: options?.staleTime ?? CACHE_DURATIONS.LIBRARY_ITEMS,
   });
 }

@@ -31,7 +31,7 @@ export const RxBuilderWorkoutSchema = z.object({
   startDateTime: z.string().nullable(),
   completedDateTime: z.string().nullable(),
   orderOnDay: z.number().nullable(),
-  workoutType: z.string(), // "StructuredStrength"
+  workoutType: z.literal('StructuredStrength'), // Only valid RxBuilder workout type
   workoutSubTypeId: z.number().nullable(),
   isLocked: z.boolean(),
   isHidden: z.boolean(),
