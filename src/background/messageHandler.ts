@@ -13,6 +13,7 @@ import type {
   PlanWorkout,
   CalendarNote,
   CalendarEvent,
+  RxBuilderWorkout,
   ApiResponse,
 } from '@/types/api.types';
 import { logger } from '@/utils/logger';
@@ -25,6 +26,7 @@ import {
   fetchPlanWorkouts,
   fetchPlanNotes,
   fetchPlanEvents,
+  fetchRxBuilderWorkouts,
 } from './api/trainingPeaks';
 
 type MessageResponse =
@@ -274,6 +276,17 @@ async function handleGetPlanEvents(
 }
 
 /**
+ * Handle GET_RX_BUILDER_WORKOUTS message from popup
+ * Fetches RxBuilder (structured strength) workouts from TrainingPeaks API
+ */
+async function handleGetRxBuilderWorkouts(
+  planId: number
+): Promise<ApiResponse<RxBuilderWorkout[]>> {
+  logger.debug('Handling GET_RX_BUILDER_WORKOUTS message for plan:', planId);
+  return await fetchRxBuilderWorkouts(planId);
+}
+
+/**
  * Main message router
  */
 export async function handleMessage(
@@ -317,6 +330,9 @@ export async function handleMessage(
 
     case 'GET_PLAN_EVENTS':
       return await handleGetPlanEvents(message.planId);
+
+    case 'GET_RX_BUILDER_WORKOUTS':
+      return await handleGetRxBuilderWorkouts(message.planId);
 
     default:
       logger.warn('Unknown message type received');

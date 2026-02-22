@@ -4,17 +4,25 @@
  * Displays a single day cell with compact activity icons and hover tooltips
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { ReactElement } from 'react';
-import type {
-  PlanWorkout,
-  CalendarNote,
-  CalendarEvent,
-} from '@/types/api.types';
+import {
+  useFloating,
+  useHover,
+  useInteractions,
+  offset,
+  flip,
+  shift,
+  arrow,
+  FloatingPortal,
+  autoUpdate,
+} from '@floating-ui/react';
+import type { CalendarNote, CalendarEvent } from '@/types/api.types';
+import type { UnifiedWorkout } from './PlanCalendar';
 
 export interface CalendarDayCellProps {
   dayOfWeek: number; // 0=Monday, 6=Sunday
-  workouts: PlanWorkout[];
+  workouts: UnifiedWorkout[];
   notes: CalendarNote[];
   events: CalendarEvent[];
 }
@@ -70,107 +78,267 @@ function formatDistance(meters: number | null): string {
 
 /**
  * WorkoutBadge - Shows workout icon with detailed popup on hover
+ * Handles both classic and RxBuilder workouts
  */
 interface WorkoutBadgeProps {
-  workout: PlanWorkout;
+  workout: UnifiedWorkout;
 }
 
 function WorkoutBadge({ workout }: WorkoutBadgeProps): ReactElement {
-  const [showPopup, setShowPopup] = useState(false);
+  // Handle RxBuilder workouts differently
+  if (workout.workoutSource === 'rxBuilder') {
+    return <RxBuilderWorkoutBadge workout={workout} />;
+  }
+
+  // Classic workout rendering
+  return <ClassicWorkoutBadge workout={workout} />;
+}
+
+/**
+ * ClassicWorkoutBadge - Shows classic workout with metrics popup
+ */
+function ClassicWorkoutBadge({
+  workout,
+}: {
+  workout: UnifiedWorkout & { workoutSource: 'classic' };
+}): ReactElement {
+  const [isOpen, setIsOpen] = useState(false);
+  const arrowRef = useRef<HTMLDivElement>(null);
   const icon = getWorkoutIcon(workout.workoutTypeValueId);
 
+  const { refs, floatingStyles, context, placement } = useFloating({
+    open: isOpen,
+    onOpenChange: setIsOpen,
+    middleware: [
+      offset(10),
+      flip(),
+      shift({ padding: 8 }),
+      arrow({ element: arrowRef }),
+    ],
+    whileElementsMounted: autoUpdate,
+  });
+
+  const hover = useHover(context);
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
+
+  // Determine arrow position based on placement
+  const arrowSide = placement.split('-')[0];
+  const staticSide = {
+    top: 'bottom',
+    right: 'left',
+    bottom: 'top',
+    left: 'right',
+  }[arrowSide];
+
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setShowPopup(true)}
-      onMouseLeave={() => setShowPopup(false)}
-    >
-      <div className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-pointer text-lg">
+    <>
+      <div
+        ref={refs.setReference}
+        {...getReferenceProps()}
+        className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-pointer text-lg"
+      >
         {icon}
       </div>
 
-      {showPopup && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-[9999] w-64">
-          <div className="bg-white border-2 border-blue-400 rounded-lg shadow-xl p-3">
-            {/* Arrow pointing up */}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-[-1px]">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-blue-400"></div>
-            </div>
+      {isOpen && (
+        <FloatingPortal>
+          <div
+            ref={refs.setFloating}
+            style={floatingStyles}
+            {...getFloatingProps()}
+            className="z-[9999] w-64"
+          >
+            <div className="bg-white border-2 border-blue-400 rounded-lg shadow-xl p-3">
+              {/* Arrow */}
+              <div
+                ref={arrowRef}
+                className="absolute w-4 h-4 rotate-45 bg-white border-blue-400"
+                style={{
+                  [staticSide as string]: '-4px',
+                  borderWidth:
+                    staticSide === 'bottom' || staticSide === 'right'
+                      ? '0 2px 2px 0'
+                      : '2px 0 0 2px',
+                }}
+              />
 
-            {/* Workout Title */}
-            <h4 className="font-bold text-sm text-gray-900 mb-2">
-              {workout.title}
-            </h4>
+              {/* Workout Title */}
+              <h4 className="font-bold text-sm text-gray-900 mb-2">
+                {workout.title}
+              </h4>
 
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {workout.totalTimePlanned !== null && (
-                <div>
-                  <span className="text-gray-600">Duration:</span>
-                  <span className="ml-1 font-semibold">
-                    {formatDuration(workout.totalTimePlanned)}
-                  </span>
-                </div>
-              )}
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {workout.totalTimePlanned !== null && (
+                  <div>
+                    <span className="text-gray-600">Duration:</span>
+                    <span className="ml-1 font-semibold">
+                      {formatDuration(workout.totalTimePlanned)}
+                    </span>
+                  </div>
+                )}
 
-              {workout.distancePlanned !== null && (
-                <div>
-                  <span className="text-gray-600">Distance:</span>
-                  <span className="ml-1 font-semibold">
-                    {formatDistance(workout.distancePlanned)}
-                  </span>
-                </div>
-              )}
+                {workout.distancePlanned !== null && (
+                  <div>
+                    <span className="text-gray-600">Distance:</span>
+                    <span className="ml-1 font-semibold">
+                      {formatDistance(workout.distancePlanned)}
+                    </span>
+                  </div>
+                )}
 
-              {workout.tssPlanned !== null && (
-                <div>
-                  <span className="text-gray-600">TSS:</span>
-                  <span className="ml-1 font-semibold text-blue-600">
-                    {workout.tssPlanned}
-                  </span>
-                </div>
-              )}
+                {workout.tssPlanned !== null && (
+                  <div>
+                    <span className="text-gray-600">TSS:</span>
+                    <span className="ml-1 font-semibold text-blue-600">
+                      {workout.tssPlanned}
+                    </span>
+                  </div>
+                )}
 
-              {workout.ifPlanned !== null && (
-                <div>
-                  <span className="text-gray-600">IF:</span>
-                  <span className="ml-1 font-semibold text-purple-600">
-                    {workout.ifPlanned.toFixed(2)}
-                  </span>
-                </div>
-              )}
+                {workout.ifPlanned !== null && (
+                  <div>
+                    <span className="text-gray-600">IF:</span>
+                    <span className="ml-1 font-semibold text-purple-600">
+                      {workout.ifPlanned.toFixed(2)}
+                    </span>
+                  </div>
+                )}
 
-              {workout.elevationGainPlanned !== null && (
-                <div>
-                  <span className="text-gray-600">Elevation:</span>
-                  <span className="ml-1 font-semibold">
-                    {workout.elevationGainPlanned}m
-                  </span>
-                </div>
-              )}
+                {workout.elevationGainPlanned !== null && (
+                  <div>
+                    <span className="text-gray-600">Elevation:</span>
+                    <span className="ml-1 font-semibold">
+                      {workout.elevationGainPlanned}m
+                    </span>
+                  </div>
+                )}
 
-              {workout.caloriesPlanned !== null && (
-                <div>
-                  <span className="text-gray-600">Calories:</span>
-                  <span className="ml-1 font-semibold">
-                    {workout.caloriesPlanned}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Description */}
-            {workout.description && (
-              <div className="mt-2 pt-2 border-t border-gray-200">
-                <p className="text-xs text-gray-700 line-clamp-3">
-                  {workout.description}
-                </p>
+                {workout.caloriesPlanned !== null && (
+                  <div>
+                    <span className="text-gray-600">Calories:</span>
+                    <span className="ml-1 font-semibold">
+                      {workout.caloriesPlanned}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Description */}
+              {workout.description && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <p className="text-xs text-gray-700 line-clamp-3">
+                    {workout.description}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </FloatingPortal>
       )}
-    </div>
+    </>
+  );
+}
+
+/**
+ * RxBuilderWorkoutBadge - Shows RxBuilder (structured strength) workout
+ * with exercise sequence popup
+ */
+function RxBuilderWorkoutBadge({
+  workout,
+}: {
+  workout: UnifiedWorkout & { workoutSource: 'rxBuilder' };
+}): ReactElement {
+  const [isOpen, setIsOpen] = useState(false);
+  const arrowRef = useRef<HTMLDivElement>(null);
+
+  const { refs, floatingStyles, context, placement } = useFloating({
+    open: isOpen,
+    onOpenChange: setIsOpen,
+    middleware: [
+      offset(10),
+      flip(),
+      shift({ padding: 8 }),
+      arrow({ element: arrowRef }),
+    ],
+    whileElementsMounted: autoUpdate,
+  });
+
+  const hover = useHover(context);
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
+
+  const arrowSide = placement.split('-')[0];
+  const staticSide = {
+    top: 'bottom',
+    right: 'left',
+    bottom: 'top',
+    left: 'right',
+  }[arrowSide];
+
+  return (
+    <>
+      <div
+        ref={refs.setReference}
+        {...getReferenceProps()}
+        className="flex items-center justify-center w-8 h-8 rounded bg-purple-100 hover:bg-purple-200 cursor-pointer text-lg"
+      >
+        💪
+      </div>
+
+      {isOpen && (
+        <FloatingPortal>
+          <div
+            ref={refs.setFloating}
+            style={floatingStyles}
+            {...getFloatingProps()}
+            className="z-[9999] w-64"
+          >
+            <div className="bg-white border-2 border-purple-400 rounded-lg shadow-xl p-3">
+              {/* Arrow */}
+              <div
+                ref={arrowRef}
+                className="absolute w-4 h-4 rotate-45 bg-white border-purple-400"
+                style={{
+                  [staticSide as string]: '-4px',
+                  borderWidth:
+                    staticSide === 'bottom' || staticSide === 'right'
+                      ? '0 2px 2px 0'
+                      : '2px 0 0 2px',
+                }}
+              />
+
+              {/* Workout Title */}
+              <h4 className="font-bold text-sm text-gray-900 mb-2">
+                {workout.title}
+              </h4>
+
+              {/* Instructions */}
+              {workout.instructions && (
+                <p className="text-xs text-gray-600 mb-2">
+                  {workout.instructions}
+                </p>
+              )}
+
+              {/* Exercise Sequence */}
+              <div className="space-y-1 text-xs">
+                <div className="font-semibold text-gray-700">Exercises:</div>
+                {workout.sequenceSummary.map((seq, i) => (
+                  <div key={i} className="text-gray-600">
+                    {seq.sequenceOrder}. {seq.title}
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary Stats */}
+              <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600">
+                {workout.totalSets} sets • {workout.totalPrescriptions}{' '}
+                exercises
+              </div>
+            </div>
+          </div>
+        </FloatingPortal>
+      )}
+    </>
   );
 }
 
@@ -182,36 +350,75 @@ interface NoteBadgeProps {
 }
 
 function NoteBadge({ note }: NoteBadgeProps): ReactElement {
-  const [showPopup, setShowPopup] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const arrowRef = useRef<HTMLDivElement>(null);
+
+  const { refs, floatingStyles, context, placement } = useFloating({
+    open: isOpen,
+    onOpenChange: setIsOpen,
+    middleware: [
+      offset(10),
+      flip(),
+      shift({ padding: 8 }),
+      arrow({ element: arrowRef }),
+    ],
+    whileElementsMounted: autoUpdate,
+  });
+
+  const hover = useHover(context);
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
+
+  const arrowSide = placement.split('-')[0];
+  const staticSide = {
+    top: 'bottom',
+    right: 'left',
+    bottom: 'top',
+    left: 'right',
+  }[arrowSide];
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setShowPopup(true)}
-      onMouseLeave={() => setShowPopup(false)}
-    >
-      <div className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-pointer text-lg">
+    <>
+      <div
+        ref={refs.setReference}
+        {...getReferenceProps()}
+        className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-pointer text-lg"
+      >
         📝
       </div>
 
-      {showPopup && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-[9999] w-56">
-          <div className="bg-white border-2 border-yellow-400 rounded-lg shadow-xl p-3">
-            {/* Arrow pointing up */}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-[-1px]">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-yellow-400"></div>
-            </div>
+      {isOpen && (
+        <FloatingPortal>
+          <div
+            ref={refs.setFloating}
+            style={floatingStyles}
+            {...getFloatingProps()}
+            className="z-[9999] w-56"
+          >
+            <div className="bg-white border-2 border-yellow-400 rounded-lg shadow-xl p-3">
+              {/* Arrow */}
+              <div
+                ref={arrowRef}
+                className="absolute w-4 h-4 rotate-45 bg-white border-yellow-400"
+                style={{
+                  [staticSide as string]: '-4px',
+                  borderWidth:
+                    staticSide === 'bottom' || staticSide === 'right'
+                      ? '0 2px 2px 0'
+                      : '2px 0 0 2px',
+                }}
+              />
 
-            <h4 className="font-bold text-sm text-gray-900 mb-1">
-              📝 {note.title}
-            </h4>
-            {note.description && (
-              <p className="text-xs text-gray-700">{note.description}</p>
-            )}
+              <h4 className="font-bold text-sm text-gray-900 mb-1">
+                📝 {note.title}
+              </h4>
+              {note.description && (
+                <p className="text-xs text-gray-700">{note.description}</p>
+              )}
+            </div>
           </div>
-        </div>
+        </FloatingPortal>
       )}
-    </div>
+    </>
   );
 }
 
@@ -223,42 +430,83 @@ interface EventBadgeProps {
 }
 
 function EventBadge({ event }: EventBadgeProps): ReactElement {
-  const [showPopup, setShowPopup] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const arrowRef = useRef<HTMLDivElement>(null);
+
+  const { refs, floatingStyles, context, placement } = useFloating({
+    open: isOpen,
+    onOpenChange: setIsOpen,
+    middleware: [
+      offset(10),
+      flip(),
+      shift({ padding: 8 }),
+      arrow({ element: arrowRef }),
+    ],
+    whileElementsMounted: autoUpdate,
+  });
+
+  const hover = useHover(context);
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
+
+  const arrowSide = placement.split('-')[0];
+  const staticSide = {
+    top: 'bottom',
+    right: 'left',
+    bottom: 'top',
+    left: 'right',
+  }[arrowSide];
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setShowPopup(true)}
-      onMouseLeave={() => setShowPopup(false)}
-    >
-      <div className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-pointer text-lg">
+    <>
+      <div
+        ref={refs.setReference}
+        {...getReferenceProps()}
+        className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-pointer text-lg"
+      >
         🏁
       </div>
 
-      {showPopup && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-[9999] w-56">
-          <div className="bg-white border-2 border-green-400 rounded-lg shadow-xl p-3">
-            {/* Arrow pointing up */}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-[-1px]">
-              <div className="w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-green-400"></div>
-            </div>
+      {isOpen && (
+        <FloatingPortal>
+          <div
+            ref={refs.setFloating}
+            style={floatingStyles}
+            {...getFloatingProps()}
+            className="z-[9999] w-56"
+          >
+            <div className="bg-white border-2 border-green-400 rounded-lg shadow-xl p-3">
+              {/* Arrow */}
+              <div
+                ref={arrowRef}
+                className="absolute w-4 h-4 rotate-45 bg-white border-green-400"
+                style={{
+                  [staticSide as string]: '-4px',
+                  borderWidth:
+                    staticSide === 'bottom' || staticSide === 'right'
+                      ? '0 2px 2px 0'
+                      : '2px 0 0 2px',
+                }}
+              />
 
-            <h4 className="font-bold text-sm text-gray-900 mb-1">
-              🏁 {event.name}
-            </h4>
-            <p className="text-xs text-gray-600 mb-1">{event.eventType}</p>
-            {event.distance && (
-              <p className="text-xs text-gray-700">
-                Distance: {event.distance} {event.distanceUnits || ''}
-              </p>
-            )}
-            {event.description && (
-              <p className="text-xs text-gray-700 mt-1">{event.description}</p>
-            )}
+              <h4 className="font-bold text-sm text-gray-900 mb-1">
+                🏁 {event.name}
+              </h4>
+              <p className="text-xs text-gray-600 mb-1">{event.eventType}</p>
+              {event.distance && (
+                <p className="text-xs text-gray-700">
+                  Distance: {event.distance} {event.distanceUnits || ''}
+                </p>
+              )}
+              {event.description && (
+                <p className="text-xs text-gray-700 mt-1">
+                  {event.description}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        </FloatingPortal>
       )}
-    </div>
+    </>
   );
 }
 
@@ -280,9 +528,13 @@ export function CalendarDayCell({
       ) : (
         <div className="flex flex-wrap gap-1">
           {/* Workouts */}
-          {workouts.map((workout) => (
-            <WorkoutBadge key={workout.workoutId} workout={workout} />
-          ))}
+          {workouts.map((workout) => {
+            const key =
+              workout.workoutSource === 'classic'
+                ? `classic-${workout.workoutId}`
+                : `rx-${workout.id}`;
+            return <WorkoutBadge key={key} workout={workout} />;
+          })}
 
           {/* Notes */}
           {notes.map((note) => (

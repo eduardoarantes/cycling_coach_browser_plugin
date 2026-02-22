@@ -5,9 +5,15 @@
  */
 
 /**
- * TrainingPeaks API base URL
+ * TrainingPeaks API base URLs
  */
 export const API_BASE_URL = 'https://tpapi.trainingpeaks.com';
+
+/**
+ * TrainingPeaks RxBuilder (structured strength) API base URL
+ * Uses a different domain from the classic API
+ */
+export const RX_API_BASE_URL = 'https://api.peakswaresb.com';
 
 /**
  * Token expiration threshold (24 hours in milliseconds)

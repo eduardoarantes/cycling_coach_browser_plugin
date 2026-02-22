@@ -76,6 +76,14 @@ export interface GetPlanEventsMessage {
   planId: number;
 }
 
+/**
+ * Message to request RxBuilder (structured strength) workouts from API
+ */
+export interface GetRxBuilderWorkoutsMessage {
+  type: 'GET_RX_BUILDER_WORKOUTS';
+  planId: number;
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
   | GetTokenMessage
@@ -87,7 +95,8 @@ export type RuntimeMessage =
   | GetTrainingPlansMessage
   | GetPlanWorkoutsMessage
   | GetPlanNotesMessage
-  | GetPlanEventsMessage;
+  | GetPlanEventsMessage
+  | GetRxBuilderWorkoutsMessage;
 
 /**
  * Token storage structure
