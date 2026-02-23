@@ -7,7 +7,8 @@
   "host_permissions": [
     "https://tpapi.trainingpeaks.com/*",
     "https://api.peakswaresb.com/*",
-    "https://app.trainingpeaks.com/*"
+    "https://app.trainingpeaks.com/*",
+    "https://intervals.icu/*"
   ],
   "background": {
     "service_worker": "src/background/index.ts",
