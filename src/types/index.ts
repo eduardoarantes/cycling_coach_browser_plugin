@@ -105,3 +105,8 @@ export interface TokenStorage {
   auth_token: string | null;
   token_timestamp: number | null;
 }
+
+/**
+ * Re-export LibraryItem from schema for convenience
+ */
+export type { LibraryItem } from '@/schemas/library.schema';

@@ -10,6 +10,12 @@ import type { TrainingPlan } from '@/types/api.types';
 export interface TrainingPlanCardProps {
   plan: TrainingPlan;
   onClick: (planId: number) => void;
+  /** Whether selection mode is enabled */
+  selectionMode?: boolean;
+  /** Whether this plan is selected */
+  isSelected?: boolean;
+  /** Callback when plan selection changes */
+  onSelectionChange?: (planId: number, selected: boolean) => void;
 }
 
 /**
@@ -47,9 +53,25 @@ function formatWorkouts(count: number): string {
 export function TrainingPlanCard({
   plan,
   onClick,
+  selectionMode = false,
+  isSelected = false,
+  onSelectionChange,
 }: TrainingPlanCardProps): ReactElement {
   const handleClick = (): void => {
-    onClick(plan.planId);
+    if (selectionMode && onSelectionChange) {
+      onSelectionChange(plan.planId, !isSelected);
+    } else {
+      onClick(plan.planId);
+    }
+  };
+
+  const handleCheckboxChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ): void => {
+    e.stopPropagation();
+    if (onSelectionChange) {
+      onSelectionChange(plan.planId, e.target.checked);
+    }
   };
 
   const dateRange = `${formatDate(plan.startDate)} - ${formatDate(plan.endDate)}`;
@@ -59,13 +81,31 @@ export function TrainingPlanCard({
     <button
       onClick={handleClick}
       aria-label={`View ${plan.title} by ${plan.author}`}
-      className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
+      className={`w-full p-4 bg-white rounded-lg border transition-all text-left ${
+        selectionMode && isSelected
+          ? 'border-blue-500 bg-blue-50 shadow-md'
+          : 'border-gray-200 hover:border-blue-400 hover:shadow-md'
+      }`}
     >
-      <h3 className="text-base font-semibold text-gray-900 truncate">
-        {plan.title}
-      </h3>
-      <p className="text-sm text-gray-600 mt-1">by {plan.author}</p>
-      <p className="text-xs text-gray-500 mt-1">{metadata}</p>
+      <div className="flex items-start gap-3">
+        {selectionMode && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={handleCheckboxChange}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+            aria-label={`Select ${plan.title}`}
+          />
+        )}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-semibold text-gray-900 truncate">
+            {plan.title}
+          </h3>
+          <p className="text-sm text-gray-600 mt-1">by {plan.author}</p>
+          <p className="text-xs text-gray-500 mt-1">{metadata}</p>
+        </div>
+      </div>
     </button>
   );
 }
