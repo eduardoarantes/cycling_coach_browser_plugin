@@ -49,6 +49,8 @@ export const LibraryItemSchema = z.object({
   elevationGainPlanned: z.number().nullable(),
   description: z.string().nullable(),
   coachComments: z.string().nullable(),
+  // Structure field (optional, may not be present in all API responses)
+  structure: z.unknown().optional(),
 });
 
 export type LibraryItem = z.infer<typeof LibraryItemSchema>;

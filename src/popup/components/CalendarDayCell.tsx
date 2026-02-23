@@ -4,7 +4,7 @@
  * Displays a single day cell with compact activity icons and hover tooltips
  */
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import type { ReactElement } from 'react';
 import {
   useFloating,
@@ -13,7 +13,6 @@ import {
   offset,
   flip,
   shift,
-  arrow,
   FloatingPortal,
   autoUpdate,
 } from '@floating-ui/react';
@@ -103,32 +102,17 @@ function ClassicWorkoutBadge({
   workout: UnifiedWorkout & { workoutSource: 'classic' };
 }): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
-  const arrowRef = useRef<HTMLDivElement>(null);
   const icon = getWorkoutIcon(workout.workoutTypeValueId);
 
-  const { refs, floatingStyles, context, placement } = useFloating({
+  const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
-    middleware: [
-      offset(10),
-      flip(),
-      shift({ padding: 8 }),
-      arrow({ element: arrowRef }),
-    ],
+    middleware: [offset(10), flip(), shift({ padding: 8 })],
     whileElementsMounted: autoUpdate,
   });
 
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
-
-  // Determine arrow position based on placement
-  const arrowSide = placement.split('-')[0];
-  const staticSide = {
-    top: 'bottom',
-    right: 'left',
-    bottom: 'top',
-    left: 'right',
-  }[arrowSide];
 
   return (
     <>
@@ -149,19 +133,6 @@ function ClassicWorkoutBadge({
             className="z-[9999] w-64"
           >
             <div className="bg-white border-2 border-blue-400 rounded-lg shadow-xl p-3">
-              {/* Arrow */}
-              <div
-                ref={arrowRef}
-                className="absolute w-4 h-4 rotate-45 bg-white border-blue-400"
-                style={{
-                  [staticSide as string]: '-4px',
-                  borderWidth:
-                    staticSide === 'bottom' || staticSide === 'right'
-                      ? '0 2px 2px 0'
-                      : '2px 0 0 2px',
-                }}
-              />
-
               {/* Workout Title */}
               <h4 className="font-bold text-sm text-gray-900 mb-2">
                 {workout.title}
@@ -250,30 +221,16 @@ function RxBuilderWorkoutBadge({
   workout: UnifiedWorkout & { workoutSource: 'rxBuilder' };
 }): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
-  const arrowRef = useRef<HTMLDivElement>(null);
 
-  const { refs, floatingStyles, context, placement } = useFloating({
+  const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
-    middleware: [
-      offset(10),
-      flip(),
-      shift({ padding: 8 }),
-      arrow({ element: arrowRef }),
-    ],
+    middleware: [offset(10), flip(), shift({ padding: 8 })],
     whileElementsMounted: autoUpdate,
   });
 
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
-
-  const arrowSide = placement.split('-')[0];
-  const staticSide = {
-    top: 'bottom',
-    right: 'left',
-    bottom: 'top',
-    left: 'right',
-  }[arrowSide];
 
   return (
     <>
@@ -294,19 +251,6 @@ function RxBuilderWorkoutBadge({
             className="z-[9999] w-64"
           >
             <div className="bg-white border-2 border-purple-400 rounded-lg shadow-xl p-3">
-              {/* Arrow */}
-              <div
-                ref={arrowRef}
-                className="absolute w-4 h-4 rotate-45 bg-white border-purple-400"
-                style={{
-                  [staticSide as string]: '-4px',
-                  borderWidth:
-                    staticSide === 'bottom' || staticSide === 'right'
-                      ? '0 2px 2px 0'
-                      : '2px 0 0 2px',
-                }}
-              />
-
               {/* Workout Title */}
               <h4 className="font-bold text-sm text-gray-900 mb-2">
                 {workout.title}
@@ -351,30 +295,16 @@ interface NoteBadgeProps {
 
 function NoteBadge({ note }: NoteBadgeProps): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
-  const arrowRef = useRef<HTMLDivElement>(null);
 
-  const { refs, floatingStyles, context, placement } = useFloating({
+  const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
-    middleware: [
-      offset(10),
-      flip(),
-      shift({ padding: 8 }),
-      arrow({ element: arrowRef }),
-    ],
+    middleware: [offset(10), flip(), shift({ padding: 8 })],
     whileElementsMounted: autoUpdate,
   });
 
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
-
-  const arrowSide = placement.split('-')[0];
-  const staticSide = {
-    top: 'bottom',
-    right: 'left',
-    bottom: 'top',
-    left: 'right',
-  }[arrowSide];
 
   return (
     <>
@@ -395,19 +325,6 @@ function NoteBadge({ note }: NoteBadgeProps): ReactElement {
             className="z-[9999] w-56"
           >
             <div className="bg-white border-2 border-yellow-400 rounded-lg shadow-xl p-3">
-              {/* Arrow */}
-              <div
-                ref={arrowRef}
-                className="absolute w-4 h-4 rotate-45 bg-white border-yellow-400"
-                style={{
-                  [staticSide as string]: '-4px',
-                  borderWidth:
-                    staticSide === 'bottom' || staticSide === 'right'
-                      ? '0 2px 2px 0'
-                      : '2px 0 0 2px',
-                }}
-              />
-
               <h4 className="font-bold text-sm text-gray-900 mb-1">
                 📝 {note.title}
               </h4>
@@ -431,30 +348,16 @@ interface EventBadgeProps {
 
 function EventBadge({ event }: EventBadgeProps): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
-  const arrowRef = useRef<HTMLDivElement>(null);
 
-  const { refs, floatingStyles, context, placement } = useFloating({
+  const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
-    middleware: [
-      offset(10),
-      flip(),
-      shift({ padding: 8 }),
-      arrow({ element: arrowRef }),
-    ],
+    middleware: [offset(10), flip(), shift({ padding: 8 })],
     whileElementsMounted: autoUpdate,
   });
 
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
-
-  const arrowSide = placement.split('-')[0];
-  const staticSide = {
-    top: 'bottom',
-    right: 'left',
-    bottom: 'top',
-    left: 'right',
-  }[arrowSide];
 
   return (
     <>
@@ -475,19 +378,6 @@ function EventBadge({ event }: EventBadgeProps): ReactElement {
             className="z-[9999] w-56"
           >
             <div className="bg-white border-2 border-green-400 rounded-lg shadow-xl p-3">
-              {/* Arrow */}
-              <div
-                ref={arrowRef}
-                className="absolute w-4 h-4 rotate-45 bg-white border-green-400"
-                style={{
-                  [staticSide as string]: '-4px',
-                  borderWidth:
-                    staticSide === 'bottom' || staticSide === 'right'
-                      ? '0 2px 2px 0'
-                      : '2px 0 0 2px',
-                }}
-              />
-
               <h4 className="font-bold text-sm text-gray-900 mb-1">
                 🏁 {event.name}
               </h4>

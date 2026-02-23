@@ -4,6 +4,7 @@ import type { GetTrainingPlansMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
 import { CACHE_DURATIONS } from '@/utils/constants';
+import { useUser } from './useUser';
 
 /**
  * Query function for fetching training plans list
@@ -35,11 +36,43 @@ async function fetchTrainingPlansList(): Promise<TrainingPlan[]> {
 }
 
 /**
+ * Filter training plans to only show those accessible to the logged-in user
+ * Includes plans where the user is either:
+ * - The owner (ownerPersonId)
+ * - The person the plan is assigned to (planPersonId)
+ * - Has explicit access (planAccess.personId)
+ */
+function filterUserPlans(
+  plans: TrainingPlan[],
+  userId: number | undefined
+): TrainingPlan[] {
+  if (!userId) {
+    logger.debug('No user ID available, returning all training plans');
+    return plans;
+  }
+
+  const filtered = plans.filter(
+    (plan) =>
+      plan.ownerPersonId === userId ||
+      plan.planPersonId === userId ||
+      plan.planAccess.personId === userId
+  );
+  logger.debug(
+    `Filtered training plans: ${filtered.length} of ${plans.length} accessible to user ${userId}`
+  );
+
+  return filtered;
+}
+
+/**
  * Custom hook for training plans list
+ *
+ * **Note**: Automatically filters to show only plans assigned to the logged-in user
  *
  * @param options - Optional configuration
  * @param options.enabled - Whether to auto-fetch (default: true)
- * @returns React Query result with training plans array
+ * @param options.showAll - If true, show all plans regardless of assignment (default: false)
+ * @returns React Query result with training plans array (filtered to user's plans)
  *
  * @example
  * ```tsx
@@ -63,8 +96,12 @@ async function fetchTrainingPlansList(): Promise<TrainingPlan[]> {
  */
 export function useTrainingPlans(options?: {
   enabled?: boolean;
+  showAll?: boolean;
 }): UseQueryResult<TrainingPlan[], Error> {
-  return useQuery<TrainingPlan[], Error>({
+  // Fetch user profile to get userId for filtering
+  const { data: user } = useUser({ enabled: options?.enabled ?? true });
+
+  const plansQuery = useQuery<TrainingPlan[], Error>({
     queryKey: ['trainingPlans'],
     queryFn: fetchTrainingPlansList,
     // Training plans change infrequently, cache aggressively
@@ -74,4 +111,15 @@ export function useTrainingPlans(options?: {
     // Only fetch when enabled (typically when authenticated)
     enabled: options?.enabled ?? true,
   });
+
+  // Filter plans to only show user's own plans (unless showAll is true)
+  const filteredData =
+    plansQuery.data && !options?.showAll
+      ? filterUserPlans(plansQuery.data, user?.userId)
+      : plansQuery.data;
+
+  return {
+    ...plansQuery,
+    data: filteredData,
+  } as UseQueryResult<TrainingPlan[], Error>;
 }
