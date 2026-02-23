@@ -28,19 +28,29 @@ import {
   fetchPlanEvents,
   fetchRxBuilderWorkouts,
 } from './api/trainingPeaks';
+import { exportToIntervals } from './api/intervalsicu';
+import {
+  setIntervalsApiKey,
+  getIntervalsApiKey,
+  hasIntervalsApiKey,
+} from '@/services/intervalsApiKeyService';
+import type { IntervalsEventResponse } from '@/types/intervalsicu.types';
 
 type MessageResponse =
   | { success: true }
   | { success: false; error: string }
   | { token: string | null; timestamp: number | null }
   | { valid: boolean; userId?: number }
+  | { apiKey: string | null }
+  | { hasKey: boolean }
   | ApiResponse<UserProfile>
   | ApiResponse<Library[]>
   | ApiResponse<LibraryItem[]>
   | ApiResponse<TrainingPlan[]>
   | ApiResponse<PlanWorkout[]>
   | ApiResponse<CalendarNote[]>
-  | ApiResponse<CalendarEvent[]>;
+  | ApiResponse<CalendarEvent[]>
+  | ApiResponse<IntervalsEventResponse[]>;
 
 /**
  * Handle TOKEN_FOUND message from content script
@@ -287,6 +297,55 @@ async function handleGetRxBuilderWorkouts(
 }
 
 /**
+ * Handle EXPORT_TO_INTERVALS message from popup
+ * Exports workouts to Intervals.icu
+ */
+async function handleExportToIntervals(
+  workouts: LibraryItem[],
+  startDates: string[]
+): Promise<ApiResponse<IntervalsEventResponse[]>> {
+  logger.debug('Handling EXPORT_TO_INTERVALS message');
+  return await exportToIntervals(workouts, startDates);
+}
+
+/**
+ * Handle SET_INTERVALS_API_KEY message from popup
+ * Stores Intervals.icu API key in chrome.storage
+ */
+async function handleSetIntervalsApiKey(
+  apiKey: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    await setIntervalsApiKey(apiKey);
+    return { success: true };
+  } catch (error) {
+    logger.error('Failed to set Intervals.icu API key:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Handle GET_INTERVALS_API_KEY message from popup
+ * Retrieves Intervals.icu API key from chrome.storage
+ */
+async function handleGetIntervalsApiKey(): Promise<{ apiKey: string | null }> {
+  const apiKey = await getIntervalsApiKey();
+  return { apiKey };
+}
+
+/**
+ * Handle HAS_INTERVALS_API_KEY message from popup
+ * Checks if Intervals.icu API key exists in chrome.storage
+ */
+async function handleHasIntervalsApiKey(): Promise<{ hasKey: boolean }> {
+  const hasKey = await hasIntervalsApiKey();
+  return { hasKey };
+}
+
+/**
  * Main message router
  */
 export async function handleMessage(
@@ -333,6 +392,21 @@ export async function handleMessage(
 
     case 'GET_RX_BUILDER_WORKOUTS':
       return await handleGetRxBuilderWorkouts(message.planId);
+
+    case 'EXPORT_TO_INTERVALS':
+      return await handleExportToIntervals(
+        message.workouts,
+        message.startDates
+      );
+
+    case 'SET_INTERVALS_API_KEY':
+      return await handleSetIntervalsApiKey(message.apiKey);
+
+    case 'GET_INTERVALS_API_KEY':
+      return await handleGetIntervalsApiKey();
+
+    case 'HAS_INTERVALS_API_KEY':
+      return await handleHasIntervalsApiKey();
 
     default:
       logger.warn('Unknown message type received');
