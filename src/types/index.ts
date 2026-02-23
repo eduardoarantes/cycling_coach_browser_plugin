@@ -2,6 +2,8 @@
  * Type definitions for the extension
  */
 
+import type { LibraryItem } from '@/schemas/library.schema';
+
 /**
  * Message types for chrome.runtime messaging
  */
@@ -84,6 +86,37 @@ export interface GetRxBuilderWorkoutsMessage {
   planId: number;
 }
 
+/**
+ * Message to export workouts to Intervals.icu
+ */
+export interface ExportToIntervalsMessage {
+  type: 'EXPORT_TO_INTERVALS';
+  workouts: LibraryItem[];
+  startDates: string[]; // YYYY-MM-DD format
+}
+
+/**
+ * Message to set Intervals.icu API key
+ */
+export interface SetIntervalsApiKeyMessage {
+  type: 'SET_INTERVALS_API_KEY';
+  apiKey: string;
+}
+
+/**
+ * Message to get Intervals.icu API key
+ */
+export interface GetIntervalsApiKeyMessage {
+  type: 'GET_INTERVALS_API_KEY';
+}
+
+/**
+ * Message to check if Intervals.icu API key exists
+ */
+export interface HasIntervalsApiKeyMessage {
+  type: 'HAS_INTERVALS_API_KEY';
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
   | GetTokenMessage
@@ -96,7 +129,11 @@ export type RuntimeMessage =
   | GetPlanWorkoutsMessage
   | GetPlanNotesMessage
   | GetPlanEventsMessage
-  | GetRxBuilderWorkoutsMessage;
+  | GetRxBuilderWorkoutsMessage
+  | ExportToIntervalsMessage
+  | SetIntervalsApiKeyMessage
+  | GetIntervalsApiKeyMessage
+  | HasIntervalsApiKeyMessage;
 
 /**
  * Token storage structure
