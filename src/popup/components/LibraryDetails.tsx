@@ -147,6 +147,7 @@ export function LibraryDetails({
         onExport={executeExport}
         itemCount={workoutCount}
         isExporting={isExporting}
+        sourceLibraryName={libraryName}
       />
 
       {/* Export Result */}

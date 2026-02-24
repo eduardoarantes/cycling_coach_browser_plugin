@@ -15,13 +15,13 @@ This spec covers:
 - confirmed TrainingPeaks type ID table (project source-of-truth for TP type taxonomy)
 - Intervals.icu target type table (exact API strings)
 - field-by-field transformation rules
-- structured-workout conversion decision tree (`zwo` vs `workout_doc` vs description fallback)
+- structured-workout conversion decision tree (description text vs `zwo` vs `workout_doc` vs metadata fallback)
 
 This spec is intentionally conservative:
 
 - It prefers officially documented Intervals.icu API behavior
+- It treats native textual workout syntax in `description` as the primary structured export path because Intervals.icu uses a text workout editor in the UI
 - It treats opaque `workout_doc` JSON as an advanced mode
-- It treats native textual workout syntax in `description` as a first-class path because Intervals.icu uses a text workout editor in the UI
 
 ## 2. Sources of Truth
 
@@ -39,6 +39,7 @@ This spec is intentionally conservative:
 
 - API cookbook confirms `/athlete/0` is valid for current-athlete lookup and gives examples for workout creation
 - Planned workouts thread and UI examples reinforce that Intervals.icu uses textual workout definitions in the editor
+- Community examples (including `tp2intervals`) show practical TP structure -> Intervals text-script conversion in `description`
 
 ### 2.3 TrainingPeaks type IDs in this project (project source-of-truth)
 
@@ -240,7 +241,7 @@ These should remain opt-in until product behavior is specified:
 - `hide_from_athlete`
 - `time`
 
-## 7. Structured Workout Conversion Decision Tree (zwo vs workout_doc vs description fallback)
+## 7. Structured Workout Conversion Decision Tree (description text vs `zwo` vs `workout_doc` vs metadata fallback)
 
 This section defines how to choose the payload mode when TP workout structure is present.
 
@@ -249,7 +250,7 @@ This section defines how to choose the payload mode when TP workout structure is
 - sport type (`workoutTypeId` -> Intervals type)
 - TP structure presence (`LibraryItem.structure`)
 - TP structure complexity (repeats, nested blocks, target types)
-- converter availability (ZWO generator, `workout_doc` serializer)
+- converter availability (Intervals text-script renderer, ZWO generator, `workout_doc` serializer)
 - parser compatibility confidence
 
 ### 7.2 Decision tree (strict)
@@ -259,48 +260,75 @@ START
   |
   |-- Is structured data present? (LibraryItem.structure for classic TP workout)
   |      |
-  |      |-- NO --> Description fallback mode (notes + metadata only)
+  |      |-- NO --> Metadata+notes description mode (no structured script)
   |      |
   |      `-- YES
   |            |
-  |            |-- Sport maps to Ride or Run?
+  |            |-- Can render Intervals textual workout script in description?
   |            |      |
-  |            |      |-- YES
-  |            |      |     |
-  |            |      |     |-- Can convert TP structure to ZWO losslessly enough?
-  |            |      |     |      |
-  |            |      |     |      |-- YES --> ZWO mode (filename + file_contents_base64)
-  |            |      |     |      |
-  |            |      |     |      `-- NO
-  |            |      |     |             |
-  |            |      |     |             |-- Can serialize supported subset to workout_doc safely?
-  |            |      |     |             |      |
-  |            |      |     |             |      |-- YES --> workout_doc mode
-  |            |      |     |             |      |
-  |            |      |     |             |      `-- NO --> Description fallback mode (generate text script if possible)
+  |            |      |-- YES --> Description text mode (primary structured path)
   |            |      |
   |            |      `-- NO
   |            |            |
-  |            |            |-- Sport = Swim? --> Description fallback mode (structured text, no parser/workout_doc by default)
-  |            |            |
-  |            |            |-- Sport = WeightTraining? --> Description fallback mode (RxBuilder/strength summary text)
-  |            |            |
-  |            |            `-- Other sports --> Description fallback mode
+  |            |            |-- Sport maps to Ride or Run?
+  |            |      |
+  |            |            |      |-- YES
+  |            |            |      |     |
+  |            |            |      |     |-- Can convert TP structure to ZWO losslessly enough?
+  |            |            |      |     |      |
+  |            |            |      |     |      |-- YES --> ZWO mode (secondary structured path)
+  |            |            |      |     |      |
+  |            |            |      |     |      `-- NO
+  |            |            |      |     |             |
+  |            |            |      |     |             |-- Can serialize supported subset to workout_doc safely?
+  |            |            |      |     |             |      |
+  |            |            |      |     |             |      |-- YES --> workout_doc mode (advanced subset path)
+  |            |            |      |     |             |      |
+  |            |            |      |     |             |      `-- NO --> Metadata+notes description mode
+  |            |            |      |
+  |            |            |      `-- NO --> Metadata+notes description mode
   |
   `-- (Future) RxBuilder structured strength source available?
          |
-         `-- Use description fallback mode first; add dedicated strength serializer only after format is confirmed
+         `-- Use description text mode first; add dedicated strength serializer only after format is confirmed
 ```
 
 ### 7.3 Mode definitions
 
-#### Mode A: ZWO mode (preferred for structured endurance when supported)
+#### Mode A: Description text mode (primary structured path)
+
+Use when:
+
+- TP structure is present and we can render an Intervals-readable textual script
+- Any sport where we can preserve intent via text (ride/run/swim/strength/other)
+- We want maximum editability in Intervals' native text editor UX
+
+Payload strategy:
+
+- `name`
+- `type`
+- `folder_id` (optional)
+- `description` containing:
+  - Intervals textual workout script rendered from TP structure
+  - notes / coach comments
+  - metadata summary block
+- `moving_time` (if available)
+- `icu_training_load` (if available)
+
+Why primary:
+
+- Intervals explicitly supports native workout format in `description`
+- Aligns with the Intervals text workout editor shown in the UI
+- Keeps workouts human-readable and easy to edit after import
+- Avoids parser format loss/quirks and avoids opaque `workout_doc` coupling
+
+#### Mode B: ZWO mode (secondary structured path)
 
 Use when:
 
 - Sport is `Ride` or `Run` (if run support is verified for the chosen parser path)
-- TP structure uses constructs we can convert reliably
-- Converter supports targets and repeats needed by the workout
+- Text-script rendering is unavailable or lower fidelity than parser conversion for the specific workout
+- TP structure uses constructs we can convert reliably to ZWO
 
 Payload strategy:
 
@@ -309,17 +337,19 @@ Payload strategy:
 - `folder_id` (optional)
 - `filename` (e.g., `tp_{exerciseLibraryItemId}.zwo`)
 - `file_contents_base64`
-- `description` (notes + metadata, and optionally a human-readable script preview)
+- `description` (notes + metadata, and optionally a script preview)
 
-Why preferred:
+Why secondary:
 
 - Intervals officially documents file parsing support
-- Avoids relying on opaque `workout_doc` schema
+- Useful when parser fidelity beats our text renderer for a specific workout
+- Still avoids relying on opaque `workout_doc` schema
 
-#### Mode B: `workout_doc` mode (advanced, subset-only)
+#### Mode C: `workout_doc` mode (advanced, subset-only)
 
 Use when:
 
+- Description text rendering is unavailable/inadequate for a specific structured subset
 - ZWO conversion is unavailable/inadequate
 - The workout uses a simple subset we can serialize and test
 - We have fixture-backed tests proving Intervals accepts the generated `workout_doc`
@@ -338,29 +368,27 @@ Restrictions:
 - Do not emit undocumented fields without fixture-based validation
 - Treat `workout_doc` as opaque; only generate fields we explicitly own in tests
 
-#### Mode C: Description fallback mode (text-first, always available)
+#### Mode D: Metadata+notes description mode (fallback, always available)
 
 Use when:
 
 - No TP structure exists
 - Structured conversion fails
-- Sport is swim/strength/other and parser or `workout_doc` support is not proven
+- We cannot safely render text script, ZWO, or `workout_doc`
 
 Payload strategy:
 
 - `name`
 - `type`
 - `folder_id` (optional)
-- `description` containing:
-  - Intervals-style textual workout script if we can generate one
-  - else notes + metadata only
+- `description` containing notes + metadata (no generated structured script)
 - `moving_time`
 - `icu_training_load`
 
 Important:
 
-- This is called "fallback" in the decision tree, but it is not low quality.
-- It aligns with Intervals.icu's text-based workout editing UX and preserves editability.
+- This is the true fallback path.
+- It is lower fidelity than Mode A, but still preserves coach notes and key metadata.
 
 ## 8. Classic TP Structure Conversion Rules (for future serializer/converters)
 
@@ -379,7 +407,7 @@ Observed TP classic structure shape (from project tests and transformer code):
 
 ### 8.2 Non-MVP / fallback triggers
 
-Trigger description fallback mode when any of the following is present and unsupported:
+Trigger Mode A (description text mode) when any of the following is present and unsupported by parser/serializer paths:
 
 - unsupported target types (HR/pace combinations not implemented)
 - unsupported length units
@@ -410,7 +438,7 @@ When exporting RxBuilder workouts (future path):
 ### 9.3 Strength structure serialization policy
 
 - Do not emit `workout_doc` for RxBuilder until a tested Intervals-compatible strength structure format is confirmed.
-- Use text-first fallback mode as the default.
+- Use Mode A (description text mode) as the default.
 
 ## 10. Required Tests Before Implementation Is Accepted
 
@@ -437,11 +465,11 @@ Cover all TP IDs in Section 5.1, especially:
 
 Test decision outcomes, not just payloads:
 
-- ride with simple structure -> `zwo` mode (if converter exists)
-- unsupported structured bike/run -> `workout_doc` or description fallback per capability flags
-- swim structured -> description fallback
-- strength -> description fallback
-- no structure -> description fallback
+- structured ride/run/swim with renderer support -> description text mode (primary)
+- ride/run where parser path is explicitly chosen and supported -> `zwo` mode
+- unsupported structured bike/run -> `workout_doc` or metadata+notes fallback per capability flags
+- strength -> description text mode (if renderer exists) else metadata+notes fallback
+- no structure -> metadata+notes fallback
 
 ### 10.4 One-time TP library parity validation test/data fixture
 
@@ -453,7 +481,31 @@ Add redacted fixtures from real `LibraryItem` API payloads to prove `workoutType
 - Remove duplicate `WORKOUT_TYPE_MAP` definitions (`src/background/api/intervalsicu.ts` and `src/utils/constants.ts`).
 - Keep the API client focused on request orchestration; mapping and mode selection should live in transformer/mapping modules.
 
-## 12. References
+## 12. External Comparison: `freekode/tp2intervals`
+
+This project is a useful implementation reference, but not a drop-in source of truth for this plugin.
+
+### 12.1 Findings that match this spec
+
+- TP type IDs `1/2/3` are treated as `Swim/Bike/Run` (supports correcting the current plugin mapping).
+- `TPWorkoutLibraryItemDTO` passes `workoutTypeId` into the same base `workoutTypeValueId` field used by plan workouts, supporting the assumption that library and plan endpoints share a TP type taxonomy.
+- Intervals export uses textual workout syntax in `description` (via `ToIntervalsStructureConverter`) rather than relying on `workout_doc`.
+- Intervals type mapping is richer than the current plugin implementation (`MountainBikeRide`, `VirtualRide`, `Walk`, `Other`, etc.).
+
+### 12.2 Differences / reasons not to copy as-is
+
+- `TPTrainingTypeMapper` only maps TP strength `9`; it does not cover TP strength `29`.
+- The mapper repeats `TrainingType.UNKNOWN` several times in a Kotlin `mapOf(...)`; duplicate keys collapse, so the comments imply broader TP ID coverage than the effective map actually provides.
+- It maps TP `8` to `MountainBikeRide` and virtual bike to `VirtualRide`; this spec allows those, but keeps generic core mappings as the default policy until explicitly adopted in this plugin.
+- It does not implement `workout_doc` or parser-file (`zwo`) export in the observed converter path (`file_contents` is present in DTO but passed as `null` in the converter).
+
+### 12.3 Spec impact from this comparison
+
+- Promote Intervals textual workout syntax in `description` to the primary structured export path (Mode A).
+- Keep `zwo` and `workout_doc` as optional secondary/advanced paths behind capability checks and tests.
+- Preserve the stricter TP ID table in Section 3/5 (including `29=Strength`) and avoid duplicate-key mapping patterns.
+
+## 13. References
 
 Project code:
 
@@ -469,6 +521,16 @@ Intervals.icu:
 - OpenAPI spec: `https://intervals.icu/api/v1/docs`
 - API cookbook: `https://forum.intervals.icu/t/intervals-icu-api-integration-cookbook/80090`
 - Planned workouts discussion: `https://forum.intervals.icu/t/uploading-planned-workouts-to-intervals-icu/63624`
+
+External comparison:
+
+- `tp2intervals` repository: `https://github.com/freekode/tp2intervals/`
+- `TPTrainingTypeMapper.kt`: `https://raw.githubusercontent.com/freekode/tp2intervals/main/boot/src/main/kotlin/org/freekode/tp2intervals/infrastructure/platform/trainingpeaks/workout/TPTrainingTypeMapper.kt`
+- `TPWorkoutLibraryItemDTO.kt`: `https://raw.githubusercontent.com/freekode/tp2intervals/main/boot/src/main/kotlin/org/freekode/tp2intervals/infrastructure/platform/trainingpeaks/library/TPWorkoutLibraryItemDTO.kt`
+- `TPBaseWorkoutResponseDTO.kt`: `https://raw.githubusercontent.com/freekode/tp2intervals/main/boot/src/main/kotlin/org/freekode/tp2intervals/infrastructure/platform/trainingpeaks/workout/TPBaseWorkoutResponseDTO.kt`
+- `IntervalsTrainingTypeMapper.kt`: `https://raw.githubusercontent.com/freekode/tp2intervals/main/boot/src/main/kotlin/org/freekode/tp2intervals/infrastructure/platform/intervalsicu/workout/IntervalsTrainingTypeMapper.kt`
+- `ToIntervalsWorkoutConverter.kt`: `https://raw.githubusercontent.com/freekode/tp2intervals/main/boot/src/main/kotlin/org/freekode/tp2intervals/infrastructure/platform/intervalsicu/workout/ToIntervalsWorkoutConverter.kt`
+- `ToIntervalsStructureConverter.kt`: `https://raw.githubusercontent.com/freekode/tp2intervals/main/boot/src/main/kotlin/org/freekode/tp2intervals/infrastructure/platform/intervalsicu/workout/ToIntervalsStructureConverter.kt`
 
 Issue tracking:
 

@@ -3,6 +3,7 @@
  */
 
 export * from './api.schema';
+export * from './intervalsicuDsl.schema';
 export * from './library.schema';
 export * from './storage.schema';
 export * from './trainingPlan.schema';

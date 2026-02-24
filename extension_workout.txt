@@ -1,0 +1,32 @@
+**Workout Steps:**
+- 10m 56-75% intensity=warmup
+5x
+Moderate
+- 20s 76-90%
+Easy
+- 40s 56-66% intensity=rest
+3x
+Moderate
+- 5m 66-75%
+Easy
+- 1m 56-61% intensity=rest
+3x
+Moderate
+- 3m 66-75%
+Easy
+- 1m 56-65% intensity=rest
+- 10m 56-66% intensity=cooldown
+
+Warm Up:
+10 mins in Z2,
+5 x (20 secs in Z3 + 40 secs in low Z2).
+
+Main Set:
+3 x (5 mins in upper Z2 + 60 sec recoveries in low Z2),
+3 x (3 mins in upper Z2 + 60 sec recoveries in low Z2).
+
+Warm Down:
+10 mins in low Z2.
+
+**Workout Details:**
+IF: 0.67

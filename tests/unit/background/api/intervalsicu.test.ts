@@ -632,7 +632,7 @@ describe('Intervals.icu API Client - Redesigned', () => {
         expect(body.description).toContain('4x10min @ 88-93% FTP');
       });
 
-      it('should use buildDescription() for comprehensive description', async () => {
+      it('should include TP description and coach notes in Intervals description', async () => {
         mockFetchWithAthlete({
           id: 789,
           name: 'Test',
@@ -651,7 +651,80 @@ describe('Intervals.icu API Client - Redesigned', () => {
         expect(body.description).toContain('4x10min @ 88-93% FTP');
         expect(body.description).toContain('Coach Notes');
         expect(body.description).toContain('Focus on smooth power delivery');
-        expect(body.description).toContain('IF: 0.88');
+        expect(body.description).not.toContain('IF: 0.88');
+      });
+
+      it('should render TP structure as Intervals text in description when present', async () => {
+        const structuredWorkout: LibraryItem = {
+          ...mockWorkout,
+          structure: {
+            structure: [
+              {
+                type: 'step',
+                length: { unit: 'repetition', value: 1 },
+                steps: [
+                  {
+                    name: 'Warm up',
+                    intensityClass: 'warmUp',
+                    length: { unit: 'second', value: 300 },
+                    openDuration: false,
+                    targets: [{ minValue: 40, maxValue: 50 }],
+                  },
+                ],
+                begin: 0,
+                end: 300,
+              },
+              {
+                type: 'repetition',
+                length: { unit: 'repetition', value: 3 },
+                steps: [
+                  {
+                    name: 'Hard',
+                    intensityClass: 'active',
+                    length: { unit: 'second', value: 30 },
+                    openDuration: false,
+                    targets: [{ minValue: 120, maxValue: 150 }],
+                  },
+                  {
+                    name: 'Easy',
+                    intensityClass: 'rest',
+                    length: { unit: 'second', value: 240 },
+                    openDuration: false,
+                    targets: [{ minValue: 50, maxValue: 60 }],
+                  },
+                ],
+                begin: 0,
+                end: 810,
+              },
+            ],
+            primaryIntensityMetric: 'percentOfFtp',
+            primaryLengthMetric: 'duration',
+          },
+        };
+
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Sweet Spot Intervals',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([structuredWorkout]);
+
+        const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+        const body = JSON.parse(fetchCall[1]?.body as string);
+
+        expect(
+          body.description.startsWith('- 5m 40-50% intensity=warmup')
+        ).toBe(true);
+        expect(body.description).toContain('- 5m 40-50% intensity=warmup');
+        expect(body.description).toContain('3x');
+        expect(body.description).toContain('- Hard 30s 120-150%');
+        expect(body.description).toContain('- Easy 4m 50-60% intensity=rest');
+        expect(body.description).toContain('- - - -');
+        expect(body.description).toContain('Coach Notes:');
+        expect(body.description).not.toContain('Workout Details:');
       });
 
       it('should set category to WORKOUT', async () => {
@@ -784,15 +857,23 @@ describe('Intervals.icu API Client - Redesigned', () => {
 
     describe('sport type mapping', () => {
       const testCases = [
-        { workoutTypeId: 1, expectedType: 'Run', sportName: 'Run' },
+        { workoutTypeId: 1, expectedType: 'Swim', sportName: 'Swim' },
         { workoutTypeId: 2, expectedType: 'Ride', sportName: 'Bike' },
-        { workoutTypeId: 3, expectedType: 'Swim', sportName: 'Swim' },
+        { workoutTypeId: 3, expectedType: 'Run', sportName: 'Run' },
         {
-          workoutTypeId: 13,
+          workoutTypeId: 9,
           expectedType: 'WeightTraining',
           sportName: 'Strength',
         },
-        { workoutTypeId: 999, expectedType: 'Ride', sportName: 'Unknown' },
+        {
+          workoutTypeId: 29,
+          expectedType: 'WeightTraining',
+          sportName: 'Strength (duplicate)',
+        },
+        { workoutTypeId: 11, expectedType: 'NordicSki', sportName: 'XC-Ski' },
+        { workoutTypeId: 12, expectedType: 'Rowing', sportName: 'Rowing' },
+        { workoutTypeId: 13, expectedType: 'Walk', sportName: 'Walk' },
+        { workoutTypeId: 999, expectedType: 'Other', sportName: 'Unknown' },
       ];
 
       testCases.forEach(({ workoutTypeId, expectedType, sportName }) => {
