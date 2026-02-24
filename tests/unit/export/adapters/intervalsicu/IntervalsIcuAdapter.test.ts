@@ -1,7 +1,8 @@
 /**
  * Unit tests for IntervalsIcuAdapter
  *
- * Tests the adapter implementation following TDD principles
+ * Tests the adapter implementation following TDD principles.
+ * Phase 3: Library-based export (folders + workout templates, NO dates)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -9,12 +10,20 @@ import { IntervalsIcuAdapter } from '@/export/adapters/intervalsicu/IntervalsIcu
 import type { LibraryItem } from '@/types';
 import type {
   IntervalsIcuExportConfig,
-  IntervalsEventResponse,
+  IntervalsWorkoutResponse,
 } from '@/types/intervalsicu.types';
-import * as intervalsApi from '@/background/api/intervalsicu';
+import * as intervalsApiKeyService from '@/services/intervalsApiKeyService';
 
-// Mock the API client
-vi.mock('@/background/api/intervalsicu');
+// Mock chrome runtime for message passing
+const mockSendMessage = vi.fn();
+global.chrome = {
+  runtime: {
+    sendMessage: mockSendMessage,
+  },
+} as never;
+
+// Mock the API key service
+vi.mock('@/services/intervalsApiKeyService');
 
 describe('IntervalsIcuAdapter', () => {
   let adapter: IntervalsIcuAdapter;
@@ -39,7 +48,7 @@ describe('IntervalsIcuAdapter', () => {
 
     it('should have correct description', () => {
       expect(adapter.description).toBe(
-        'Export workouts to Intervals.icu calendar via API'
+        'Export workouts to Intervals.icu library via API'
       );
     });
 
@@ -68,22 +77,28 @@ describe('IntervalsIcuAdapter', () => {
 
     const mockConfig: IntervalsIcuExportConfig = {
       apiKey: 'test-api-key',
-      startDate: '2024-03-15',
+      libraryName: 'My Training Library',
+      createFolder: false,
     };
 
-    it('should successfully transform workouts with valid config', async () => {
-      const mockResponse: IntervalsEventResponse[] = [
+    it('should export workouts without creating folder', async () => {
+      const mockResponse: IntervalsWorkoutResponse[] = [
         {
           id: 789,
-          start_date_local: '2024-03-15',
+          name: 'Test Workout',
           type: 'Ride',
           category: 'WORKOUT',
-          name: 'Test Workout',
-          icu_training_load: 85,
+          folder_id: null,
         },
       ];
 
-      vi.mocked(intervalsApi.exportToIntervals).mockResolvedValue({
+      // Mock API key check
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        true
+      );
+
+      // Mock export message response
+      mockSendMessage.mockResolvedValue({
         success: true,
         data: mockResponse,
       });
@@ -91,133 +106,130 @@ describe('IntervalsIcuAdapter', () => {
       const result = await adapter.transform([mockWorkout], mockConfig);
 
       expect(result).toEqual(mockResponse);
-      expect(intervalsApi.exportToIntervals).toHaveBeenCalledWith(
-        [mockWorkout],
-        ['2024-03-15']
-      );
+      expect(mockSendMessage).toHaveBeenCalledWith({
+        type: 'EXPORT_WORKOUTS_TO_LIBRARY',
+        workouts: [mockWorkout],
+        folderId: undefined,
+      });
+      expect(mockSendMessage).toHaveBeenCalledTimes(1); // No folder creation
     });
 
-    it('should calculate multiple dates for multiple workouts', async () => {
-      const mockWorkouts = [mockWorkout, mockWorkout, mockWorkout];
-      const mockResponse: IntervalsEventResponse[] = [
+    it('should create folder and export workouts when createFolder is true', async () => {
+      const configWithFolder: IntervalsIcuExportConfig = {
+        ...mockConfig,
+        createFolder: true,
+      };
+
+      const folderResponse = {
+        id: 123,
+        name: 'My Training Library',
+        athlete_id: 456,
+      };
+
+      const mockWorkoutResponse: IntervalsWorkoutResponse[] = [
         {
           id: 789,
-          start_date_local: '2024-03-15',
+          name: 'Test Workout',
           type: 'Ride',
           category: 'WORKOUT',
-          name: 'Test Workout',
-        },
-        {
-          id: 790,
-          start_date_local: '2024-03-16',
-          type: 'Ride',
-          category: 'WORKOUT',
-          name: 'Test Workout',
-        },
-        {
-          id: 791,
-          start_date_local: '2024-03-17',
-          type: 'Ride',
-          category: 'WORKOUT',
-          name: 'Test Workout',
+          folder_id: 123,
         },
       ];
 
-      vi.mocked(intervalsApi.exportToIntervals).mockResolvedValue({
-        success: true,
-        data: mockResponse,
-      });
-
-      const result = await adapter.transform(mockWorkouts, mockConfig);
-
-      expect(result).toEqual(mockResponse);
-      expect(intervalsApi.exportToIntervals).toHaveBeenCalledWith(
-        mockWorkouts,
-        ['2024-03-15', '2024-03-16', '2024-03-17']
+      // Mock API key check
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        true
       );
-    });
 
-    it('should throw error when API key is missing', async () => {
-      const configWithoutKey: IntervalsIcuExportConfig = {
-        startDate: '2024-03-15',
-      };
+      // Mock folder creation then workout export
+      mockSendMessage
+        .mockResolvedValueOnce({
+          success: true,
+          data: folderResponse,
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          data: mockWorkoutResponse,
+        });
 
-      await expect(
-        adapter.transform([mockWorkout], configWithoutKey)
-      ).rejects.toThrow('Intervals.icu API key is required');
+      const result = await adapter.transform([mockWorkout], configWithFolder);
 
-      expect(intervalsApi.exportToIntervals).not.toHaveBeenCalled();
-    });
+      expect(result).toEqual(mockWorkoutResponse);
 
-    it('should throw error when API key is empty string', async () => {
-      const configWithEmptyKey: IntervalsIcuExportConfig = {
-        apiKey: '',
-        startDate: '2024-03-15',
-      };
-
-      await expect(
-        adapter.transform([mockWorkout], configWithEmptyKey)
-      ).rejects.toThrow('Intervals.icu API key is required');
-
-      expect(intervalsApi.exportToIntervals).not.toHaveBeenCalled();
-    });
-
-    it('should throw error when start date is missing', async () => {
-      const configWithoutDate: IntervalsIcuExportConfig = {
-        apiKey: 'test-api-key',
-      };
-
-      await expect(
-        adapter.transform([mockWorkout], configWithoutDate)
-      ).rejects.toThrow('Start date is required');
-
-      expect(intervalsApi.exportToIntervals).not.toHaveBeenCalled();
-    });
-
-    it('should throw error when API client returns error', async () => {
-      vi.mocked(intervalsApi.exportToIntervals).mockResolvedValue({
-        success: false,
-        error: {
-          message: 'Invalid API key',
-          code: 'INVALID_API_KEY',
-        },
+      // Should call folder creation first
+      expect(mockSendMessage).toHaveBeenNthCalledWith(1, {
+        type: 'CREATE_INTERVALS_FOLDER',
+        libraryName: 'My Training Library',
+        description: undefined,
       });
 
-      await expect(
-        adapter.transform([mockWorkout], mockConfig)
-      ).rejects.toThrow('Invalid API key');
+      // Then export with folder ID
+      expect(mockSendMessage).toHaveBeenNthCalledWith(2, {
+        type: 'EXPORT_WORKOUTS_TO_LIBRARY',
+        workouts: [mockWorkout],
+        folderId: 123,
+      });
     });
 
-    it('should throw error when API client returns NO_API_KEY error', async () => {
-      vi.mocked(intervalsApi.exportToIntervals).mockResolvedValue({
-        success: false,
-        error: {
-          message: 'Intervals.icu API key not configured',
-          code: 'NO_API_KEY',
-        },
-      });
+    it('should throw when no API key configured', async () => {
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        false
+      );
 
       await expect(
         adapter.transform([mockWorkout], mockConfig)
       ).rejects.toThrow('Intervals.icu API key not configured');
+
+      expect(mockSendMessage).not.toHaveBeenCalled();
     });
 
-    it('should handle network errors from API client', async () => {
-      vi.mocked(intervalsApi.exportToIntervals).mockResolvedValue({
+    it('should throw when folder creation fails', async () => {
+      const configWithFolder: IntervalsIcuExportConfig = {
+        ...mockConfig,
+        createFolder: true,
+      };
+
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        true
+      );
+
+      mockSendMessage.mockResolvedValue({
         success: false,
         error: {
-          message: 'Network error',
+          message: 'Failed to create folder',
+          code: 'FOLDER_ERROR',
+        },
+      });
+
+      await expect(
+        adapter.transform([mockWorkout], configWithFolder)
+      ).rejects.toThrow('Failed to create folder: Failed to create folder');
+    });
+
+    it('should throw when workout export fails', async () => {
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        true
+      );
+
+      mockSendMessage.mockResolvedValue({
+        success: false,
+        error: {
+          message: 'Failed to export workouts',
           code: 'EXPORT_ERROR',
         },
       });
 
       await expect(
         adapter.transform([mockWorkout], mockConfig)
-      ).rejects.toThrow('Network error');
+      ).rejects.toThrow('Failed to export workouts: Failed to export workouts');
     });
 
-    it('should handle empty workouts array', async () => {
-      vi.mocked(intervalsApi.exportToIntervals).mockResolvedValue({
+    it('should handle empty workout list', async () => {
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        true
+      );
+
+      mockSendMessage.mockResolvedValue({
         success: true,
         data: [],
       });
@@ -225,143 +237,177 @@ describe('IntervalsIcuAdapter', () => {
       const result = await adapter.transform([], mockConfig);
 
       expect(result).toEqual([]);
-      expect(intervalsApi.exportToIntervals).toHaveBeenCalledWith([], []);
+      expect(mockSendMessage).toHaveBeenCalledWith({
+        type: 'EXPORT_WORKOUTS_TO_LIBRARY',
+        workouts: [],
+        folderId: undefined,
+      });
+    });
+
+    it('should pass description when creating folder', async () => {
+      const configWithDescription: IntervalsIcuExportConfig = {
+        ...mockConfig,
+        createFolder: true,
+        description: 'My custom description',
+      };
+
+      const folderResponse = {
+        id: 123,
+        name: 'My Training Library',
+        athlete_id: 456,
+      };
+
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        true
+      );
+
+      mockSendMessage
+        .mockResolvedValueOnce({
+          success: true,
+          data: folderResponse,
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          data: [],
+        });
+
+      await adapter.transform([], configWithDescription);
+
+      expect(mockSendMessage).toHaveBeenNthCalledWith(1, {
+        type: 'CREATE_INTERVALS_FOLDER',
+        libraryName: 'My Training Library',
+        description: 'My custom description',
+      });
+    });
+
+    it('should handle multiple workouts', async () => {
+      const mockWorkouts = [mockWorkout, mockWorkout, mockWorkout];
+      const mockResponse: IntervalsWorkoutResponse[] = [
+        { id: 1, name: 'Workout 1', type: 'Ride', category: 'WORKOUT' },
+        { id: 2, name: 'Workout 2', type: 'Ride', category: 'WORKOUT' },
+        { id: 3, name: 'Workout 3', type: 'Ride', category: 'WORKOUT' },
+      ];
+
+      vi.mocked(intervalsApiKeyService.hasIntervalsApiKey).mockResolvedValue(
+        true
+      );
+
+      mockSendMessage.mockResolvedValue({
+        success: true,
+        data: mockResponse,
+      });
+
+      const result = await adapter.transform(mockWorkouts, mockConfig);
+
+      expect(result).toEqual(mockResponse);
+      expect(result).toHaveLength(3);
     });
   });
 
   describe('validate', () => {
-    it('should validate successfully with valid workouts', async () => {
-      const validWorkouts: IntervalsEventResponse[] = [
+    it('should validate successful workout templates', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
         {
           id: 789,
-          start_date_local: '2024-03-15',
+          name: 'Test Workout',
           type: 'Ride',
           category: 'WORKOUT',
-          name: 'Test Workout',
-          icu_training_load: 85,
         },
       ];
 
-      const result = await adapter.validate(validWorkouts);
+      const result = await adapter.validate(workouts);
 
       expect(result.isValid).toBe(true);
       expect(result.errors).toHaveLength(0);
       expect(result.warnings).toHaveLength(0);
     });
 
-    it('should add warning when workout has no name', async () => {
-      const workoutsWithoutName: IntervalsEventResponse[] = [
+    it('should warn about missing names', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
         {
           id: 789,
-          start_date_local: '2024-03-15',
+          name: '',
           type: 'Ride',
           category: 'WORKOUT',
-          // name is optional
         },
       ];
 
-      const result = await adapter.validate(workoutsWithoutName);
+      const result = await adapter.validate(workouts);
 
-      expect(result.isValid).toBe(true); // warnings don't invalidate
-      expect(result.errors).toHaveLength(0);
+      expect(result.isValid).toBe(true); // Warnings don't invalidate
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0]).toEqual({
         field: 'workouts[0].name',
-        message: 'Workout uploaded without a name',
+        message: 'Workout template has no name',
         severity: 'warning',
       });
     });
 
-    it('should add warning when workout has empty name', async () => {
-      const workoutsWithEmptyName: IntervalsEventResponse[] = [
+    it('should warn about whitespace-only names', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
         {
           id: 789,
-          start_date_local: '2024-03-15',
+          name: '   ',
           type: 'Ride',
           category: 'WORKOUT',
-          name: '   ', // whitespace only
         },
       ];
 
-      const result = await adapter.validate(workoutsWithEmptyName);
+      const result = await adapter.validate(workouts);
 
-      expect(result.isValid).toBe(true);
       expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].message).toBe(
-        'Workout uploaded without a name'
-      );
+      expect(result.warnings[0].message).toBe('Workout template has no name');
+    });
+
+    it('should warn about missing IDs', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
+        {
+          id: 0,
+          name: 'Test Workout',
+          type: 'Ride',
+          category: 'WORKOUT',
+        },
+      ];
+
+      const result = await adapter.validate(workouts);
+
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toEqual({
+        field: 'workouts[0].id',
+        message: 'Workout template was not created',
+        severity: 'warning',
+      });
+    });
+
+    it('should handle multiple warnings from same workout', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
+        {
+          id: 0,
+          name: '',
+          type: 'Ride',
+          category: 'WORKOUT',
+        },
+      ];
+
+      const result = await adapter.validate(workouts);
+
+      expect(result.warnings).toHaveLength(2);
     });
 
     it('should validate multiple workouts', async () => {
-      const workouts: IntervalsEventResponse[] = [
-        {
-          id: 789,
-          start_date_local: '2024-03-15',
-          type: 'Ride',
-          category: 'WORKOUT',
-          name: 'Workout 1',
-        },
-        {
-          id: 790,
-          start_date_local: '2024-03-16',
-          type: 'Run',
-          category: 'WORKOUT',
-          name: 'Workout 2',
-        },
+      const workouts: IntervalsWorkoutResponse[] = [
+        { id: 1, name: 'Workout 1', type: 'Ride', category: 'WORKOUT' },
+        { id: 2, name: 'Workout 2', type: 'Run', category: 'WORKOUT' },
+        { id: 3, name: 'Workout 3', type: 'Swim', category: 'WORKOUT' },
       ];
 
       const result = await adapter.validate(workouts);
 
       expect(result.isValid).toBe(true);
-      expect(result.errors).toHaveLength(0);
       expect(result.warnings).toHaveLength(0);
     });
 
-    it('should collect multiple warnings from multiple workouts', async () => {
-      const workouts: IntervalsEventResponse[] = [
-        {
-          id: 789,
-          start_date_local: '2024-03-15',
-          type: 'Ride',
-          category: 'WORKOUT',
-        },
-        {
-          id: 790,
-          start_date_local: '2024-03-16',
-          type: 'Run',
-          category: 'WORKOUT',
-          name: '',
-        },
-      ];
-
-      const result = await adapter.validate(workouts);
-
-      expect(result.isValid).toBe(true);
-      expect(result.warnings).toHaveLength(2);
-      expect(result.warnings[0].field).toBe('workouts[0].name');
-      expect(result.warnings[1].field).toBe('workouts[1].name');
-    });
-
-    it('should handle validation of invalid workout data', async () => {
-      // Purposely invalid data that would fail Zod schema
-      const invalidWorkouts = [
-        {
-          id: 'not-a-number', // should be number
-          start_date_local: '2024-03-15',
-          type: 'Ride',
-          category: 'WORKOUT',
-        },
-      ] as unknown as IntervalsEventResponse[];
-
-      const result = await adapter.validate(invalidWorkouts);
-
-      expect(result.isValid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].field).toBe('workouts[0]');
-      expect(result.errors[0].message).toContain('Validation failed');
-    });
-
-    it('should validate empty array successfully', async () => {
+    it('should handle empty array', async () => {
       const result = await adapter.validate([]);
 
       expect(result.isValid).toBe(true);
@@ -371,108 +417,53 @@ describe('IntervalsIcuAdapter', () => {
   });
 
   describe('export', () => {
-    const mockWorkouts: IntervalsEventResponse[] = [
-      {
-        id: 789,
-        start_date_local: '2024-03-15',
-        type: 'Ride',
-        category: 'WORKOUT',
-        name: 'Test Workout',
-        icu_training_load: 85,
-      },
-    ];
-
     const mockConfig: IntervalsIcuExportConfig = {
       apiKey: 'test-api-key',
-      startDate: '2024-03-15',
+      libraryName: 'My Training Library',
     };
 
-    it('should return successful export result', async () => {
-      const result = await adapter.export(mockWorkouts, mockConfig);
+    it('should return success result', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
+        { id: 1, name: 'Workout 1', type: 'Ride', category: 'WORKOUT' },
+        { id: 2, name: 'Workout 2', type: 'Run', category: 'WORKOUT' },
+      ];
+
+      const result = await adapter.export(workouts, mockConfig);
 
       expect(result.success).toBe(true);
       expect(result.format).toBe('api');
-      expect(result.itemsExported).toBe(1);
-      expect(result.warnings).toEqual([]);
+      expect(result.itemsExported).toBe(2);
       expect(result.fileName).toContain('intervals_icu_export_');
     });
 
-    it('should include warnings in export result', async () => {
-      const workoutsWithWarnings: IntervalsEventResponse[] = [
-        {
-          id: 789,
-          start_date_local: '2024-03-15',
-          type: 'Ride',
-          category: 'WORKOUT',
-          // no name
-        },
+    it('should include correct item count', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
+        { id: 1, name: 'Workout 1', type: 'Ride', category: 'WORKOUT' },
+        { id: 2, name: 'Workout 2', type: 'Run', category: 'WORKOUT' },
       ];
 
-      const result = await adapter.export(workoutsWithWarnings, mockConfig);
+      const result = await adapter.export(workouts, mockConfig);
 
-      expect(result.success).toBe(true);
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings[0].message).toBe(
-        'Workout uploaded without a name'
-      );
+      expect(result.itemsExported).toBe(2);
     });
 
-    it('should return correct item count for multiple workouts', async () => {
-      const multipleWorkouts: IntervalsEventResponse[] = [
-        {
-          id: 789,
-          start_date_local: '2024-03-15',
-          type: 'Ride',
-          category: 'WORKOUT',
-          name: 'Workout 1',
-        },
-        {
-          id: 790,
-          start_date_local: '2024-03-16',
-          type: 'Run',
-          category: 'WORKOUT',
-          name: 'Workout 2',
-        },
-        {
-          id: 791,
-          start_date_local: '2024-03-17',
-          type: 'Swim',
-          category: 'WORKOUT',
-          name: 'Workout 3',
-        },
-      ];
-
-      const result = await adapter.export(multipleWorkouts, mockConfig);
-
-      expect(result.success).toBe(true);
-      expect(result.itemsExported).toBe(3);
-    });
-
-    it('should handle empty workouts array', async () => {
+    it('should handle empty workout list', async () => {
       const result = await adapter.export([], mockConfig);
 
       expect(result.success).toBe(true);
       expect(result.itemsExported).toBe(0);
-      expect(result.warnings).toHaveLength(0);
     });
 
-    it('should generate unique file name with timestamp', async () => {
-      const result1 = await adapter.export(mockWorkouts, mockConfig);
+    it('should include warnings if validation finds issues', async () => {
+      const workouts: IntervalsWorkoutResponse[] = [
+        { id: 0, name: '', type: 'Ride', category: 'WORKOUT' },
+      ];
 
-      // Small delay to ensure different timestamp
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      const result = await adapter.export(workouts, mockConfig);
 
-      const result2 = await adapter.export(mockWorkouts, mockConfig);
-
-      expect(result1.fileName).not.toBe(result2.fileName);
-      expect(result1.fileName).toMatch(/^intervals_icu_export_\d+$/);
-      expect(result2.fileName).toMatch(/^intervals_icu_export_\d+$/);
-    });
-
-    it('should not generate fileUrl for API export', async () => {
-      const result = await adapter.export(mockWorkouts, mockConfig);
-
-      expect(result.fileUrl).toBeUndefined();
+      expect(result.success).toBe(true);
+      expect(result.warnings).toBeDefined();
+      expect(result.warnings!.length).toBeGreaterThan(0);
     });
   });
 });

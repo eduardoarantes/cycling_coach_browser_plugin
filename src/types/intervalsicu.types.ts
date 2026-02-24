@@ -3,49 +3,87 @@
  *
  * Based on Intervals.icu API v1 documentation:
  * https://intervals.icu/api-docs.html
+ *
+ * Architecture: Library/folder-based export (NOT calendar events)
  */
 
 import type { ExportConfig } from '@/export/adapters/base';
 
 /**
- * Intervals.icu event payload for bulk upload
- * POST /api/v1/athlete/{id}/events/bulk
+ * Intervals.icu folder payload for library creation
+ * POST /api/v1/athlete/{id}/folders
  */
-export interface IntervalsEventPayload {
-  /** Event category (WORKOUT for planned workouts) */
+export interface IntervalsFolderPayload {
+  /** Folder name (library name from TrainingPeaks) */
+  name: string;
+  /** Optional description */
+  description?: string;
+}
+
+/**
+ * Intervals.icu folder response
+ */
+export interface IntervalsFolderResponse {
+  /** Intervals.icu folder ID */
+  id: number;
+  /** Folder name */
+  name: string;
+  /** Athlete ID */
+  athlete_id: string | number;
+}
+
+/**
+ * Intervals.icu athlete info response
+ * GET /api/v1/athlete/{id}
+ */
+export interface IntervalsAthleteResponse {
+  /** Athlete ID */
+  id: string | number;
+  /** Athlete name */
+  name?: string;
+  /** Athlete email */
+  email?: string;
+}
+
+/**
+ * Intervals.icu workout template payload (no dates - library-based)
+ * POST /api/v1/athlete/{id}/workouts
+ */
+export interface IntervalsWorkoutPayload {
+  /** Workout category (WORKOUT for planned workouts) */
   category: 'WORKOUT';
-  /** ISO 8601 date-time string (local timezone) */
-  start_date_local: string;
   /** Activity type (Ride, Run, Swim, WeightTraining, etc.) */
   type: string;
   /** Workout name/title */
   name: string;
   /** Workout description (supports markdown) */
   description: string;
-  /** Duration in seconds */
+  /** Optional folder ID to organize workout */
+  folder_id?: number;
+  /** Optional structured workout data */
+  workout_doc?: string;
+  /** Optional moving time in seconds */
   moving_time?: number;
-  /** Training load (TSS equivalent) */
+  /** Optional training load (TSS) */
   icu_training_load?: number;
-  /** External ID for deduplication (e.g., tp_123456) */
-  external_id: string;
 }
 
 /**
- * Intervals.icu event response from bulk upload
+ * Intervals.icu workout template response
  */
-export interface IntervalsEventResponse {
-  /** Intervals.icu event ID */
+export interface IntervalsWorkoutResponse {
+  /** Intervals.icu workout ID */
   id: number;
-  /** ISO 8601 date string (local timezone) */
-  start_date_local: string;
+  /** Workout name */
+  name: string;
   /** Activity type */
   type: string;
-  /** Event category */
-  category: string;
-  /** Workout name */
-  name?: string;
-  /** Training load (TSS) */
-  icu_training_load?: number;
+  /** Workout category */
+  category?: string;
+  /** Folder ID (null if not in folder) */
+  folder_id?: number | null;
+  /** Athlete ID */
+  athlete_id?: string | number;
 }
 
 /**
@@ -56,8 +94,12 @@ export interface IntervalsIcuExportConfig extends ExportConfig {
   apiKey?: string;
   /** Athlete ID (defaults to 0 for current user) */
   athleteId?: string;
-  /** Start date for first workout (YYYY-MM-DD format) */
-  startDate?: string;
+  /** Library name for folder creation */
+  libraryName?: string;
+  /** Optional description for the folder */
+  description?: string;
+  /** Whether to create a new folder */
+  createFolder?: boolean;
 }
 
 /**

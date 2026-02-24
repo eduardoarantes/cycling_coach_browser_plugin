@@ -1,19 +1,23 @@
 /**
- * Unit tests for Intervals.icu API client
+ * Unit tests for Intervals.icu API client (Redesigned)
  *
- * Tests direct upload to Intervals.icu API with Basic Auth
+ * Tests folder creation and workout template export (NOT calendar events)
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { LibraryItem } from '@/schemas/library.schema';
-import { exportToIntervals } from '@/background/api/intervalsicu';
+import {
+  createIntervalsFolder,
+  exportWorkoutsToLibrary,
+} from '@/background/api/intervalsicu';
 import * as intervalsApiKeyService from '@/services/intervalsApiKeyService';
 
 // Mock the API key service
 vi.mock('@/services/intervalsApiKeyService');
 
-describe('exportToIntervals', () => {
+describe('Intervals.icu API Client - Redesigned', () => {
   const mockApiKey = 'test-api-key-12345';
+  const mockAthleteId = 12345;
   const mockWorkout: LibraryItem = {
     exerciseLibraryId: 1,
     exerciseLibraryItemId: 123456,
@@ -32,6 +36,51 @@ describe('exportToIntervals', () => {
     coachComments: 'Focus on smooth power delivery',
   };
 
+  /**
+   * Helper to mock fetch calls with athlete + folder/workout responses
+   */
+  function mockFetchWithAthlete(
+    secondResponse: unknown,
+    secondOk: boolean = true
+  ): void {
+    const athleteResponse = {
+      id: mockAthleteId,
+      name: 'Test Athlete',
+      email: 'test@example.com',
+    };
+
+    let callCount = 0;
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        // First call: getCurrentAthlete()
+        return Promise.resolve({
+          ok: true,
+          json: async () => athleteResponse,
+        });
+      } else {
+        // Second call: folder/workout operation
+        return Promise.resolve({
+          ok: secondOk,
+          status: secondOk ? 200 : 500,
+          text: async () => (secondOk ? 'OK' : 'Error'),
+          json: async () => secondResponse,
+        });
+      }
+    });
+  }
+
+  /**
+   * Mock athlete fetch failure
+   */
+  function mockAthleteFailure(status: number = 401): void {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      text: async () => 'Error',
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock successful API key retrieval by default
@@ -44,518 +93,861 @@ describe('exportToIntervals', () => {
     vi.restoreAllMocks();
   });
 
-  describe('successful export', () => {
-    it('should export single workout successfully', async () => {
-      const mockResponse = [
-        {
-          id: 789,
-          start_date_local: '2024-02-24',
-          type: 'Ride',
-          category: 'WORKOUT',
-          name: 'Sweet Spot Intervals',
-          icu_training_load: 85,
-        },
-      ];
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      });
-
-      const result = await exportToIntervals([mockWorkout], ['2024-02-24']);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toEqual(mockResponse);
-        expect(result.data.length).toBe(1);
-        expect(result.data[0].id).toBe(789);
-      }
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        'https://intervals.icu/api/v1/athlete/0/events/bulk?upsert=true',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            Authorization: `Basic ${btoa(`API_KEY:${mockApiKey}`)}`,
-            'Content-Type': 'application/json',
-          }),
-        })
-      );
-    });
-
-    it('should export multiple workouts in batch', async () => {
-      const workout2: LibraryItem = {
-        ...mockWorkout,
-        exerciseLibraryItemId: 123457,
-        itemName: 'Endurance Ride',
-        workoutTypeId: 2,
-      };
-
-      const mockResponse = [
-        {
-          id: 789,
-          start_date_local: '2024-02-24',
-          type: 'Ride',
-          category: 'WORKOUT',
-        },
-        {
-          id: 790,
-          start_date_local: '2024-02-25',
-          type: 'Ride',
-          category: 'WORKOUT',
-        },
-      ];
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      });
-
-      const result = await exportToIntervals(
-        [mockWorkout, workout2],
-        ['2024-02-24', '2024-02-25']
-      );
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.length).toBe(2);
-      }
-
-      // Verify batch request
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body).toHaveLength(2);
-    });
-
-    it('should include comprehensive description with all metadata', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
-            id: 789,
-            start_date_local: '2024-02-24',
-            type: 'Ride',
-            category: 'WORKOUT',
-          },
-        ],
-      });
-
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      const description = body[0].description;
-
-      // Check that description includes all metadata
-      expect(description).toContain('4x10min @ 88-93% FTP'); // Main description
-      expect(description).toContain('Coach Notes'); // Coach comments section
-      expect(description).toContain('Focus on smooth power delivery');
-      expect(description).toContain('IF: 0.88');
-      expect(description).toContain('Distance: 50');
-      expect(description).toContain('Elevation: 500m');
-      expect(description).toContain('Calories: 850');
-    });
-
-    it('should handle workout with minimal metadata', async () => {
-      const minimalWorkout: LibraryItem = {
-        exerciseLibraryId: 1,
-        exerciseLibraryItemId: 999,
-        exerciseLibraryItemType: 'workout',
-        itemName: 'Simple Run',
-        workoutTypeId: 1, // Run
-        totalTimePlanned: null,
-        tssPlanned: null,
-        distancePlanned: null,
-        elevationGainPlanned: null,
-        caloriesPlanned: null,
-        velocityPlanned: null,
-        energyPlanned: null,
-        ifPlanned: null,
-        description: null,
-        coachComments: null,
-      };
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
-            id: 800,
-            start_date_local: '2024-02-24',
-            type: 'Run',
-            category: 'WORKOUT',
-          },
-        ],
-      });
-
-      const result = await exportToIntervals([minimalWorkout], ['2024-02-24']);
-
-      expect(result.success).toBe(true);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].name).toBe('Simple Run');
-      expect(body[0].description).toBeTruthy(); // Should not be empty
-    });
-  });
-
-  describe('sport type mapping', () => {
-    const testCases = [
-      { workoutTypeId: 1, expectedType: 'Run', sportName: 'Run' },
-      { workoutTypeId: 2, expectedType: 'Ride', sportName: 'Bike' },
-      { workoutTypeId: 3, expectedType: 'Swim', sportName: 'Swim' },
-      {
-        workoutTypeId: 13,
-        expectedType: 'WeightTraining',
-        sportName: 'Strength',
-      },
-      { workoutTypeId: 999, expectedType: 'Ride', sportName: 'Unknown' }, // Fallback
-    ];
-
-    testCases.forEach(({ workoutTypeId, expectedType, sportName }) => {
-      it(`should map ${sportName} (workoutTypeId ${workoutTypeId}) to ${expectedType}`, async () => {
-        const workout: LibraryItem = {
-          ...mockWorkout,
-          workoutTypeId,
+  describe('createIntervalsFolder', () => {
+    describe('successful folder creation', () => {
+      it('should create folder with name and description', async () => {
+        const mockAthleteResponse = {
+          id: mockAthleteId,
+          name: 'Test Athlete',
+          email: 'test@example.com',
         };
 
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: async () => [
-            {
-              id: 789,
-              start_date_local: '2024-02-24',
-              type: expectedType,
-              category: 'WORKOUT',
-            },
-          ],
+        const mockFolderResponse = {
+          id: 456,
+          name: 'Cycling Base Training',
+          athlete_id: mockAthleteId,
+          created: '2024-02-24T12:00:00Z',
+        };
+
+        // Mock both API calls: getCurrentAthlete() then createFolder()
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation((_url: string) => {
+          callCount++;
+          if (callCount === 1) {
+            // First call: getCurrentAthlete()
+            return Promise.resolve({
+              ok: true,
+              json: async () => mockAthleteResponse,
+            });
+          } else {
+            // Second call: createIntervalsFolder()
+            return Promise.resolve({
+              ok: true,
+              json: async () => mockFolderResponse,
+            });
+          }
         });
 
-        await exportToIntervals([workout], ['2024-02-24']);
-
-        const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-        const body = JSON.parse(fetchCall[1]?.body as string);
-        expect(body[0].type).toBe(expectedType);
-      });
-    });
-  });
-
-  describe('workout transformation', () => {
-    beforeEach(() => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
-            id: 789,
-            start_date_local: '2024-02-24',
-            type: 'Ride',
-            category: 'WORKOUT',
-          },
-        ],
-      });
-    });
-
-    it('should transform duration from hours to seconds', async () => {
-      const workout: LibraryItem = {
-        ...mockWorkout,
-        totalTimePlanned: 1.5, // 1.5 hours
-      };
-
-      await exportToIntervals([workout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].moving_time).toBe(5400); // 1.5 * 3600 = 5400 seconds
-    });
-
-    it('should handle null duration', async () => {
-      const workout: LibraryItem = {
-        ...mockWorkout,
-        totalTimePlanned: null,
-      };
-
-      await exportToIntervals([workout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].moving_time).toBeUndefined();
-    });
-
-    it('should include TSS as icu_training_load', async () => {
-      const workout: LibraryItem = {
-        ...mockWorkout,
-        tssPlanned: 120,
-      };
-
-      await exportToIntervals([workout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].icu_training_load).toBe(120);
-    });
-
-    it('should handle null TSS', async () => {
-      const workout: LibraryItem = {
-        ...mockWorkout,
-        tssPlanned: null,
-      };
-
-      await exportToIntervals([workout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].icu_training_load).toBeUndefined();
-    });
-
-    it('should format start date as ISO 8601', async () => {
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].start_date_local).toBe('2024-02-24T00:00:00');
-    });
-
-    it('should set category to WORKOUT', async () => {
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].category).toBe('WORKOUT');
-    });
-
-    it('should generate external_id from exerciseLibraryItemId', async () => {
-      const workout: LibraryItem = {
-        ...mockWorkout,
-        exerciseLibraryItemId: 123456,
-      };
-
-      await exportToIntervals([workout], ['2024-02-24']);
-
-      const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(fetchCall[1]?.body as string);
-      expect(body[0].external_id).toBe('tp_123456');
-    });
-  });
-
-  describe('error handling', () => {
-    it('should return error when API key is not configured', async () => {
-      vi.mocked(intervalsApiKeyService.getIntervalsApiKey).mockResolvedValue(
-        null
-      );
-
-      const result = await exportToIntervals([mockWorkout], ['2024-02-24']);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.message).toBe(
-          'Intervals.icu API key not configured'
+        const result = await createIntervalsFolder(
+          'Cycling Base Training',
+          'Base phase workouts'
         );
-        expect(result.error.code).toBe('NO_API_KEY');
-      }
 
-      expect(global.fetch).not.toHaveBeenCalled();
-    });
-
-    it('should handle 401 Unauthorized (invalid API key)', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        text: async () => 'Unauthorized',
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.id).toBe(456);
+          expect(result.data.name).toBe('Cycling Base Training');
+          expect(result.data.athlete_id).toBe(mockAthleteId);
+        }
       });
 
-      const result = await exportToIntervals([mockWorkout], ['2024-02-24']);
+      it('should use correct endpoint POST /athlete/{athleteId}/folders', async () => {
+        const mockAthleteResponse = {
+          id: mockAthleteId,
+          name: 'Test Athlete',
+        };
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.message).toBe('Invalid Intervals.icu API key');
-        expect(result.error.code).toBe('INVALID_API_KEY');
-        expect(result.error.status).toBe(401);
-      }
-    });
+        const mockFolderResponse = {
+          id: 456,
+          name: 'Test Folder',
+          athlete_id: mockAthleteId,
+          created: '2024-02-24T12:00:00Z',
+        };
 
-    it('should handle 500 Server Error', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: async () => 'Internal Server Error',
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation((_url: string) => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => mockAthleteResponse,
+            });
+          } else {
+            return Promise.resolve({
+              ok: true,
+              json: async () => mockFolderResponse,
+            });
+          }
+        });
+
+        await createIntervalsFolder('Test Folder');
+
+        // First call should be to get athlete info
+        expect(global.fetch).toHaveBeenNthCalledWith(
+          1,
+          'https://intervals.icu/api/v1/athlete/0',
+          expect.any(Object)
+        );
+
+        // Second call should use the real athlete ID
+        expect(global.fetch).toHaveBeenNthCalledWith(
+          2,
+          `https://intervals.icu/api/v1/athlete/${mockAthleteId}/folders`,
+          expect.any(Object)
+        );
       });
 
-      const result = await exportToIntervals([mockWorkout], ['2024-02-24']);
+      it('should normalize athlete alias id=0 before calling folders endpoint', async () => {
+        const mockAthleteResponse = {
+          id: 0,
+          athlete_id: mockAthleteId,
+          name: 'Test Athlete',
+        };
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.message).toBe('Intervals.icu API error: 500');
-        expect(result.error.code).toBe('API_ERROR');
-        expect(result.error.status).toBe(500);
-      }
+        const mockFolderResponse = {
+          id: 456,
+          name: 'Test Folder',
+          athlete_id: mockAthleteId,
+          created: '2024-02-24T12:00:00Z',
+        };
+
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => mockAthleteResponse,
+            });
+          }
+
+          return Promise.resolve({
+            ok: true,
+            json: async () => mockFolderResponse,
+          });
+        });
+
+        await createIntervalsFolder('Test Folder');
+
+        expect(global.fetch).toHaveBeenNthCalledWith(
+          2,
+          `https://intervals.icu/api/v1/athlete/${mockAthleteId}/folders`,
+          expect.any(Object)
+        );
+      });
+
+      it('should use string athlete ID from /athlete/0 for folders endpoint', async () => {
+        const stringAthleteId = 'i346347';
+        const mockAthleteResponse = {
+          id: stringAthleteId,
+          name: 'Eduardo A Rodrigues',
+        };
+
+        const mockFolderResponse = {
+          id: 456,
+          name: 'Test Folder',
+          athlete_id: stringAthleteId,
+          created: '2024-02-24T12:00:00Z',
+        };
+
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => mockAthleteResponse,
+            });
+          }
+
+          return Promise.resolve({
+            ok: true,
+            json: async () => mockFolderResponse,
+          });
+        });
+
+        await createIntervalsFolder('Test Folder');
+
+        expect(global.fetch).toHaveBeenNthCalledWith(
+          2,
+          `https://intervals.icu/api/v1/athlete/${stringAthleteId}/folders`,
+          expect.any(Object)
+        );
+      });
+
+      it('should use Basic Auth with API_KEY prefix', async () => {
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(() => {
+          callCount++;
+          return Promise.resolve({
+            ok: true,
+            json: async () => {
+              if (callCount === 1) {
+                return { id: mockAthleteId, name: 'Test' };
+              } else {
+                return {
+                  id: 456,
+                  name: 'Test Folder',
+                  athlete_id: mockAthleteId,
+                  created: '2024-02-24T12:00:00Z',
+                };
+              }
+            },
+          });
+        });
+
+        await createIntervalsFolder('Test Folder');
+
+        const expectedAuth = btoa(`API_KEY:${mockApiKey}`);
+
+        // Both calls should use Basic Auth
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            headers: expect.objectContaining({
+              Authorization: `Basic ${expectedAuth}`,
+            }),
+          })
+        );
+      });
+
+      it('should send POST request with JSON body', async () => {
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(() => {
+          callCount++;
+          return Promise.resolve({
+            ok: true,
+            json: async () => {
+              if (callCount === 1) {
+                return { id: mockAthleteId, name: 'Test' };
+              } else {
+                return {
+                  id: 456,
+                  name: 'Test Folder',
+                  athlete_id: mockAthleteId,
+                  created: '2024-02-24T12:00:00Z',
+                };
+              }
+            },
+          });
+        });
+
+        await createIntervalsFolder('Test Folder', 'Test description');
+
+        // Second call should be the folder creation POST
+        const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+        const options = fetchCall[1];
+        expect(options?.method).toBe('POST');
+        expect(options?.headers).toMatchObject({
+          'Content-Type': 'application/json',
+        });
+
+        const body = JSON.parse(options?.body as string);
+        expect(body).toEqual({
+          name: 'Test Folder',
+          description: 'Test description',
+        });
+      });
+
+      it('should validate response with IntervalsFolderResponseSchema', async () => {
+        const mockResponse = {
+          id: 456,
+          name: 'Test Folder',
+          athlete_id: mockAthleteId,
+          created: '2024-02-24T12:00:00Z',
+        };
+
+        mockFetchWithAthlete(mockResponse);
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data).toHaveProperty('id');
+          expect(result.data).toHaveProperty('name');
+          expect(result.data).toHaveProperty('athlete_id');
+          expect(result.data).toHaveProperty('created');
+        }
+      });
+
+      it('should return folder ID in response', async () => {
+        const mockResponse = {
+          id: 999,
+          name: 'Test Folder',
+          athlete_id: mockAthleteId,
+          created: '2024-02-24T12:00:00Z',
+        };
+
+        mockFetchWithAthlete(mockResponse);
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data.id).toBe(999);
+        }
+      });
     });
 
-    it('should handle network errors', async () => {
-      global.fetch = vi
-        .fn()
-        .mockRejectedValue(new Error('Network connection failed'));
+    describe('error handling', () => {
+      it('should return error when no API key', async () => {
+        vi.mocked(intervalsApiKeyService.getIntervalsApiKey).mockResolvedValue(
+          null
+        );
 
-      const result = await exportToIntervals([mockWorkout], ['2024-02-24']);
+        const result = await createIntervalsFolder('Test Folder');
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.message).toBe('Network connection failed');
-        expect(result.error.code).toBe('EXPORT_ERROR');
-      }
-    });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('NO_API_KEY');
+          expect(result.error.message).toContain('API key not configured');
+        }
 
-    it('should handle Zod validation failure on response', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
+
+      it('should handle 401 Unauthorized on athlete fetch', async () => {
+        mockAthleteFailure(401);
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('INVALID_API_KEY');
+          expect(result.error.status).toBe(401);
+        }
+      });
+
+      it('should handle 500 Server Error on athlete fetch', async () => {
+        mockAthleteFailure(500);
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('API_ERROR');
+          expect(result.error.status).toBe(500);
+        }
+      });
+
+      it('should handle 401 Unauthorized on folder creation', async () => {
+        // Athlete fetch succeeds, folder creation fails
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ id: mockAthleteId, name: 'Test' }),
+            });
+          } else {
+            return Promise.resolve({
+              ok: false,
+              status: 401,
+              text: async () => 'Unauthorized',
+            });
+          }
+        });
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('INVALID_API_KEY');
+          expect(result.error.status).toBe(401);
+        }
+      });
+
+      it('should handle network errors', async () => {
+        global.fetch = vi
+          .fn()
+          .mockRejectedValue(new Error('Network connection failed'));
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.message).toBe('Network connection failed');
+        }
+      });
+
+      it('should handle malformed JSON response on athlete fetch', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => {
+            throw new Error('Invalid JSON');
+          },
+        });
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.message).toBe('Invalid JSON');
+        }
+      });
+
+      it('should handle Zod validation failure on athlete response', async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
             // Missing required 'id' field
-            start_date_local: '2024-02-24',
-            type: 'Ride',
-          },
-        ],
+            name: 'Test Folder',
+          }),
+        });
+
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(false);
       });
 
-      const result = await exportToIntervals([mockWorkout], ['2024-02-24']);
+      it('should handle Zod validation failure on folder response', async () => {
+        mockFetchWithAthlete({
+          // Missing required 'id' field
+          name: 'Test Folder',
+        });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('EXPORT_ERROR');
-      }
+        const result = await createIntervalsFolder('Test Folder');
+
+        expect(result.success).toBe(false);
+      });
+    });
+  });
+
+  describe('exportWorkoutsToLibrary', () => {
+    describe('successful export', () => {
+      it('should export single workout without folder', async () => {
+        const mockResponse = {
+          id: 789,
+          name: 'Sweet Spot Intervals',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        };
+
+        mockFetchWithAthlete(mockResponse);
+
+        const result = await exportWorkoutsToLibrary([mockWorkout]);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data).toHaveLength(1);
+          expect(result.data[0].id).toBe(789);
+          expect(result.data[0].name).toBe('Sweet Spot Intervals');
+        }
+      });
+
+      it('should export multiple workouts to specific folder', async () => {
+        const workout2: LibraryItem = {
+          ...mockWorkout,
+          exerciseLibraryItemId: 123457,
+          itemName: 'Endurance Ride',
+          workoutTypeId: 2,
+        };
+
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) {
+            // First call: getCurrentAthlete()
+            return {
+              ok: true,
+              json: async () => ({
+                id: mockAthleteId,
+                name: 'Test Athlete',
+              }),
+            };
+          } else {
+            // Subsequent calls: workout exports
+            return {
+              ok: true,
+              json: async () => ({
+                id: 789 + callCount - 1,
+                name:
+                  callCount === 2 ? 'Sweet Spot Intervals' : 'Endurance Ride',
+                type: 'Ride',
+                category: 'WORKOUT',
+                athlete_id: mockAthleteId,
+              }),
+            };
+          }
+        });
+
+        const result = await exportWorkoutsToLibrary(
+          [mockWorkout, workout2],
+          456
+        );
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data).toHaveLength(2);
+          // 1 athlete call + 2 workout calls = 3 total
+          expect(global.fetch).toHaveBeenCalledTimes(3);
+        }
+      });
+
+      it('should NOT include start_date_local field in payload', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Test Workout',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout]);
+
+        // Second call is the workout POST
+        const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+        const body = JSON.parse(fetchCall[1]?.body as string);
+
+        expect(body).not.toHaveProperty('start_date_local');
+      });
+
+      it('should include folder_id when provided', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Test Workout',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout], 456);
+
+        // Second call is the workout POST
+        const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+        const body = JSON.parse(fetchCall[1]?.body as string);
+
+        expect(body.folder_id).toBe(456);
+      });
+
+      it('should transform workout name, description, type', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Sweet Spot Intervals',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout]);
+
+        // Second call is the workout POST
+        const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+        const body = JSON.parse(fetchCall[1]?.body as string);
+
+        expect(body.name).toBe('Sweet Spot Intervals');
+        expect(body.type).toBe('Ride');
+        expect(body.description).toContain('4x10min @ 88-93% FTP');
+      });
+
+      it('should use buildDescription() for comprehensive description', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Test',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout]);
+
+        // Second call is the workout POST
+        const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+        const body = JSON.parse(fetchCall[1]?.body as string);
+
+        // Check for metadata in description
+        expect(body.description).toContain('4x10min @ 88-93% FTP');
+        expect(body.description).toContain('Coach Notes');
+        expect(body.description).toContain('Focus on smooth power delivery');
+        expect(body.description).toContain('IF: 0.88');
+      });
+
+      it('should set category to WORKOUT', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Test',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout]);
+
+        // Second call is the workout POST
+        const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+        const body = JSON.parse(fetchCall[1]?.body as string);
+
+        expect(body.category).toBe('WORKOUT');
+      });
+
+      it('should make individual POST requests per workout', async () => {
+        const workout2: LibraryItem = {
+          ...mockWorkout,
+          exerciseLibraryItemId: 123457,
+          itemName: 'Workout 2',
+        };
+        const workout3: LibraryItem = {
+          ...mockWorkout,
+          exerciseLibraryItemId: 123458,
+          itemName: 'Workout 3',
+        };
+
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ id: mockAthleteId, name: 'Test' }),
+            });
+          } else {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({
+                id: 789,
+                name: 'Test',
+                type: 'Ride',
+                category: 'WORKOUT',
+                athlete_id: mockAthleteId,
+              }),
+            });
+          }
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout, workout2, workout3]);
+
+        // 1 athlete call + 3 workout calls = 4 total
+        expect(global.fetch).toHaveBeenCalledTimes(4);
+      });
+
+      it('should use correct endpoint POST /athlete/{athleteId}/workouts', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Test',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout]);
+
+        // First call: get athlete
+        expect(global.fetch).toHaveBeenNthCalledWith(
+          1,
+          'https://intervals.icu/api/v1/athlete/0',
+          expect.any(Object)
+        );
+
+        // Second call: create workout with real athlete ID
+        expect(global.fetch).toHaveBeenNthCalledWith(
+          2,
+          `https://intervals.icu/api/v1/athlete/${mockAthleteId}/workouts`,
+          expect.any(Object)
+        );
+      });
+
+      it('should use Basic Auth with API_KEY prefix', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Test',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        await exportWorkoutsToLibrary([mockWorkout]);
+
+        const expectedAuth = btoa(`API_KEY:${mockApiKey}`);
+
+        // Both calls should use Basic Auth
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            headers: expect.objectContaining({
+              Authorization: `Basic ${expectedAuth}`,
+            }),
+          })
+        );
+      });
+
+      it('should validate each response with IntervalsWorkoutResponseSchema', async () => {
+        mockFetchWithAthlete({
+          id: 789,
+          name: 'Test',
+          type: 'Ride',
+          category: 'WORKOUT',
+          athlete_id: mockAthleteId,
+        });
+
+        const result = await exportWorkoutsToLibrary([mockWorkout]);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data[0]).toHaveProperty('id');
+          expect(result.data[0]).toHaveProperty('name');
+          expect(result.data[0]).toHaveProperty('type');
+        }
+      });
     });
 
-    it('should handle malformed JSON response', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => {
-          throw new Error('Invalid JSON');
+    describe('sport type mapping', () => {
+      const testCases = [
+        { workoutTypeId: 1, expectedType: 'Run', sportName: 'Run' },
+        { workoutTypeId: 2, expectedType: 'Ride', sportName: 'Bike' },
+        { workoutTypeId: 3, expectedType: 'Swim', sportName: 'Swim' },
+        {
+          workoutTypeId: 13,
+          expectedType: 'WeightTraining',
+          sportName: 'Strength',
         },
-      });
+        { workoutTypeId: 999, expectedType: 'Ride', sportName: 'Unknown' },
+      ];
 
-      const result = await exportToIntervals([mockWorkout], ['2024-02-24']);
+      testCases.forEach(({ workoutTypeId, expectedType, sportName }) => {
+        it(`should map ${sportName} (workoutTypeId ${workoutTypeId}) to ${expectedType}`, async () => {
+          const workout: LibraryItem = {
+            ...mockWorkout,
+            workoutTypeId,
+          };
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.message).toBe('Invalid JSON');
-      }
-    });
-  });
-
-  describe('authentication', () => {
-    it('should use Basic Auth with API_KEY prefix', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
+          mockFetchWithAthlete({
             id: 789,
-            start_date_local: '2024-02-24',
-            type: 'Ride',
+            name: 'Test',
+            type: expectedType,
             category: 'WORKOUT',
-          },
-        ],
+            athlete_id: mockAthleteId,
+          });
+
+          await exportWorkoutsToLibrary([workout]);
+
+          // Second call is the workout POST
+          const fetchCall = vi.mocked(global.fetch).mock.calls[1];
+          const body = JSON.parse(fetchCall[1]?.body as string);
+          expect(body.type).toBe(expectedType);
+        });
       });
-
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
-
-      const expectedAuth = btoa(`API_KEY:${mockApiKey}`);
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: `Basic ${expectedAuth}`,
-          }),
-        })
-      );
     });
 
-    it('should retrieve API key from service', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
-            id: 789,
-            start_date_local: '2024-02-24',
-            type: 'Ride',
-            category: 'WORKOUT',
-          },
-        ],
+    describe('error handling', () => {
+      it('should handle partial failures', async () => {
+        const workout2: LibraryItem = {
+          ...mockWorkout,
+          exerciseLibraryItemId: 123457,
+          itemName: 'Workout 2',
+        };
+
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) {
+            // First call: athlete succeeds
+            return {
+              ok: true,
+              json: async () => ({
+                id: mockAthleteId,
+                name: 'Test Athlete',
+              }),
+            };
+          } else if (callCount === 2) {
+            // Second call: first workout succeeds
+            return {
+              ok: true,
+              json: async () => ({
+                id: 789,
+                name: 'Workout 1',
+                type: 'Ride',
+                category: 'WORKOUT',
+                athlete_id: mockAthleteId,
+              }),
+            };
+          } else {
+            // Third call: second workout fails
+            return {
+              ok: false,
+              status: 500,
+              text: async () => 'Server error',
+            };
+          }
+        });
+
+        const result = await exportWorkoutsToLibrary([mockWorkout, workout2]);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.message).toContain('Failed to export');
+        }
       });
 
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
+      it('should return error when no API key', async () => {
+        vi.mocked(intervalsApiKeyService.getIntervalsApiKey).mockResolvedValue(
+          null
+        );
 
-      expect(intervalsApiKeyService.getIntervalsApiKey).toHaveBeenCalledTimes(
-        1
-      );
-    });
-  });
+        const result = await exportWorkoutsToLibrary([mockWorkout]);
 
-  describe('API endpoint', () => {
-    it('should use correct endpoint with upsert parameter', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
-            id: 789,
-            start_date_local: '2024-02-24',
-            type: 'Ride',
-            category: 'WORKOUT',
-          },
-        ],
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('NO_API_KEY');
+        }
+
+        expect(global.fetch).not.toHaveBeenCalled();
       });
 
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
+      it('should handle 401 Unauthorized on athlete fetch', async () => {
+        mockAthleteFailure(401);
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        'https://intervals.icu/api/v1/athlete/0/events/bulk?upsert=true',
-        expect.any(Object)
-      );
-    });
+        const result = await exportWorkoutsToLibrary([mockWorkout]);
 
-    it('should use POST method', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
-            id: 789,
-            start_date_local: '2024-02-24',
-            type: 'Ride',
-            category: 'WORKOUT',
-          },
-        ],
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('INVALID_API_KEY');
+          expect(result.error.status).toBe(401);
+        }
       });
 
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
+      it('should handle 401 Unauthorized on workout export', async () => {
+        let callCount = 0;
+        global.fetch = vi.fn().mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ id: mockAthleteId, name: 'Test' }),
+            });
+          } else {
+            return Promise.resolve({
+              ok: false,
+              status: 401,
+              text: async () => 'Unauthorized',
+            });
+          }
+        });
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          method: 'POST',
-        })
-      );
-    });
+        const result = await exportWorkoutsToLibrary([mockWorkout]);
 
-    it('should send JSON content type', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => [
-          {
-            id: 789,
-            start_date_local: '2024-02-24',
-            type: 'Ride',
-            category: 'WORKOUT',
-          },
-        ],
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('INVALID_API_KEY');
+          expect(result.error.status).toBe(401);
+        }
       });
 
-      await exportToIntervals([mockWorkout], ['2024-02-24']);
+      it('should handle 500 Server Error on athlete fetch', async () => {
+        mockAthleteFailure(500);
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-          }),
-        })
-      );
+        const result = await exportWorkoutsToLibrary([mockWorkout]);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.code).toBe('API_ERROR');
+          expect(result.error.status).toBe(500);
+        }
+      });
+
+      it('should handle network errors', async () => {
+        global.fetch = vi
+          .fn()
+          .mockRejectedValue(new Error('Network connection failed'));
+
+        const result = await exportWorkoutsToLibrary([mockWorkout]);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.message).toContain('Network connection failed');
+        }
+      });
     });
   });
 });

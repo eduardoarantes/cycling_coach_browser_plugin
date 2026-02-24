@@ -46,7 +46,7 @@ export function ExportButton({
       aria-label={
         itemCount
           ? `Export ${itemCount} workout${itemCount !== 1 ? 's' : ''}`
-          : 'Export to PlanMyPeak'
+          : 'Export workouts'
       }
     >
       {/* Export icon */}
@@ -66,7 +66,7 @@ export function ExportButton({
       </svg>
 
       <span>
-        Export to PlanMyPeak
+        Export Workouts
         {itemCount !== undefined && itemCount > 0 && (
           <span className="ml-1 opacity-80">({itemCount})</span>
         )}

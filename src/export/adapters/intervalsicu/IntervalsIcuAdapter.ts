@@ -1,7 +1,8 @@
 /**
  * Intervals.icu Export Adapter
  *
- * Adapter for exporting workouts to Intervals.icu via direct API upload.
+ * Adapter for exporting workouts to Intervals.icu library (NOT calendar).
+ * Uses folder-based organization and workout templates without dates.
  * Implements the ExportAdapter interface following the established pattern.
  *
  * @see PlanMyPeakAdapter for reference implementation
@@ -15,116 +16,141 @@ import type {
 import type { LibraryItem } from '@/types';
 import type {
   IntervalsIcuExportConfig,
-  IntervalsEventResponse,
+  IntervalsWorkoutResponse,
+  IntervalsFolderResponse,
 } from '@/types/intervalsicu.types';
-import { IntervalsBulkResponseSchema } from '@/schemas/intervalsicu.schema';
+import type {
+  CreateIntervalsFolderMessage,
+  ExportWorkoutsToLibraryMessage,
+} from '@/types';
+import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
-import { exportToIntervals } from '@/background/api/intervalsicu';
+import { hasIntervalsApiKey } from '@/services/intervalsApiKeyService';
 
 /**
- * Intervals.icu adapter for exporting TrainingPeaks workouts
+ * Intervals.icu adapter for exporting TrainingPeaks workouts to library
  *
- * This adapter directly uploads workouts to Intervals.icu via API
- * rather than generating a downloadable file.
+ * This adapter exports workouts as library templates (NOT calendar events).
+ * Workouts can optionally be organized in folders for better organization.
+ * NO dates are involved - this is pure library/template export.
  */
 export class IntervalsIcuAdapter implements ExportAdapter<
   IntervalsIcuExportConfig,
-  IntervalsEventResponse[]
+  IntervalsWorkoutResponse[]
 > {
   readonly id = 'intervalsicu';
   readonly name = 'Intervals.icu';
-  readonly description = 'Export workouts to Intervals.icu calendar via API';
+  readonly description = 'Export workouts to Intervals.icu library via API';
   readonly supportedFormats = ['api']; // Direct upload, not file download
   readonly icon = '🚴‍♂️';
 
   /**
-   * Transform TrainingPeaks library items to Intervals.icu format
+   * Transform TrainingPeaks library items to Intervals.icu workout templates
    *
-   * Note: Transformation happens in API client. This method validates
-   * config and calls the API client to perform the export.
+   * This method:
+   * 1. Validates API key exists
+   * 2. Creates folder if requested (optional)
+   * 3. Exports workouts to library (with or without folder)
+   *
+   * NO dates involved - workouts are exported as library templates.
    *
    * @param items - TrainingPeaks library items to transform
-   * @param config - Export configuration with API key and start date
-   * @returns Array of created Intervals.icu events
+   * @param config - Export configuration with library name and folder options
+   * @returns Array of created Intervals.icu workout templates
    * @throws Error if config is invalid or API call fails
    */
   async transform(
     items: LibraryItem[],
     config: IntervalsIcuExportConfig
-  ): Promise<IntervalsEventResponse[]> {
+  ): Promise<IntervalsWorkoutResponse[]> {
     logger.info(
-      `[IntervalsIcuAdapter] Preparing ${items.length} workouts for export`
+      `[IntervalsIcuAdapter] Transforming ${items.length} workouts for library export`
     );
 
-    // Validate we have API key
-    if (!config.apiKey || config.apiKey.trim() === '') {
-      throw new Error('Intervals.icu API key is required');
+    // 1. Validate API key exists
+    const hasKey = await hasIntervalsApiKey();
+    if (!hasKey) {
+      throw new Error('Intervals.icu API key not configured');
     }
 
-    // Validate start date
-    if (!config.startDate) {
-      throw new Error('Start date is required');
+    // 2. Create folder if requested
+    let folderId: number | undefined;
+    if (config.createFolder) {
+      const folderResult = await chrome.runtime.sendMessage<
+        CreateIntervalsFolderMessage,
+        ApiResponse<IntervalsFolderResponse>
+      >({
+        type: 'CREATE_INTERVALS_FOLDER',
+        libraryName: config.libraryName || 'TrainingPeaks Library',
+        description: config.description,
+      });
+
+      if (!folderResult.success) {
+        throw new Error(
+          `Failed to create folder: ${folderResult.error.message}`
+        );
+      }
+
+      folderId = folderResult.data.id;
+      logger.info('[IntervalsIcuAdapter] Created folder:', folderId);
     }
 
-    // Calculate dates for each workout (daily spacing)
-    const startDate = new Date(config.startDate);
-    const dates = items.map((_, index) => {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + index);
-      return date.toISOString().split('T')[0]; // YYYY-MM-DD
+    // 3. Export workouts to library
+    const exportResult = await chrome.runtime.sendMessage<
+      ExportWorkoutsToLibraryMessage,
+      ApiResponse<IntervalsWorkoutResponse[]>
+    >({
+      type: 'EXPORT_WORKOUTS_TO_LIBRARY',
+      workouts: items,
+      folderId,
     });
 
-    // Call API client (transformation and upload happens there)
-    const response = await exportToIntervals(items, dates);
-
-    if (!response.success) {
-      throw new Error(response.error.message);
+    if (!exportResult.success) {
+      throw new Error(
+        `Failed to export workouts: ${exportResult.error.message}`
+      );
     }
 
     logger.info(
-      `[IntervalsIcuAdapter] Successfully exported ${response.data.length} workouts`
+      '[IntervalsIcuAdapter] Exported workouts:',
+      exportResult.data.length
     );
-
-    return response.data;
+    return exportResult.data;
   }
 
   /**
-   * Validate Intervals.icu export results
+   * Validate Intervals.icu workout templates
    *
-   * Since export happens during transform, this validates the results
-   * after upload. Mainly for logging and warning generation.
+   * Checks that workout templates were created successfully.
+   * Warnings are generated for missing names or IDs.
    *
    * @param workouts - Exported workout responses from Intervals.icu
    * @returns Validation result with errors/warnings
    */
   async validate(
-    workouts: IntervalsEventResponse[]
+    workouts: IntervalsWorkoutResponse[]
   ): Promise<ValidationResult> {
     const errors: ValidationMessage[] = [];
     const warnings: ValidationMessage[] = [];
 
-    // Validate each workout response
+    // Validate each workout template
     workouts.forEach((workout, index) => {
-      try {
-        // Validate with Zod schema
-        IntervalsBulkResponseSchema.parse([workout]);
+      // Check for missing or empty names
+      if (!workout.name || workout.name.trim() === '') {
+        warnings.push({
+          field: `workouts[${index}].name`,
+          message: 'Workout template has no name',
+          severity: 'warning',
+        });
+      }
 
-        // Business logic validations
-        if (!workout.name || workout.name.trim() === '') {
-          warnings.push({
-            field: `workouts[${index}].name`,
-            message: 'Workout uploaded without a name',
-            severity: 'warning',
-          });
-        }
-      } catch (error) {
-        if (error instanceof Error) {
-          errors.push({
-            field: `workouts[${index}]`,
-            message: `Validation failed: ${error.message}`,
-            severity: 'error',
-          });
-        }
+      // Check if workout was created (should have valid ID)
+      if (!workout.id || workout.id === 0) {
+        warnings.push({
+          field: `workouts[${index}].id`,
+          message: 'Workout template was not created',
+          severity: 'warning',
+        });
       }
     });
 
@@ -146,18 +172,18 @@ export class IntervalsIcuAdapter implements ExportAdapter<
    * @returns Export result with success status and warnings
    */
   async export(
-    workouts: IntervalsEventResponse[],
+    workouts: IntervalsWorkoutResponse[],
     _config: IntervalsIcuExportConfig
   ): Promise<ExportResult> {
     logger.info(
-      `[IntervalsIcuAdapter] Export complete: ${workouts.length} workouts uploaded`
+      `[IntervalsIcuAdapter] Export complete: ${workouts.length} workout templates`
     );
 
     const validation = await this.validate(workouts);
 
     return {
       success: true,
-      fileName: `intervals_icu_export_${Date.now()}`, // No actual file
+      fileName: `intervals_icu_export_${Date.now()}`,
       format: 'api',
       itemsExported: workouts.length,
       warnings: validation.warnings,

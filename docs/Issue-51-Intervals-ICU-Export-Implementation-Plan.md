@@ -1,5 +1,28 @@
 # Implementation Plan: Intervals.icu Export Adapter (Issue #51)
 
+> **⚠️ DEPRECATED - This document describes the old event-based architecture.**
+>
+> **Current Implementation**: The Intervals.icu integration was redesigned to use a library-based architecture (templates, not calendar events).
+>
+> **See Updated Documentation**:
+>
+> - `docs/INTERVALSICU_INTEGRATION.md` - Current implementation guide
+> - `docs/INTERVALSICU_MIGRATION.md` - Migration guide explaining changes
+> - Issue #90 - Implementation details for new architecture
+>
+> **Key Differences**:
+>
+> - ❌ Old: Calendar events with `start_date_local` dates
+> - ✅ New: Workout templates in library folders (no dates)
+> - ❌ Old: `/events/bulk` endpoint
+> - ✅ New: `/folders` and `/workouts` endpoints
+> - ❌ Old: Date picker required during export
+> - ✅ New: Workouts scheduled later in Intervals.icu
+>
+> **Migration Date**: 2026-02-24
+
+---
+
 ## Executive Summary
 
 Create a comprehensive intervals.icu export adapter that allows users to export TrainingPeaks workout library items (single or bulk) to their intervals.icu calendar with full metadata preservation.

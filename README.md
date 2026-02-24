@@ -51,7 +51,7 @@ npm run lint
 
 ### Export to Intervals.icu
 
-Export your TrainingPeaks workouts directly to your Intervals.icu calendar with full metadata preservation.
+Export TrainingPeaks libraries to Intervals.icu workout library. Workouts are saved as reusable templates without dates.
 
 #### Setup
 
@@ -70,30 +70,28 @@ Export your TrainingPeaks workouts directly to your Intervals.icu calendar with 
 
 #### Exporting Workouts
 
-1. **Select Workouts**
+1. **Select Library**
    - Browse to a workout library
    - Click "Export" button
 
 2. **Choose Destination**
    - Select "Intervals.icu" as the export destination
-   - Choose the start date for your workouts
-   - Workouts will be scheduled daily starting from this date
+   - Optionally check "Create folder" to organize workouts
+   - The folder will be named after your library
 
 3. **Confirm Export**
    - Acknowledge the authorization checkbox
    - Click "Export"
-   - Workouts upload directly to your Intervals.icu calendar
+   - Workouts upload directly to your Intervals.icu library
 
 #### What Gets Exported
 
-All workouts are uploaded to Intervals.icu with complete metadata:
+All workouts are uploaded to Intervals.icu as reusable templates with complete metadata:
 
-- ✅ Workout name and description
-- ✅ Coach comments and notes
-- ✅ Training load (TSS)
-- ✅ Duration
-- ✅ Sport type (Bike, Run, Swim, Strength/Weights)
-- ✅ Additional metrics (IF, distance, elevation, pace, calories)
+- ✅ **Library Structure** - Creates a folder on Intervals.icu with the library name
+- ✅ **Workout Templates** - All workouts saved as reusable templates (no dates)
+- ✅ **Metadata** - TSS, duration, intensity factor, description, coach notes
+- ✅ **Sport Types** - Supports Bike, Run, Swim, and Strength workouts
 
 #### Supported Sport Types
 
@@ -102,10 +100,12 @@ All workouts are uploaded to Intervals.icu with complete metadata:
 - **Swimming** - Mapped to "Swim"
 - **Strength Training** - Mapped to "WeightTraining" (includes RxBuilder structured workouts)
 
-#### Notes
+#### Usage Notes
 
-- Workouts are scheduled one per day starting from your selected date
-- Past dates are supported for retroactive logging
+- Workouts are saved as **templates**, not calendar events
+- You can later schedule them in Intervals.icu by dragging to your calendar
+- No dates are required or assigned during export
+- All workouts are organized in folders for easy access
 - The extension uses your API key to upload directly (no file downloads)
 - API key is stored securely in browser storage and never shared
 
