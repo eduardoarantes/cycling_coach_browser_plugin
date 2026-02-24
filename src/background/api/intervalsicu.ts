@@ -16,6 +16,10 @@ import { IntervalsBulkResponseSchema } from '@/schemas/intervalsicu.schema';
 import { getIntervalsApiKey } from '@/services/intervalsApiKeyService';
 import { logger } from '@/utils/logger';
 import type { ApiResponse } from '@/types/api.types';
+import {
+  generateCurlCommand,
+  formatCurlForConsole,
+} from '@/utils/curlGenerator';
 
 /**
  * Intervals.icu API base URL
@@ -136,19 +140,29 @@ export async function exportToIntervals(
       transformWorkout(workout, startDates[index])
     );
 
-    // Make API request (Basic Auth with API_KEY:apiKey)
+    // Prepare request parameters
+    const url = `${INTERVALS_API_BASE}/athlete/0/events/bulk?upsert=true`;
     const auth = btoa(`API_KEY:${apiKey}`);
-    const response = await fetch(
-      `${INTERVALS_API_BASE}/athlete/0/events/bulk?upsert=true`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payloads),
-      }
-    );
+    const requestOptions: {
+      method: string;
+      headers: Record<string, string>;
+      body: string;
+    } = {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payloads, null, 2),
+    };
+
+    // Generate and log cURL command for debugging
+    const curlCommand = generateCurlCommand(url, requestOptions);
+    console.log(formatCurlForConsole(curlCommand));
+    logger.debug('Generated cURL command:', curlCommand);
+
+    // Make API request (Basic Auth with API_KEY:apiKey)
+    const response = await fetch(url, requestOptions);
 
     if (!response.ok) {
       if (response.status === 401) {

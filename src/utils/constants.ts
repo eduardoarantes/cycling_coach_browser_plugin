@@ -88,7 +88,7 @@ export const CACHE_DURATIONS = {
  * @param token - Bearer token for authentication
  * @returns Headers object for fetch requests
  */
-export function createApiHeaders(token: string): HeadersInit {
+export function createApiHeaders(token: string): Record<string, string> {
   return {
     accept: 'application/json, text/javascript, */*; q=0.01',
     'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
