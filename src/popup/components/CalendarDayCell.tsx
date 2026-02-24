@@ -114,10 +114,13 @@ function ClassicWorkoutBadge({
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
         className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-pointer text-lg"
       >
@@ -127,7 +130,7 @@ function ClassicWorkoutBadge({
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-64"
@@ -232,10 +235,13 @@ function RxBuilderWorkoutBadge({
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
         className="flex items-center justify-center w-8 h-8 rounded bg-purple-100 hover:bg-purple-200 cursor-pointer text-lg"
       >
@@ -245,7 +251,7 @@ function RxBuilderWorkoutBadge({
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-64"
@@ -306,10 +312,13 @@ function NoteBadge({ note }: NoteBadgeProps): ReactElement {
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
         className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-pointer text-lg"
       >
@@ -319,7 +328,7 @@ function NoteBadge({ note }: NoteBadgeProps): ReactElement {
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-56"
@@ -359,10 +368,13 @@ function EventBadge({ event }: EventBadgeProps): ReactElement {
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
         className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-pointer text-lg"
       >
@@ -372,7 +384,7 @@ function EventBadge({ event }: EventBadgeProps): ReactElement {
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-56"
