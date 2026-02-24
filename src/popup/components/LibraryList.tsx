@@ -300,6 +300,7 @@ export function LibraryList({
       {/* Multi-Library Export Dialog */}
       {libraries && (
         <MultiLibraryExportDialog
+          key={isDialogOpen ? 'open' : 'closed'}
           isOpen={isDialogOpen}
           onClose={closeDialog}
           onExport={handleExecuteExport}

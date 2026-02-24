@@ -141,6 +141,7 @@ export function LibraryDetails({
 
       {/* Export Dialog */}
       <ExportDialog
+        key={isDialogOpen ? 'open' : 'closed'}
         isOpen={isDialogOpen}
         onClose={closeDialog}
         onExport={executeExport}

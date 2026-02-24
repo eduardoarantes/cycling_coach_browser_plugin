@@ -63,14 +63,8 @@ export function ExportDialog({
     }
   }, [isOpen, destination]);
 
-  // Reset state when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      setHasAcknowledged(false);
-      setDestination('planmypeak');
-      setStartDate(new Date().toISOString().split('T')[0]);
-    }
-  }, [isOpen]);
+  // Note: Dialog state is reset via key prop in parent component
+  // This approach is more React-idiomatic than setState in useEffect
 
   if (!isOpen) return null;
 
