@@ -1,15 +1,23 @@
 /**
  * Export Dialog Component
  *
- * Modal dialog for configuring and executing workout export
+ * Modal dialog for configuring and executing workout export to multiple destinations
  */
 import type { ReactElement } from 'react';
 import { useState, useEffect } from 'react';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import type { IntervalsIcuExportConfig } from '@/types/intervalsicu.types';
 import {
   EXPORT_DESTINATIONS,
   type ExportDestination,
 } from '@/types/export.types';
+import type {
+  GetIntervalsApiKeyMessage,
+  HasIntervalsApiKeyMessage,
+} from '@/types';
+import { logger } from '@/utils/logger';
+
+type ExportConfig = PlanMyPeakExportConfig | IntervalsIcuExportConfig;
 
 interface ExportDialogProps {
   /** Whether the dialog is open */
@@ -17,7 +25,7 @@ interface ExportDialogProps {
   /** Callback when dialog should close */
   onClose: () => void;
   /** Callback when export is confirmed */
-  onExport: (config: PlanMyPeakExportConfig) => void;
+  onExport: (config: ExportConfig, destination: ExportDestination) => void;
   /** Number of items to be exported */
   itemCount: number;
   /** Whether export is in progress */
@@ -35,12 +43,32 @@ export function ExportDialog({
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
   const [destination, setDestination] =
     useState<ExportDestination>('planmypeak');
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().split('T')[0]
+  );
+  const [hasIntervalsApiKey, setHasIntervalsApiKey] = useState(false);
+
+  // Check for Intervals.icu API key when dialog opens
+  useEffect(() => {
+    if (isOpen && destination === 'intervalsicu') {
+      chrome.runtime
+        .sendMessage<HasIntervalsApiKeyMessage, { hasKey: boolean }>({
+          type: 'HAS_INTERVALS_API_KEY',
+        })
+        .then((response) => setHasIntervalsApiKey(response.hasKey))
+        .catch((error) => {
+          logger.error('Failed to check Intervals.icu API key:', error);
+          setHasIntervalsApiKey(false);
+        });
+    }
+  }, [isOpen, destination]);
 
   // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
       setHasAcknowledged(false);
       setDestination('planmypeak');
+      setStartDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
 
@@ -50,12 +78,32 @@ export function ExportDialog({
     (d) => d.id === destination
   );
 
-  const handleExport = (): void => {
-    const config: PlanMyPeakExportConfig = {
-      fileName,
-      includeMetadata: true,
-    };
-    onExport(config);
+  const handleExport = async (): Promise<void> => {
+    if (destination === 'planmypeak') {
+      const config: PlanMyPeakExportConfig = {
+        fileName,
+        includeMetadata: true,
+      };
+      onExport(config, destination);
+    } else if (destination === 'intervalsicu') {
+      // Get API key for Intervals.icu export
+      try {
+        const response = await chrome.runtime.sendMessage<
+          GetIntervalsApiKeyMessage,
+          { apiKey: string | null }
+        >({
+          type: 'GET_INTERVALS_API_KEY',
+        });
+
+        const config: IntervalsIcuExportConfig = {
+          apiKey: response.apiKey || undefined,
+          startDate,
+        };
+        onExport(config, destination);
+      } catch (error) {
+        logger.error('Failed to get Intervals.icu API key:', error);
+      }
+    }
   };
 
   return (
@@ -150,28 +198,79 @@ export function ExportDialog({
             </div>
           </div>
 
-          {/* File Name */}
-          <div>
-            <label
-              htmlFor="fileName"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              File Name
-            </label>
-            <input
-              id="fileName"
-              type="text"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="planmypeak_export"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              File will be saved as {fileName}.json
-            </p>
-          </div>
+          {/* File Name (PlanMyPeak only) */}
+          {destination === 'planmypeak' && (
+            <div>
+              <label
+                htmlFor="fileName"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                File Name
+              </label>
+              <input
+                id="fileName"
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="planmypeak_export"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                File will be saved as {fileName}.json
+              </p>
+            </div>
+          )}
 
-          {/* Info Box - PlanMyPeak specific */}
+          {/* Start Date (Intervals.icu only) */}
+          {destination === 'intervalsicu' && (
+            <div>
+              <label
+                htmlFor="startDate"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Start Date
+              </label>
+              <input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Workouts will be scheduled starting from this date (one workout
+                per day)
+              </p>
+            </div>
+          )}
+
+          {/* API Key Warning (Intervals.icu only) */}
+          {destination === 'intervalsicu' && !hasIntervalsApiKey && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+              <div className="flex items-start gap-2">
+                <svg
+                  className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <div className="text-sm text-yellow-800">
+                  <p className="font-medium mb-1">API Key Required</p>
+                  <p className="text-xs">
+                    You need to configure your Intervals.icu API key before
+                    exporting. Please set it up in the banner above.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Info Box - Destination specific */}
           {destination === 'planmypeak' && (
             <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
               <div className="flex items-start gap-2">
@@ -193,6 +292,32 @@ export function ExportDialog({
                     Intensity Factor (IF) and TSS values. Workout type,
                     intensity level, and suitable training phases are determined
                     individually for each workout.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {destination === 'intervalsicu' && hasIntervalsApiKey && (
+            <div className="bg-green-50 border border-green-200 rounded-md p-3">
+              <div className="flex items-start gap-2">
+                <svg
+                  className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <div className="text-sm text-green-800">
+                  <p className="font-medium mb-1">Direct Upload to Calendar</p>
+                  <p className="text-xs">
+                    Workouts will be uploaded directly to your Intervals.icu
+                    calendar. All metadata (TSS, duration, description, coach
+                    notes) will be preserved.
                   </p>
                 </div>
               </div>
@@ -275,7 +400,8 @@ export function ExportDialog({
             onClick={handleExport}
             disabled={
               isExporting ||
-              !fileName.trim() ||
+              (destination === 'planmypeak' && !fileName.trim()) ||
+              (destination === 'intervalsicu' && !hasIntervalsApiKey) ||
               !hasAcknowledged ||
               !selectedDestination?.available
             }

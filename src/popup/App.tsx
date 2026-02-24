@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { AuthStatus } from './components/AuthStatus';
+import { IntervalsApiKeyBanner } from './components/IntervalsApiKeyBanner';
 import { LibraryList } from './components/LibraryList';
 import { LibraryDetails } from './components/LibraryDetails';
 import { TabNavigation } from './components/TabNavigation';
@@ -59,6 +60,12 @@ function App(): ReactElement {
       </div>
 
       <AuthStatus />
+
+      {isAuthenticated && (
+        <>
+          <IntervalsApiKeyBanner />
+        </>
+      )}
 
       {isAuthenticated && (
         <>
