@@ -30,6 +30,8 @@ interface ExportDialogProps {
   itemCount: number;
   /** Whether export is in progress */
   isExporting?: boolean;
+  /** Source TrainingPeaks library name (used for provider folder naming) */
+  sourceLibraryName?: string;
 }
 
 export function ExportDialog({
@@ -38,6 +40,7 @@ export function ExportDialog({
   onExport,
   itemCount,
   isExporting = false,
+  sourceLibraryName,
 }: ExportDialogProps): ReactElement | null {
   const [fileName, setFileName] = useState('planmypeak_export');
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
@@ -89,7 +92,7 @@ export function ExportDialog({
 
         const config: IntervalsIcuExportConfig = {
           apiKey: response.apiKey || undefined,
-          libraryName: 'TrainingPeaks Library',
+          libraryName: sourceLibraryName?.trim() || 'TrainingPeaks Library',
           createFolder,
         };
         onExport(config, destination);

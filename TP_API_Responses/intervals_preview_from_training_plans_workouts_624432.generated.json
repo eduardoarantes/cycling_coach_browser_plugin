@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-02-24T23:01:00.231Z",
+  "sourceFile": "TP_API_Responses/training_plans_workouts_624432.json",
+  "count": 5,
+  "previews": [
+    {
+      "source": {
+        "workoutId": 3590646085,
+        "title": "Swim 1",
+        "workoutTypeValueId": 1,
+        "totalTimePlanned": null,
+        "tssPlanned": null
+      },
+      "intervalsPayload": {
+        "category": "WORKOUT",
+        "type": "Swim",
+        "name": "Swim 1",
+        "description": "- 600m 70-80% Pace intensity=warmup\n\n- 100m 75-85% Pace\n- 100m 85-95% Pace\n- 100m 95-105% Pace\n- 100m 105-115% Pace"
+      }
+    },
+    {
+      "source": {
+        "workoutId": 3590645952,
+        "title": "Bike 2",
+        "workoutTypeValueId": 2,
+        "totalTimePlanned": 0.6666666666666666,
+        "tssPlanned": 28.9
+      },
+      "intervalsPayload": {
+        "category": "WORKOUT",
+        "type": "Ride",
+        "name": "Bike 2",
+        "description": "- 20m 40-50% intensity=warmup\n\n3x\n- Hard 3m 75-85%\n- Harder 1m 90-100%\n- Easy 1m 50-60% intensity=rest\n\n- Recovery 5m 50-60% intensity=rest",
+        "moving_time": 2400,
+        "icu_training_load": 28.9
+      }
+    },
+    {
+      "source": {
+        "workoutId": 3590647932,
+        "title": "Run 1",
+        "workoutTypeValueId": 3,
+        "totalTimePlanned": null,
+        "tssPlanned": null
+      },
+      "intervalsPayload": {
+        "category": "WORKOUT",
+        "type": "Run",
+        "name": "Run 1",
+        "description": "3x\n- Hard 2000m 105-115% Pace\n- Harder 1000m 110-120% Pace\n- Easy 1000m 75-85% Pace intensity=rest\n\n- 5000m 70-80% Pace intensity=cooldown"
+      }
+    },
+    {
+      "source": {
+        "workoutId": 3590669448,
+        "title": "100 Reps",
+        "workoutTypeValueId": 1,
+        "totalTimePlanned": null,
+        "tssPlanned": null
+      },
+      "intervalsPayload": {
+        "category": "WORKOUT",
+        "type": "Swim",
+        "name": "100 Reps",
+        "description": "1x\n- Pull 50m 75% Pace\n- Kick 50m 75% Pace\n- Swim 50m 75% Pace intensity=rest\n\n- Recovery 10s 0% Pace intensity=rest\n\n1x\n- Pull 50m 75% Pace\n- Kick 50m 75% Pace\n- Swim 50m 75% Pace intensity=rest\n\n- Kick 200m 75% Pace intensity=rest\n\n2x\n- Hard 50m 90% Pace\n- 10s 0% Pace intensity=rest\n\n4x\n- Hard 100m 100% Pace\n- 10s 0% Pace intensity=rest\n\n- Time Trial 300m 110% Pace\n\n- 200m 75% Pace intensity=cooldown\n\n- - - -\nWU:\n2 x 150 easy each done as 50 pull, 50 kick, 50 swim.\n200 kick easy.\n2 x 50 (10”) moderate.\nMS:\n4 x 100 at T-pace (10”).\n300 time trial.\nCD: 200 pull easy.\nTotal: 1500"
+      }
+    },
+    {
+      "source": {
+        "workoutId": 3590669480,
+        "title": "Continuous Swim",
+        "workoutTypeValueId": 1,
+        "totalTimePlanned": null,
+        "tssPlanned": null
+      },
+      "intervalsPayload": {
+        "category": "WORKOUT",
+        "type": "Swim",
+        "name": "Continuous Swim",
+        "description": "- Warm up 5 min with drills 5m 5 intensity=warmup\n\n- 4 x 50 (10\") as 25 slow&easy/25 moderately fast 182.8799997220224m 6\n\n- 4 x 50 (10\") as 25 slow&easy/25 moderately fast 182.8799997220224m 6\n\n- 4 x 50 (10\") as 25 slow&easy/25 moderately fast 182.8799997220224m 6\n\n- 2 x 300 swim (1' rest) 182.8799997220224m 7\n\n- 1m 1 intensity=rest\n\n- 400 moderate effort 365.7599994440448m 7\n\n- Cool Down 5 mins easy swimming 5s 4 intensity=cooldown\n\n- - - -\nYou may substitute a similar masters swim session for this workout.\n\nWarm-up:\nA. 5-minute swim with your choice of drills and swims. Focus on how well you do the drills, not on how fast.\nB. 3 x (4 x 50 done as 25 slow and easy, 25 moderately fast emphasizing form). (10sec rest between 50s)\nMainset:\nA. 2 x 300 swim (1min rest between) at moderate/aerobic effort.\n(1min rest).\nB. Swim 400 moderate effort.\nCool down:\n5 minutes of easy swimming.\nTotal: 1600+\n\nCoach Notes:\nSome abbreviations used in this plan: WU=warm-up, CD=cool down, MS=mainset, sec=seconds, min=minutes, RM=repetitions max (the most reps possible for a given load)."
+      }
+    }
+  ]
+}

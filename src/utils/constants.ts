@@ -45,17 +45,6 @@ export const STORAGE_KEYS = {
 } as const;
 
 /**
- * Workout type mapping: TrainingPeaks workoutTypeId → Intervals.icu type
- */
-export const WORKOUT_TYPE_MAP: Record<number, string> = {
-  1: 'Run',
-  2: 'Ride',
-  3: 'Swim',
-  13: 'WeightTraining', // Strength/RxBuilder workouts
-  4: 'Other',
-} as const;
-
-/**
  * Date range constants for training plan API endpoints
  * These dates represent the widest possible range supported by the API
  */

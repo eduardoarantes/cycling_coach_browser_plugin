@@ -27,22 +27,15 @@ import {
   generateCurlCommand,
   formatCurlForConsole,
 } from '@/utils/curlGenerator';
+import {
+  buildIntervalsIcuDescription,
+  mapTpWorkoutTypeToIntervalsType,
+} from '@/export/adapters/intervalsicu/workoutMapping';
 
 /**
  * Intervals.icu API base URL
  */
 const INTERVALS_API_BASE = 'https://intervals.icu/api/v1';
-
-/**
- * Workout type mapping: TrainingPeaks workoutTypeId → Intervals.icu type
- */
-const WORKOUT_TYPE_MAP: Record<number, string> = {
-  1: 'Run',
-  2: 'Ride',
-  3: 'Swim',
-  13: 'WeightTraining', // Strength/RxBuilder workouts
-  4: 'Other',
-} as const;
 
 /**
  * Intervals.icu may accept athlete `0` as "current user" in GET requests, but
@@ -87,50 +80,6 @@ function extractIntervalsAthleteId(response: unknown): string | number | null {
 }
 
 /**
- * Build comprehensive workout description with all available metadata
- *
- * @param workout - TrainingPeaks library item
- * @returns Formatted description with main text, coach notes, and metadata
- */
-function buildDescription(workout: LibraryItem): string {
-  const parts: string[] = [];
-
-  // Main description
-  if (workout.description) {
-    parts.push(workout.description);
-  }
-
-  // Coach comments section
-  if (workout.coachComments) {
-    parts.push(`\n**Coach Notes:**\n${workout.coachComments}`);
-  }
-
-  // Additional metadata (not natively supported by workout API)
-  const metadata: string[] = [];
-  if (workout.ifPlanned) {
-    metadata.push(`IF: ${workout.ifPlanned.toFixed(2)}`);
-  }
-  if (workout.distancePlanned) {
-    metadata.push(`Distance: ${workout.distancePlanned}`);
-  }
-  if (workout.elevationGainPlanned) {
-    metadata.push(`Elevation: ${workout.elevationGainPlanned}m`);
-  }
-  if (workout.caloriesPlanned) {
-    metadata.push(`Calories: ${workout.caloriesPlanned}`);
-  }
-  if (workout.velocityPlanned) {
-    metadata.push(`Pace: ${workout.velocityPlanned}`);
-  }
-
-  if (metadata.length > 0) {
-    parts.push(`\n**Workout Details:**\n${metadata.join(' • ')}`);
-  }
-
-  return parts.length > 0 ? parts.join('\n') : 'Workout from TrainingPeaks';
-}
-
-/**
  * Transform TrainingPeaks workout to Intervals.icu workout template payload
  *
  * IMPORTANT: This creates LIBRARY TEMPLATES (not scheduled events).
@@ -146,9 +95,9 @@ function buildWorkoutPayload(
 ): IntervalsWorkoutPayload {
   const payload: IntervalsWorkoutPayload = {
     category: 'WORKOUT',
-    type: WORKOUT_TYPE_MAP[workout.workoutTypeId] ?? 'Ride',
+    type: mapTpWorkoutTypeToIntervalsType(workout.workoutTypeId),
     name: workout.itemName,
-    description: buildDescription(workout),
+    description: buildIntervalsIcuDescription(workout),
   };
 
   // Add optional fields only if they exist
