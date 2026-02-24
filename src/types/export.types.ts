@@ -23,7 +23,7 @@ export const EXPORT_DESTINATIONS: ExportDestinationInfo[] = [
   {
     id: 'intervalsicu',
     name: 'Intervals.icu',
-    description: 'Direct upload to Intervals.icu calendar via API',
+    description: 'Direct upload to Intervals.icu workout library via API',
     icon: '🚴‍♂️',
     available: true,
   },

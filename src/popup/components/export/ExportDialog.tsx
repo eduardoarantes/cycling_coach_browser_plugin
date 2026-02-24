@@ -43,9 +43,7 @@ export function ExportDialog({
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
   const [destination, setDestination] =
     useState<ExportDestination>('planmypeak');
-  const [startDate, setStartDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
+  const [createFolder, setCreateFolder] = useState(true);
   const [hasIntervalsApiKey, setHasIntervalsApiKey] = useState(false);
 
   // Check for Intervals.icu API key when dialog opens
@@ -91,7 +89,8 @@ export function ExportDialog({
 
         const config: IntervalsIcuExportConfig = {
           apiKey: response.apiKey || undefined,
-          startDate,
+          libraryName: 'TrainingPeaks Library',
+          createFolder,
         };
         onExport(config, destination);
       } catch (error) {
@@ -215,25 +214,23 @@ export function ExportDialog({
             </div>
           )}
 
-          {/* Start Date (Intervals.icu only) */}
+          {/* Folder Creation (Intervals.icu only) */}
           {destination === 'intervalsicu' && (
             <div>
-              <label
-                htmlFor="startDate"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Start Date
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={createFolder}
+                  onChange={(e) => setCreateFolder(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Create folder in Intervals.icu library
+                </span>
               </label>
-              <input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Workouts will be scheduled starting from this date (one workout
-                per day)
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                Workouts will be organized in a folder named &quot;TrainingPeaks
+                Library&quot; and saved as templates (no dates assigned)
               </p>
             </div>
           )}
@@ -307,11 +304,12 @@ export function ExportDialog({
                   />
                 </svg>
                 <div className="text-sm text-green-800">
-                  <p className="font-medium mb-1">Direct Upload to Calendar</p>
+                  <p className="font-medium mb-1">Direct Upload to Library</p>
                   <p className="text-xs">
                     Workouts will be uploaded directly to your Intervals.icu
-                    calendar. All metadata (TSS, duration, description, coach
-                    notes) will be preserved.
+                    workout library as templates. All metadata (TSS, duration,
+                    description, coach notes) will be preserved. You can
+                    schedule workouts from your library later.
                   </p>
                 </div>
               </div>
