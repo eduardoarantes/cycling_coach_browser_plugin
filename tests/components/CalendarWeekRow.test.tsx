@@ -136,9 +136,7 @@ describe('CalendarWeekRow', () => {
     });
 
     it('should display week number prominently', () => {
-      const { container } = render(
-        <CalendarWeekRow weekNumber={1} weekData={new Map()} />
-      );
+      render(<CalendarWeekRow weekNumber={1} weekData={new Map()} />);
 
       const weekLabel = screen.getByText('Week 1');
       expect(weekLabel.tagName).toMatch(/H[1-6]|STRONG|P/);
@@ -314,9 +312,7 @@ describe('CalendarWeekRow', () => {
 
   describe('accessibility', () => {
     it('should have semantic HTML structure', () => {
-      const { container } = render(
-        <CalendarWeekRow weekNumber={1} weekData={new Map()} />
-      );
+      render(<CalendarWeekRow weekNumber={1} weekData={new Map()} />);
 
       // Week number should be in a heading
       const weekLabel = screen.getByText('Week 1');

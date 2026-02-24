@@ -87,12 +87,21 @@ export interface GetRxBuilderWorkoutsMessage {
 }
 
 /**
- * Message to export workouts to Intervals.icu
+ * Message to create Intervals.icu folder
  */
-export interface ExportToIntervalsMessage {
-  type: 'EXPORT_TO_INTERVALS';
+export interface CreateIntervalsFolderMessage {
+  type: 'CREATE_INTERVALS_FOLDER';
+  libraryName: string;
+  description?: string;
+}
+
+/**
+ * Message to export workouts to Intervals.icu library
+ */
+export interface ExportWorkoutsToLibraryMessage {
+  type: 'EXPORT_WORKOUTS_TO_LIBRARY';
   workouts: LibraryItem[];
-  startDates: string[]; // YYYY-MM-DD format
+  folderId?: number;
 }
 
 /**
@@ -130,7 +139,8 @@ export type RuntimeMessage =
   | GetPlanNotesMessage
   | GetPlanEventsMessage
   | GetRxBuilderWorkoutsMessage
-  | ExportToIntervalsMessage
+  | CreateIntervalsFolderMessage
+  | ExportWorkoutsToLibraryMessage
   | SetIntervalsApiKeyMessage
   | GetIntervalsApiKeyMessage
   | HasIntervalsApiKeyMessage;

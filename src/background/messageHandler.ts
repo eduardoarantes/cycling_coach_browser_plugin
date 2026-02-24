@@ -28,13 +28,19 @@ import {
   fetchPlanEvents,
   fetchRxBuilderWorkouts,
 } from './api/trainingPeaks';
-import { exportToIntervals } from './api/intervalsicu';
+import {
+  createIntervalsFolder,
+  exportWorkoutsToLibrary,
+} from './api/intervalsicu';
 import {
   setIntervalsApiKey,
   getIntervalsApiKey,
   hasIntervalsApiKey,
 } from '@/services/intervalsApiKeyService';
-import type { IntervalsEventResponse } from '@/types/intervalsicu.types';
+import type {
+  IntervalsFolderResponse,
+  IntervalsWorkoutResponse,
+} from '@/types/intervalsicu.types';
 
 type MessageResponse =
   | { success: true }
@@ -50,7 +56,8 @@ type MessageResponse =
   | ApiResponse<PlanWorkout[]>
   | ApiResponse<CalendarNote[]>
   | ApiResponse<CalendarEvent[]>
-  | ApiResponse<IntervalsEventResponse[]>;
+  | ApiResponse<IntervalsFolderResponse>
+  | ApiResponse<IntervalsWorkoutResponse[]>;
 
 /**
  * Handle TOKEN_FOUND message from content script
@@ -297,15 +304,27 @@ async function handleGetRxBuilderWorkouts(
 }
 
 /**
- * Handle EXPORT_TO_INTERVALS message from popup
- * Exports workouts to Intervals.icu
+ * Handle CREATE_INTERVALS_FOLDER message from popup
+ * Creates a folder on Intervals.icu for library organization
  */
-async function handleExportToIntervals(
+async function handleCreateIntervalsFolder(
+  libraryName: string,
+  description?: string
+): Promise<ApiResponse<IntervalsFolderResponse>> {
+  logger.debug('Handling CREATE_INTERVALS_FOLDER message:', libraryName);
+  return await createIntervalsFolder(libraryName, description);
+}
+
+/**
+ * Handle EXPORT_WORKOUTS_TO_LIBRARY message from popup
+ * Exports workouts to Intervals.icu as library templates (NOT calendar events)
+ */
+async function handleExportWorkoutsToLibrary(
   workouts: LibraryItem[],
-  startDates: string[]
-): Promise<ApiResponse<IntervalsEventResponse[]>> {
-  logger.debug('Handling EXPORT_TO_INTERVALS message');
-  return await exportToIntervals(workouts, startDates);
+  folderId?: number
+): Promise<ApiResponse<IntervalsWorkoutResponse[]>> {
+  logger.debug('Handling EXPORT_WORKOUTS_TO_LIBRARY message');
+  return await exportWorkoutsToLibrary(workouts, folderId);
 }
 
 /**
@@ -393,10 +412,16 @@ export async function handleMessage(
     case 'GET_RX_BUILDER_WORKOUTS':
       return await handleGetRxBuilderWorkouts(message.planId);
 
-    case 'EXPORT_TO_INTERVALS':
-      return await handleExportToIntervals(
+    case 'CREATE_INTERVALS_FOLDER':
+      return await handleCreateIntervalsFolder(
+        message.libraryName,
+        message.description
+      );
+
+    case 'EXPORT_WORKOUTS_TO_LIBRARY':
+      return await handleExportWorkoutsToLibrary(
         message.workouts,
-        message.startDates
+        message.folderId
       );
 
     case 'SET_INTERVALS_API_KEY':

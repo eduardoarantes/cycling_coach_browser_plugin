@@ -16,15 +16,17 @@ Complete guide for the Intervals.icu export integration in the TrainingPeaks Bro
 
 ## Overview
 
-The Intervals.icu integration enables direct upload of TrainingPeaks workouts to your Intervals.icu calendar via API. Workouts are uploaded with full metadata preservation, including TSS, duration, sport type, and coach comments.
+The Intervals.icu integration enables direct upload of TrainingPeaks workout libraries to your Intervals.icu workout library via API. Workouts are uploaded as reusable templates with full metadata preservation, including TSS, duration, sport type, and coach comments.
 
 ### Key Features
 
-- **Direct API Upload**: No file downloads - workouts upload directly to your calendar
+- **Direct API Upload**: No file downloads - workouts upload directly to your library
+- **Library Organization**: Creates folders to organize workouts by TrainingPeaks library
+- **Template-Based**: Workouts saved as reusable templates for later scheduling
 - **Full Metadata Preservation**: All workout details preserved (TSS, duration, description, coach notes)
 - **Multi-Sport Support**: Cycling, running, swimming, and strength training
 - **Batch Upload**: Export entire libraries at once
-- **Date Flexibility**: Schedule workouts for any date (past or future)
+- **No Date Management**: Workouts saved as templates without dates
 - **Secure Authentication**: API key stored encrypted in browser storage
 
 ---
@@ -40,7 +42,7 @@ The Intervals.icu integration enables direct upload of TrainingPeaks workouts to
 │                                                               │
 │  ┌──────────────────┐        ┌──────────────────┐          │
 │  │ IntervalsApiKey  │        │  ExportDialog    │          │
-│  │    Banner        │        │  (Date Picker)   │          │
+│  │    Banner        │        │ (Folder Option)  │          │
 │  └──────────────────┘        └──────────────────┘          │
 │           │                           │                      │
 │           ▼                           ▼                      │
@@ -70,7 +72,8 @@ The Intervals.icu integration enables direct upload of TrainingPeaks workouts to
 │                      ▼                                       │
 │  ┌──────────────────────────────────────────────┐          │
 │  │    background/api/intervalsicu.ts             │          │
-│  │  - exportToIntervals()                       │          │
+│  │  - createFolder()                            │          │
+│  │  - createWorkout()                           │          │
 │  │  - buildDescription()                        │          │
 │  │  - WORKOUT_TYPE_MAP                          │          │
 │  └──────────────────────────────────────────────┘          │
@@ -80,17 +83,19 @@ The Intervals.icu integration enables direct upload of TrainingPeaks workouts to
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              Intervals.icu API (intervals.icu)               │
-│        POST /api/v1/athlete/0/events/bulk                   │
+│        POST /api/v1/athlete/0/folders                       │
+│        POST /api/v1/athlete/0/workouts                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow
 
 1. **User configures API key** → IntervalsApiKeyBanner → intervalsApiKeyService → chrome.storage.local
-2. **User selects workouts** → ExportDialog → IntervalsIcuAdapter
-3. **Adapter transforms data** → Creates IntervalsEventPayload[] with proper sport types and metadata
-4. **API client uploads** → POST to Intervals.icu bulk events endpoint with Basic Auth
-5. **Results returned** → IntervalsEventResponse[] → Displayed in ExportResult modal
+2. **User selects library** → ExportDialog → IntervalsIcuAdapter
+3. **Create folder (optional)** → POST to `/folders` endpoint → Returns folder ID
+4. **Adapter transforms data** → Creates IntervalsWorkoutPayload[] with proper sport types and metadata
+5. **API client uploads** → Individual POST requests to `/workouts` endpoint with Basic Auth
+6. **Results returned** → IntervalsWorkoutResponse[] → Displayed in ExportResult modal
 
 ---
 
@@ -148,8 +153,8 @@ The Intervals.icu integration enables direct upload of TrainingPeaks workouts to
 
 3. **Configure Export**
    - Select "Intervals.icu" as destination
-   - Choose start date (defaults to today)
-   - Note: Workouts will be scheduled one per day starting from this date
+   - Optionally check "Create folder" to organize workouts
+   - The folder will be named after your TrainingPeaks library
 
 4. **Acknowledge Authorization**
    - Check the authorization checkbox
@@ -161,17 +166,28 @@ The Intervals.icu integration enables direct upload of TrainingPeaks workouts to
    - Success message appears when complete
 
 6. **Verify in Intervals.icu**
-   - Visit https://intervals.icu/calendar
-   - Workouts appear on selected dates
+   - Visit https://intervals.icu/workouts
+   - Find your library folder
+   - All workouts appear as templates
    - All metadata preserved
 
-### Retroactive Logging
+### Scheduling Workouts
 
-You can export workouts to past dates for retroactive logging:
+After exporting workouts to Intervals.icu:
 
-1. In export dialog, select a past date
-2. Workouts will be scheduled from that date forward
-3. Useful for migrating historical training data
+1. **Visit Workout Library**
+   - Go to https://intervals.icu/workouts
+   - Find your exported library folder
+
+2. **Schedule Workouts**
+   - Drag workouts from library to calendar
+   - Assign dates as needed
+   - Customize before scheduling if desired
+
+3. **Flexible Planning**
+   - Reuse templates for multiple training cycles
+   - No need to re-export
+   - Edit templates to update all future uses
 
 ---
 
@@ -191,15 +207,52 @@ The extension automatically:
 - Encodes it with "API_KEY:" prefix
 - Includes in Authorization header
 
-### API Endpoint
+### API Endpoints
 
-**URL**: `https://intervals.icu/api/v1/athlete/0/events/bulk?upsert=true`
+**Base URL**: `https://intervals.icu/api/v1/athlete/0`
+
+#### Create Folder
+
+**URL**: `/folders`
 
 **Method**: POST
 
 **Content-Type**: application/json
 
-**Upsert Parameter**: `true` (allows updating existing workouts with same external_id)
+**Payload**:
+
+```json
+{
+  "name": "Library Name",
+  "description": "Optional description"
+}
+```
+
+**Response**: Returns folder object with `id` field
+
+#### Create Workout Template
+
+**URL**: `/workouts`
+
+**Method**: POST
+
+**Content-Type**: application/json
+
+**Payload**:
+
+```json
+{
+  "category": "WORKOUT",
+  "type": "Ride",
+  "name": "Workout Name",
+  "description": "Full workout description with metadata",
+  "moving_time": 3600,
+  "icu_training_load": 85,
+  "folder_id": 123
+}
+```
+
+**Response**: Returns workout object with `id` and other fields
 
 ### Sport Type Mapping
 
@@ -217,20 +270,22 @@ TrainingPeaks workout types are mapped to Intervals.icu activity types:
 
 TrainingPeaks data is transformed to Intervals.icu format:
 
-| TrainingPeaks Field     | Intervals.icu Field | Transformation                   |
-| ----------------------- | ------------------- | -------------------------------- |
-| `exerciseLibraryItemId` | `external_id`       | `tp_{id}` (for deduplication)    |
-| `itemName`              | `name`              | Direct copy                      |
-| `description`           | `description`       | Direct copy + metadata           |
-| `coachComments`         | `description`       | Appended as "**Coach Notes:**"   |
-| `totalTimePlanned`      | `moving_time`       | Hours → Seconds (\*3600)         |
-| `tssPlanned`            | `icu_training_load` | Direct copy                      |
-| `workoutTypeId`         | `type`              | Via WORKOUT_TYPE_MAP             |
-| `ifPlanned`             | `description`       | Added to metadata section        |
-| `distancePlanned`       | `description`       | Added to metadata section        |
-| `elevationGainPlanned`  | `description`       | Added to metadata section        |
-| `caloriesPlanned`       | `description`       | Added to metadata section        |
-| `velocityPlanned`       | `description`       | Added to metadata section (pace) |
+| TrainingPeaks Field    | Intervals.icu Field | Transformation                   |
+| ---------------------- | ------------------- | -------------------------------- |
+| `exerciseLibraryId`    | `folder_id`         | Used to organize workouts        |
+| `itemName`             | `name`              | Direct copy                      |
+| `description`          | `description`       | Direct copy + metadata           |
+| `coachComments`        | `description`       | Appended as "**Coach Notes:**"   |
+| `totalTimePlanned`     | `moving_time`       | Hours → Seconds (\*3600)         |
+| `tssPlanned`           | `icu_training_load` | Direct copy                      |
+| `workoutTypeId`        | `type`              | Via WORKOUT_TYPE_MAP             |
+| `ifPlanned`            | `description`       | Added to metadata section        |
+| `distancePlanned`      | `description`       | Added to metadata section        |
+| `elevationGainPlanned` | `description`       | Added to metadata section        |
+| `caloriesPlanned`      | `description`       | Added to metadata section        |
+| `velocityPlanned`      | `description`       | Added to metadata section (pace) |
+
+**Note**: No `start_date_local` field - workouts are saved as templates without dates.
 
 ### Description Format
 
@@ -246,20 +301,21 @@ Uploaded workouts have a structured description:
 IF: {ifPlanned} • Distance: {distancePlanned} • Elevation: {elevationGainPlanned}m • Calories: {caloriesPlanned} • Pace: {velocityPlanned}
 ```
 
-### Event Payload Structure
+### Workout Payload Structure
 
 ```typescript
 {
   category: 'WORKOUT',
-  start_date_local: '2024-03-15T00:00:00', // ISO 8601
   type: 'Ride',
   name: 'Sweet Spot Intervals',
   description: '4x10min @ 88-93% FTP\n\n**Coach Notes:**\nKeep HR in Zone 2...',
   moving_time: 3600, // seconds
   icu_training_load: 85, // TSS
-  external_id: 'tp_123456'
+  folder_id: 123 // Optional folder organization
 }
 ```
+
+**Note**: No `start_date_local` field - workouts are templates for later scheduling.
 
 ### Error Handling
 
@@ -304,14 +360,24 @@ The integration handles various error scenarios:
 
 ### Export Issues
 
-**Problem**: Workouts not appearing in Intervals.icu calendar
+**Problem**: Workouts not appearing on Intervals.icu calendar
 
 **Solution**:
 
-1. Check export result for success message
-2. Verify date range in Intervals.icu calendar view
-3. Refresh Intervals.icu page
-4. Check for error messages in export result
+This is expected behavior! Workouts are saved as **templates** in your library, not calendar events.
+
+1. **Visit Workout Library**
+   - Go to https://intervals.icu/workouts
+   - Look for your library folder (named after your TrainingPeaks library)
+
+2. **Schedule Workouts**
+   - Drag workouts from library to calendar to schedule them
+   - Assign dates as needed
+
+3. **Verify Export Success**
+   - Check export result for success message
+   - Confirm workouts appear in library folder
+   - All metadata should be preserved
 
 ---
 
@@ -363,33 +429,57 @@ The integration handles various error scenarios:
 
 ### API Client Functions
 
-**exportToIntervals(workouts: LibraryItem[], startDates: string[]): Promise<ApiResponse<IntervalsEventResponse[]>>**
+**createIntervalsFolder(name: string, description?: string): Promise<ApiResponse<IntervalsFolderResponse>>**
 
-Exports workouts to Intervals.icu via bulk events API.
+Creates a folder in Intervals.icu workout library.
 
 **Parameters**:
 
-- `workouts`: Array of TrainingPeaks library items
-- `startDates`: Array of start dates (YYYY-MM-DD format), one per workout
+- `name`: Folder name (typically TrainingPeaks library name)
+- `description`: Optional folder description
 
 **Returns**:
 
-- Success: `{ success: true, data: IntervalsEventResponse[] }`
+- Success: `{ success: true, data: { id, name, ... } }`
+- Error: `{ success: false, error: { message, code, status? } }`
+
+**createIntervalsWorkout(payload: IntervalsWorkoutPayload): Promise<ApiResponse<IntervalsWorkoutResponse>>**
+
+Creates a workout template in Intervals.icu.
+
+**Parameters**:
+
+- `payload`: Workout data (name, description, type, TSS, duration, folder_id)
+
+**Returns**:
+
+- Success: `{ success: true, data: { id, name, ... } }`
 - Error: `{ success: false, error: { message, code, status? } }`
 
 **Example**:
 
 ```typescript
-const workouts = [
-  /* LibraryItem[] */
-];
-const dates = ['2024-03-15', '2024-03-16', '2024-03-17'];
-const result = await exportToIntervals(workouts, dates);
+// Create folder
+const folderResult = await createIntervalsFolder('My Training Library');
 
-if (result.success) {
-  console.log('Exported:', result.data.length, 'workouts');
-} else {
-  console.error('Export failed:', result.error.message);
+if (folderResult.success) {
+  const folderId = folderResult.data.id;
+
+  // Create workout in folder
+  const workoutPayload = {
+    category: 'WORKOUT',
+    type: 'Ride',
+    name: 'Sweet Spot Intervals',
+    description: '4x10min @ 88-93% FTP',
+    moving_time: 3600,
+    icu_training_load: 85,
+    folder_id: folderId,
+  };
+
+  const workoutResult = await createIntervalsWorkout(workoutPayload);
+  if (workoutResult.success) {
+    console.log('Created workout:', workoutResult.data.id);
+  }
 }
 ```
 
@@ -397,13 +487,24 @@ if (result.success) {
 
 **IntervalsIcuAdapter**
 
-Implements `ExportAdapter<IntervalsIcuExportConfig, IntervalsEventResponse[]>`
+Implements `ExportAdapter<IntervalsIcuExportConfig, IntervalsWorkoutResponse[]>`
 
 **Methods**:
 
-- `transform(items, config)`: Transforms TrainingPeaks items to Intervals.icu format
+- `transform(items, config)`: Transforms TrainingPeaks items to Intervals.icu workout templates
 - `validate(workouts)`: Validates exported workout responses
 - `export(workouts, config)`: Returns export result summary
+
+**Config Interface**:
+
+```typescript
+interface IntervalsIcuExportConfig {
+  apiKey: string; // Intervals.icu API key
+  libraryName: string; // Library/folder name
+  createFolder?: boolean; // Create folder for organization
+  description?: string; // Optional folder description
+}
+```
 
 ---
 
@@ -443,7 +544,7 @@ npm test -- tests/unit/services/intervalsApiKeyService.test.ts
 npm test -- tests/unit/schemas/intervalsicu.schema.test.ts
 npm test -- tests/unit/export/adapters/intervalsicu/
 
-# All Intervals.icu tests (107 tests)
+# All Intervals.icu tests (139 tests)
 npm test -- tests/unit/export/adapters/intervalsicu/ \
   tests/unit/background/api/intervalsicu.test.ts \
   tests/unit/services/intervalsApiKeyService.test.ts \
