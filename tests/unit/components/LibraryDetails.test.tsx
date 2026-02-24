@@ -25,7 +25,7 @@ describe('LibraryDetails', () => {
       itemName: 'Endurance Ride',
       workoutTypeId: 11,
       distancePlanned: 50000,
-      totalTimePlanned: 7200,
+      totalTimePlanned: 2.0, // 2 hours (API returns decimal hours)
       caloriesPlanned: 1200,
       tssPlanned: 85,
       ifPlanned: 0.75,
@@ -42,7 +42,7 @@ describe('LibraryDetails', () => {
       itemName: 'Interval Training',
       workoutTypeId: 11,
       distancePlanned: null,
-      totalTimePlanned: 3600,
+      totalTimePlanned: 1.0, // 1 hour (API returns decimal hours)
       caloriesPlanned: null,
       tssPlanned: 95,
       ifPlanned: 0.88,

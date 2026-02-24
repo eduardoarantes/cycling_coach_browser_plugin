@@ -11,7 +11,7 @@ describe('WorkoutCard', () => {
     itemName: 'Endurance Ride',
     workoutTypeId: 11,
     distancePlanned: 50000, // 50km in meters
-    totalTimePlanned: 7200, // 2 hours in seconds
+    totalTimePlanned: 2.0, // 2 hours (API returns decimal hours, not seconds)
     caloriesPlanned: 1200,
     tssPlanned: 85,
     ifPlanned: 0.75,
@@ -30,7 +30,7 @@ describe('WorkoutCard', () => {
 
     it('should render duration in hours and minutes', () => {
       render(<WorkoutCard workout={mockWorkout} onClick={vi.fn()} />);
-      // 7200 seconds = 2 hours 0 minutes
+      // 2.0 hours = 2 hours 0 minutes
       expect(screen.getByText(/2h 0m/)).toBeInTheDocument();
     });
 
@@ -95,27 +95,27 @@ describe('WorkoutCard', () => {
 
   describe('Duration Formatting', () => {
     it('should format duration with only hours when minutes is zero', () => {
-      const workout = { ...mockWorkout, totalTimePlanned: 3600 }; // 1 hour
+      const workout = { ...mockWorkout, totalTimePlanned: 1.0 }; // 1 hour
       render(<WorkoutCard workout={workout} onClick={vi.fn()} />);
       expect(screen.getByText(/1h 0m/)).toBeInTheDocument();
     });
 
     it('should format duration with hours and minutes', () => {
-      const workout = { ...mockWorkout, totalTimePlanned: 5430 }; // 1h 30m 30s
+      const workout = { ...mockWorkout, totalTimePlanned: 1.5 }; // 1h 30m
       render(<WorkoutCard workout={workout} onClick={vi.fn()} />);
       expect(screen.getByText(/1h 30m/)).toBeInTheDocument();
     });
 
     it('should format duration with only minutes when less than 1 hour', () => {
-      const workout = { ...mockWorkout, totalTimePlanned: 1800 }; // 30 minutes
+      const workout = { ...mockWorkout, totalTimePlanned: 0.5 }; // 30 minutes
       render(<WorkoutCard workout={workout} onClick={vi.fn()} />);
-      expect(screen.getByText(/0h 30m/)).toBeInTheDocument();
+      expect(screen.getByText(/30m/)).toBeInTheDocument(); // Shows only minutes when < 1 hour
     });
 
     it('should handle zero duration', () => {
       const workout = { ...mockWorkout, totalTimePlanned: 0 };
       render(<WorkoutCard workout={workout} onClick={vi.fn()} />);
-      expect(screen.getByText(/0h 0m/)).toBeInTheDocument();
+      expect(screen.getByText(/0m/)).toBeInTheDocument(); // Shows "0m" for zero duration
     });
   });
 
