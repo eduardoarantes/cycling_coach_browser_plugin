@@ -147,7 +147,7 @@ export class IntervalsIcuAdapter implements ExportAdapter<
    */
   async export(
     workouts: IntervalsEventResponse[],
-    config: IntervalsIcuExportConfig
+    _config: IntervalsIcuExportConfig
   ): Promise<ExportResult> {
     logger.info(
       `[IntervalsIcuAdapter] Export complete: ${workouts.length} workouts uploaded`
