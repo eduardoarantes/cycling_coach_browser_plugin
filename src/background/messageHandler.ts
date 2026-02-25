@@ -4,7 +4,11 @@
  * Handles messages from content scripts and popup
  */
 
-import type { RuntimeMessage } from '@/types';
+import type {
+  RuntimeMessage,
+  TrainingPlanExportProgressMessage,
+  TrainingPlanExportProgressPayload,
+} from '@/types';
 import type {
   UserProfile,
   Library,
@@ -17,7 +21,11 @@ import type {
   ApiResponse,
 } from '@/types/api.types';
 import { logger } from '@/utils/logger';
-import { API_BASE_URL, createApiHeaders } from '@/utils/constants';
+import {
+  API_BASE_URL,
+  STORAGE_KEYS,
+  createApiHeaders,
+} from '@/utils/constants';
 import {
   fetchUser,
   fetchLibraries,
@@ -30,6 +38,10 @@ import {
 } from './api/trainingPeaks';
 import {
   createIntervalsFolder,
+  deleteIntervalsFolder,
+  findIntervalsLibraryFolderByName,
+  findIntervalsPlanFolderByName,
+  exportTrainingPlanToIntervalsPlan,
   exportWorkoutsToLibrary,
 } from './api/intervalsicu';
 import {
@@ -39,6 +51,7 @@ import {
 } from '@/services/intervalsApiKeyService';
 import type {
   IntervalsFolderResponse,
+  IntervalsTrainingPlanExportResult,
   IntervalsWorkoutResponse,
 } from '@/types/intervalsicu.types';
 
@@ -57,7 +70,10 @@ type MessageResponse =
   | ApiResponse<CalendarNote[]>
   | ApiResponse<CalendarEvent[]>
   | ApiResponse<IntervalsFolderResponse>
-  | ApiResponse<IntervalsWorkoutResponse[]>;
+  | ApiResponse<IntervalsFolderResponse | null>
+  | ApiResponse<IntervalsTrainingPlanExportResult>
+  | ApiResponse<IntervalsWorkoutResponse[]>
+  | ApiResponse<null>;
 
 /**
  * Handle TOKEN_FOUND message from content script
@@ -187,27 +203,37 @@ async function handleValidateToken(): Promise<{
 
     // Token validation failed
     const errorText = await response.text();
-    console.error(
-      '[TP Extension - Background] ❌ Token validation failed - Status:',
-      response.status,
-      'Response:',
-      errorText
-    );
-    logger.error(
-      'Token validation failed - Status:',
-      response.status,
-      'Response:',
-      errorText
-    );
+    if (response.status === 401) {
+      console.warn(
+        '[TP Extension - Background] ⚠️ Token validation returned 401 (expected when token expires) - Response:',
+        errorText
+      );
+      logger.warn('Token validation returned 401 (token expired)');
+    } else {
+      console.error(
+        '[TP Extension - Background] ❌ Token validation failed - Status:',
+        response.status,
+        'Response:',
+        errorText
+      );
+      logger.error(
+        'Token validation failed - Status:',
+        response.status,
+        'Response:',
+        errorText
+      );
+    }
 
-    // Don't automatically clear the token - it might still work for other API calls
-    // Let the user clear it manually if needed
-    console.log(
-      '[TP Extension - Background] ⚠️ Token validation failed, but keeping token (might work for other endpoints)'
-    );
-    logger.warn(
-      'Token validation failed, but keeping token (might work for other endpoints)'
-    );
+    if (response.status === 401) {
+      await chrome.storage.local.remove([
+        STORAGE_KEYS.AUTH_TOKEN,
+        STORAGE_KEYS.TOKEN_TIMESTAMP,
+      ]);
+      logger.warn('Cleared TrainingPeaks auth token after VALIDATE_TOKEN 401');
+    }
+
+    console.log('[TP Extension - Background] ⚠️ Token validation failed');
+    logger.warn('Token validation failed');
 
     return { valid: false };
   } catch (error) {
@@ -328,6 +354,85 @@ async function handleExportWorkoutsToLibrary(
 }
 
 /**
+ * Handle EXPORT_TRAINING_PLAN_TO_INTERVALS message from popup
+ * Creates an Intervals reusable PLAN folder and exports TP plan items.
+ */
+async function handleExportTrainingPlanToIntervals(
+  trainingPlan: TrainingPlan,
+  workouts: PlanWorkout[],
+  rxWorkouts: RxBuilderWorkout[] = [],
+  notes: CalendarNote[] = [],
+  events: CalendarEvent[] = [],
+  exportId?: string,
+  existingPlanAction?: 'replace' | 'append'
+): Promise<ApiResponse<IntervalsTrainingPlanExportResult>> {
+  logger.debug(
+    'Handling EXPORT_TRAINING_PLAN_TO_INTERVALS message for plan:',
+    trainingPlan.planId,
+    trainingPlan.title,
+    'workouts:',
+    workouts.length,
+    'rxWorkouts:',
+    rxWorkouts.length,
+    'notes:',
+    notes.length,
+    'events:',
+    events.length
+  );
+  const emitProgress = async (
+    progress: TrainingPlanExportProgressPayload
+  ): Promise<void> => {
+    if (!exportId) {
+      return;
+    }
+
+    const progressMessage: TrainingPlanExportProgressMessage = {
+      type: 'TRAINING_PLAN_EXPORT_PROGRESS',
+      exportId,
+      progress,
+    };
+
+    try {
+      await chrome.runtime.sendMessage(progressMessage);
+    } catch (error) {
+      // Popup may close during export; progress updates are best-effort.
+      logger.debug('Training plan export progress dispatch skipped:', error);
+    }
+  };
+
+  return await exportTrainingPlanToIntervalsPlan(
+    trainingPlan,
+    workouts,
+    rxWorkouts,
+    notes,
+    emitProgress,
+    existingPlanAction,
+    events
+  );
+}
+
+async function handleFindIntervalsPlanFolderByName(
+  planName: string
+): Promise<ApiResponse<IntervalsFolderResponse | null>> {
+  logger.debug('Handling FIND_INTERVALS_PLAN_FOLDER_BY_NAME:', planName);
+  return await findIntervalsPlanFolderByName(planName);
+}
+
+async function handleFindIntervalsLibraryFolderByName(
+  folderName: string
+): Promise<ApiResponse<IntervalsFolderResponse | null>> {
+  logger.debug('Handling FIND_INTERVALS_LIBRARY_FOLDER_BY_NAME:', folderName);
+  return await findIntervalsLibraryFolderByName(folderName);
+}
+
+async function handleDeleteIntervalsFolder(
+  folderId: number
+): Promise<ApiResponse<null>> {
+  logger.debug('Handling DELETE_INTERVALS_FOLDER:', folderId);
+  return await deleteIntervalsFolder(folderId);
+}
+
+/**
  * Handle SET_INTERVALS_API_KEY message from popup
  * Stores Intervals.icu API key in chrome.storage
  */
@@ -423,6 +528,30 @@ export async function handleMessage(
         message.workouts,
         message.folderId
       );
+
+    case 'EXPORT_TRAINING_PLAN_TO_INTERVALS':
+      return await handleExportTrainingPlanToIntervals(
+        message.trainingPlan,
+        message.workouts,
+        message.rxWorkouts ?? [],
+        message.notes ?? [],
+        message.events ?? [],
+        message.exportId,
+        message.existingPlanAction
+      );
+
+    case 'FIND_INTERVALS_PLAN_FOLDER_BY_NAME':
+      return await handleFindIntervalsPlanFolderByName(message.planName);
+
+    case 'FIND_INTERVALS_LIBRARY_FOLDER_BY_NAME':
+      return await handleFindIntervalsLibraryFolderByName(message.folderName);
+
+    case 'DELETE_INTERVALS_FOLDER':
+      return await handleDeleteIntervalsFolder(message.folderId);
+
+    case 'TRAINING_PLAN_EXPORT_PROGRESS':
+      // Background can receive its own progress broadcasts. Ignore quietly.
+      return { success: true };
 
     case 'SET_INTERVALS_API_KEY':
       return await handleSetIntervalsApiKey(message.apiKey);

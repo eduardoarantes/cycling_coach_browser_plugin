@@ -1,4 +1,6 @@
 import type { LibraryItem } from '@/schemas/library.schema';
+import type { RxBuilderWorkout } from '@/schemas/rxBuilder.schema';
+import type { PlanWorkout } from '@/schemas/trainingPlan.schema';
 import {
   IntervalsWorkoutBuilderDocumentSchema,
   type IntervalsWorkoutBuilderDocument,
@@ -45,7 +47,15 @@ export function mapTpWorkoutTypeToIntervalsType(workoutTypeId: number): string {
   return TP_TO_INTERVALS_WORKOUT_TYPE_MAP[workoutTypeId] ?? 'Other';
 }
 
-export function buildIntervalsIcuDescription(workout: LibraryItem): string {
+type TpNarrativeWorkoutFields = {
+  structure?: unknown;
+  description?: string | null;
+  coachComments?: string | null;
+};
+
+function buildIntervalsIcuDescriptionFromTpNarrativeWorkout(
+  workout: TpNarrativeWorkoutFields
+): string {
   const structuredText = renderIntervalsTextFromTpStructure(workout.structure);
   const narrativeParts: string[] = [];
 
@@ -55,7 +65,7 @@ export function buildIntervalsIcuDescription(workout: LibraryItem): string {
 
   if (workout.coachComments) {
     narrativeParts.push(
-      `Coach Notes:\n${escapeNonScriptText(workout.coachComments)}`
+      `Pre workout comments:\n${escapeNonScriptText(workout.coachComments)}`
     );
   }
 
@@ -64,14 +74,107 @@ export function buildIntervalsIcuDescription(workout: LibraryItem): string {
       return structuredText;
     }
 
-    // Keep Intervals workout script first, then append non-script notes under a
-    // neutral separator so the description stays editable in Intervals.
-    return `${structuredText}\n\n- - - -\n${narrativeParts.join('\n\n')}`;
+    // Keep the Intervals workout script first, then append activity narrative
+    // text after two blank lines so it does not interrupt the workout syntax.
+    return `${structuredText}\n\n\n${narrativeParts.join('\n\n')}`;
   }
 
   return narrativeParts.length > 0
     ? narrativeParts.join('\n\n')
     : 'Workout from TrainingPeaks';
+}
+
+export function buildIntervalsIcuDescription(workout: LibraryItem): string {
+  return buildIntervalsIcuDescriptionFromTpNarrativeWorkout(workout);
+}
+
+export function buildIntervalsIcuDescriptionFromPlanWorkout(
+  workout: Pick<PlanWorkout, 'structure' | 'description' | 'coachComments'>
+): string {
+  return buildIntervalsIcuDescriptionFromTpNarrativeWorkout(workout);
+}
+
+export function buildIntervalsIcuDescriptionFromRxBuilderWorkout(
+  workout: Pick<
+    RxBuilderWorkout,
+    | 'instructions'
+    | 'sequenceSummary'
+    | 'totalSets'
+    | 'totalBlocks'
+    | 'totalPrescriptions'
+    | 'prescribedDurationInSeconds'
+    | 'rpe'
+  >
+): string {
+  const parts: string[] = [];
+
+  const sequenceLines = workout.sequenceSummary
+    .map((entry) => {
+      const order =
+        typeof entry.sequenceOrder === 'string'
+          ? entry.sequenceOrder.trim()
+          : '';
+      const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+      if (!order && !title) {
+        return null;
+      }
+      if (!order) {
+        return escapeNonScriptText(title);
+      }
+      if (!title) {
+        return escapeNonScriptText(order);
+      }
+      return `${escapeNonScriptText(order)}. ${escapeNonScriptText(title)}`;
+    })
+    .filter((line): line is string => Boolean(line));
+
+  if (sequenceLines.length > 0) {
+    parts.push(`Exercises:\n${sequenceLines.join('\n')}`);
+  }
+
+  const metadata: string[] = [];
+  if (
+    typeof workout.prescribedDurationInSeconds === 'number' &&
+    Number.isFinite(workout.prescribedDurationInSeconds) &&
+    workout.prescribedDurationInSeconds > 0
+  ) {
+    metadata.push(
+      `Planned Duration: ${formatSeconds(workout.prescribedDurationInSeconds)}`
+    );
+  }
+  if (typeof workout.totalSets === 'number' && workout.totalSets > 0) {
+    metadata.push(`Total Sets: ${trimDecimal(workout.totalSets)}`);
+  }
+  if (
+    typeof workout.totalPrescriptions === 'number' &&
+    workout.totalPrescriptions > 0
+  ) {
+    metadata.push(
+      `Exercises Prescribed: ${trimDecimal(workout.totalPrescriptions)}`
+    );
+  }
+  if (typeof workout.totalBlocks === 'number' && workout.totalBlocks > 0) {
+    metadata.push(`Blocks: ${trimDecimal(workout.totalBlocks)}`);
+  }
+  if (typeof workout.rpe === 'number' && Number.isFinite(workout.rpe)) {
+    metadata.push(`RPE: ${trimDecimal(workout.rpe)}`);
+  }
+  if (metadata.length > 0) {
+    parts.push(`Session Info:\n${metadata.join('\n')}`);
+  }
+
+  if (
+    typeof workout.instructions === 'string' &&
+    workout.instructions.trim().length > 0
+  ) {
+    parts.push(
+      `Instructions:\n${escapeNonScriptText(workout.instructions.trim())}`
+    );
+  }
+
+  return parts.length > 0
+    ? parts.join('\n\n')
+    : 'Structured strength workout from TrainingPeaks';
 }
 
 export function buildIntervalsWorkoutBuilderDocumentFromTpStructure(
@@ -609,7 +712,7 @@ function formatIntervalsAstDuration(
     case 'distance':
       switch (stepDuration.unit) {
         case 'meters':
-          return `${trimDecimal(stepDuration.value)}m`;
+          return formatMetersAsKilometers(stepDuration.value);
         case 'kilometers':
           return `${trimDecimal(stepDuration.value)}km`;
         case 'yards':
@@ -849,7 +952,7 @@ function formatLength(length: unknown): string | null {
       return `${trimDecimal(value)}h`;
     case 'meter':
     case 'meters':
-      return `${trimDecimal(value)}m`;
+      return formatMetersAsKilometers(value);
     case 'kilometer':
     case 'kilometers':
       return `${trimDecimal(value)}km`;
@@ -965,6 +1068,12 @@ function getNumeric(value: unknown): number | null {
 
 function trimDecimal(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value);
+}
+
+function formatMetersAsKilometers(meters: number): string {
+  const kilometers = meters / 1000;
+  const rounded = Math.round((kilometers + Number.EPSILON) * 1000) / 1000;
+  return `${trimDecimal(rounded)}km`;
 }
 
 function escapeNonScriptText(text: string): string {

@@ -312,5 +312,36 @@ describe('messageHandler', () => {
       // Assert
       expect(result).toEqual({ valid: true, userId: 12345 });
     });
+
+    it('should clear token and return invalid on VALIDATE_TOKEN 401', async () => {
+      const mockToken = 'expired-token-123';
+      const mockGet = vi.fn().mockResolvedValue({ auth_token: mockToken });
+      const mockRemove = vi.fn().mockResolvedValue(undefined);
+
+      global.chrome = {
+        storage: {
+          local: {
+            get: mockGet,
+            remove: mockRemove,
+          },
+        },
+      } as any;
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: async () => 'Unauthorized',
+      });
+
+      const message = { type: 'VALIDATE_TOKEN' as const };
+
+      const result = await handleMessage(message, mockSender);
+
+      expect(result).toEqual({ valid: false });
+      expect(mockRemove).toHaveBeenCalledWith([
+        'auth_token',
+        'token_timestamp',
+      ]);
+    });
   });
 });

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { LibraryItem } from '@/schemas/library.schema';
+import type { RxBuilderWorkout } from '@/schemas/rxBuilder.schema';
 import {
   buildIntervalsWorkoutBuilderDocumentFromTpStructure,
   buildIntervalsIcuDescription,
+  buildIntervalsIcuDescriptionFromRxBuilderWorkout,
   mapTpWorkoutTypeToIntervalsType,
   renderIntervalsTextFromTpStructure,
 } from '@/export/adapters/intervalsicu/workoutMapping';
@@ -212,6 +214,40 @@ describe('Intervals.icu workoutMapping (provider-specific)', () => {
       expect(text).toContain('- Hard 3m 75-85% 90-100 rpm');
       expect(text).toContain('- Easy 1m 50-60% 85 rpm intensity=rest');
     });
+
+    it('renders meter distances as kilometers for Intervals compatibility', () => {
+      const structure = {
+        structure: [
+          {
+            type: 'step',
+            steps: [
+              {
+                name: 'Swim steady',
+                intensityClass: 'active',
+                length: { unit: 'meter', value: 1000 },
+              },
+            ],
+          },
+          {
+            type: 'step',
+            steps: [
+              {
+                name: 'Swim easy',
+                intensityClass: 'rest',
+                length: { unit: 'meter', value: 500 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const text = renderIntervalsTextFromTpStructure(structure);
+
+      expect(text).toContain('- Swim steady 1km');
+      expect(text).toContain('- Swim easy 0.5km intensity=rest');
+      expect(text).not.toContain('1000m');
+      expect(text).not.toContain('500m');
+    });
   });
 
   describe('buildIntervalsWorkoutBuilderDocumentFromTpStructure', () => {
@@ -301,9 +337,12 @@ describe('Intervals.icu workoutMapping (provider-specific)', () => {
 
       expect(description.startsWith('- 5m 50-60% intensity=warmup')).toBe(true);
       expect(description).toContain('- 5m 50-60% intensity=warmup');
+      expect(description).toContain(
+        '- 5m 50-60% intensity=warmup\n\n\nMain set focus on smooth cadence'
+      );
       expect(description).toContain('Main set focus on smooth cadence');
-      expect(description).toContain('- - - -');
-      expect(description).toContain('Coach Notes:');
+      expect(description).not.toContain('- - - -');
+      expect(description).toContain('Pre workout comments:');
       expect(description).toContain('Keep breathing controlled');
       expect(description).not.toContain('Workout Details:');
       expect(description).not.toContain('IF: 0.82');
@@ -336,6 +375,47 @@ describe('Intervals.icu workoutMapping (provider-specific)', () => {
       const description = buildIntervalsIcuDescription(workout);
       expect(description).toContain('- Recovery 90s 50-60% intensity=rest');
       expect(description).not.toContain('1m30s');
+    });
+  });
+
+  describe('buildIntervalsIcuDescriptionFromRxBuilderWorkout', () => {
+    it('renders a safe textual strength summary with sequence and instructions', () => {
+      const workout = {
+        instructions: 'Move with control. Rest 60s between sets.',
+        sequenceSummary: [
+          { sequenceOrder: 'A', title: 'Goblet Squat', compliancePercent: 0 },
+          { sequenceOrder: 'B1', title: 'Split Squat', compliancePercent: 0 },
+        ],
+        totalSets: 6,
+        totalBlocks: 2,
+        totalPrescriptions: 2,
+        prescribedDurationInSeconds: 1800,
+        rpe: 7,
+      } as Pick<
+        RxBuilderWorkout,
+        | 'instructions'
+        | 'sequenceSummary'
+        | 'totalSets'
+        | 'totalBlocks'
+        | 'totalPrescriptions'
+        | 'prescribedDurationInSeconds'
+        | 'rpe'
+      >;
+
+      const description =
+        buildIntervalsIcuDescriptionFromRxBuilderWorkout(workout);
+
+      expect(description).toContain('Exercises:');
+      expect(description).toContain('A. Goblet Squat');
+      expect(description).toContain('B1. Split Squat');
+      expect(description).toContain('Session Info:');
+      expect(description).toContain('Planned Duration: 30m');
+      expect(description).toContain('RPE: 7');
+      expect(description).toContain('Instructions:');
+      expect(description).toContain(
+        'Move with control. Rest 60s between sets.'
+      );
+      expect(description).not.toContain('- Goblet Squat');
     });
   });
 });
