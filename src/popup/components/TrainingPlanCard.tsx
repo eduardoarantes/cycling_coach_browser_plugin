@@ -4,7 +4,7 @@
  * Displays a training plan summary card with title, author, and metadata
  */
 
-import type { ReactElement } from 'react';
+import type { ReactElement, ChangeEvent } from 'react';
 import type { TrainingPlan } from '@/types/api.types';
 
 export interface TrainingPlanCardProps {
@@ -65,9 +65,7 @@ export function TrainingPlanCard({
     }
   };
 
-  const handleCheckboxChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ): void => {
+  const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>): void => {
     e.stopPropagation();
     if (onSelectionChange) {
       onSelectionChange(plan.planId, e.target.checked);

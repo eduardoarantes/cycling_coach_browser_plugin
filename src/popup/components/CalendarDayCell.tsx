@@ -16,6 +16,21 @@ import {
   FloatingPortal,
   autoUpdate,
 } from '@floating-ui/react';
+import {
+  Activity,
+  Bike,
+  Dumbbell,
+  Flag,
+  Mountain,
+  PersonStanding,
+  Ship,
+  Snowflake,
+  StickyNote,
+  Target,
+  Trophy,
+  Waves,
+  type LucideIcon,
+} from 'lucide-react';
 import type { CalendarNote, CalendarEvent } from '@/types/api.types';
 import type { UnifiedWorkout } from './PlanCalendar';
 
@@ -27,29 +42,29 @@ export interface CalendarDayCellProps {
 }
 
 /**
- * Get activity icon emoji based on workout type
+ * Get activity icon based on workout type
  */
-function getWorkoutIcon(workoutTypeId: number): string {
-  // Map workout type IDs to emojis
-  const iconMap: Record<number, string> = {
-    1: '🏊', // Swim
-    2: '🚴', // Bike
-    3: '🏃', // Run
-    4: '🔀', // Brick
-    5: '🏋️', // Crosstrain
-    6: '🏁', // Race
-    7: '😴', // Day Off
-    8: '🚵', // Mountain Bike
-    9: '💪', // Strength
-    10: '⚙️', // Custom
-    11: '⛷️', // XC-Ski
-    12: '🚣', // Rowing
-    13: '🚶', // Walk
-    29: '💪', // Strength (duplicate)
-    100: '🎯', // Other
+function getWorkoutIcon(workoutTypeId: number): LucideIcon {
+  // Match the Lucide icon family used in cycling-ai-analysis activity icons.
+  const iconMap: Record<number, LucideIcon> = {
+    1: Waves, // Swim
+    2: Bike, // Bike
+    3: PersonStanding, // Run
+    4: Activity, // Brick
+    5: Activity, // Crosstrain
+    6: Trophy, // Race
+    7: Activity, // Day Off
+    8: Mountain, // Mountain Bike
+    9: Dumbbell, // Strength
+    10: Target, // Custom
+    11: Snowflake, // XC-Ski
+    12: Ship, // Rowing
+    13: PersonStanding, // Walk
+    29: Dumbbell, // Strength (duplicate)
+    100: Activity, // Other
   };
 
-  return iconMap[workoutTypeId] || '🏃';
+  return iconMap[workoutTypeId] || Activity;
 }
 
 /**
@@ -102,7 +117,7 @@ function ClassicWorkoutBadge({
   workout: UnifiedWorkout & { workoutSource: 'classic' };
 }): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
-  const icon = getWorkoutIcon(workout.workoutTypeValueId);
+  const WorkoutIcon = getWorkoutIcon(workout.workoutTypeValueId);
 
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
@@ -114,29 +129,38 @@ function ClassicWorkoutBadge({
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
-        className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-pointer text-lg"
+        className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-pointer text-blue-700"
       >
-        {icon}
+        <WorkoutIcon className="w-4 h-4" strokeWidth={2.25} />
       </div>
 
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-64"
           >
             <div className="bg-white border-2 border-blue-400 rounded-lg shadow-xl p-3">
               {/* Workout Title */}
-              <h4 className="font-bold text-sm text-gray-900 mb-2">
-                {workout.title}
-              </h4>
+              <div className="flex items-center gap-1.5 mb-2">
+                <WorkoutIcon
+                  className="w-4 h-4 text-blue-600 flex-shrink-0"
+                  strokeWidth={2.25}
+                />
+                <h4 className="font-bold text-sm text-gray-900">
+                  {workout.title}
+                </h4>
+              </div>
 
               {/* Metrics Grid */}
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -232,29 +256,38 @@ function RxBuilderWorkoutBadge({
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
-        className="flex items-center justify-center w-8 h-8 rounded bg-purple-100 hover:bg-purple-200 cursor-pointer text-lg"
+        className="flex items-center justify-center w-8 h-8 rounded bg-purple-100 hover:bg-purple-200 cursor-pointer text-purple-700"
       >
-        💪
+        <Dumbbell className="w-4 h-4" strokeWidth={2.25} />
       </div>
 
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-64"
           >
             <div className="bg-white border-2 border-purple-400 rounded-lg shadow-xl p-3">
               {/* Workout Title */}
-              <h4 className="font-bold text-sm text-gray-900 mb-2">
-                {workout.title}
-              </h4>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Dumbbell
+                  className="w-4 h-4 text-purple-600 flex-shrink-0"
+                  strokeWidth={2.25}
+                />
+                <h4 className="font-bold text-sm text-gray-900">
+                  {workout.title}
+                </h4>
+              </div>
 
               {/* Instructions */}
               {workout.instructions && (
@@ -306,28 +339,37 @@ function NoteBadge({ note }: NoteBadgeProps): ReactElement {
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
-        className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-pointer text-lg"
+        className="flex items-center justify-center w-8 h-8 rounded bg-yellow-100 hover:bg-yellow-200 cursor-pointer text-yellow-700"
       >
-        📝
+        <StickyNote className="w-4 h-4" strokeWidth={2.25} />
       </div>
 
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-56"
           >
             <div className="bg-white border-2 border-yellow-400 rounded-lg shadow-xl p-3">
-              <h4 className="font-bold text-sm text-gray-900 mb-1">
-                📝 {note.title}
-              </h4>
+              <div className="flex items-center gap-1.5 mb-1">
+                <StickyNote
+                  className="w-4 h-4 text-yellow-700 flex-shrink-0"
+                  strokeWidth={2.25}
+                />
+                <h4 className="font-bold text-sm text-gray-900">
+                  {note.title}
+                </h4>
+              </div>
               {note.description && (
                 <p className="text-xs text-gray-700">{note.description}</p>
               )}
@@ -359,28 +401,37 @@ function EventBadge({ event }: EventBadgeProps): ReactElement {
   const hover = useHover(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
 
+  // Extract refs to avoid ESLint false positive
+  const { setReference, setFloating } = refs;
+
   return (
     <>
       <div
-        ref={refs.setReference}
+        ref={setReference}
         {...getReferenceProps()}
-        className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-pointer text-lg"
+        className="flex items-center justify-center w-8 h-8 rounded bg-green-100 hover:bg-green-200 cursor-pointer text-green-700"
       >
-        🏁
+        <Flag className="w-4 h-4" strokeWidth={2.25} />
       </div>
 
       {isOpen && (
         <FloatingPortal>
           <div
-            ref={refs.setFloating}
+            ref={setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
             className="z-[9999] w-56"
           >
             <div className="bg-white border-2 border-green-400 rounded-lg shadow-xl p-3">
-              <h4 className="font-bold text-sm text-gray-900 mb-1">
-                🏁 {event.name}
-              </h4>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Flag
+                  className="w-4 h-4 text-green-700 flex-shrink-0"
+                  strokeWidth={2.25}
+                />
+                <h4 className="font-bold text-sm text-gray-900">
+                  {event.name}
+                </h4>
+              </div>
               <p className="text-xs text-gray-600 mb-1">{event.eventType}</p>
               {event.distance && (
                 <p className="text-xs text-gray-700">

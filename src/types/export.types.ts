@@ -17,12 +17,14 @@ export const EXPORT_DESTINATIONS: ExportDestinationInfo[] = [
     id: 'planmypeak',
     name: 'PlanMyPeak',
     description: 'Export to PlanMyPeak JSON format',
+    icon: '🚴',
     available: true,
   },
   {
     id: 'intervalsicu',
     name: 'Intervals.icu',
-    description: 'Export to Intervals.icu format (Coming Soon)',
-    available: false,
+    description: 'Direct upload to Intervals.icu workout library via API',
+    icon: '🚴‍♂️',
+    available: true,
   },
 ];

@@ -1,0 +1,40 @@
+curl --location 'https://intervals.icu/api/v1/athlete/i346347/workouts' \
+--header 'accept: */*' \
+--header 'accept-language: en-GB,en;q=0.7' \
+--header 'priority: u=1, i' \
+--header 'referer: https://intervals.icu/api-docs.html' \
+--header 'sec-ch-ua: "Not:A-Brand";v="99", "Brave";v="145", "Chromium";v="145"' \
+--header 'sec-ch-ua-mobile: ?0' \
+--header 'sec-ch-ua-platform: "macOS"' \
+--header 'sec-fetch-dest: empty' \
+--header 'sec-fetch-mode: cors' \
+--header 'sec-fetch-site: same-origin' \
+--header 'sec-gpc: 1' \
+--header 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' \
+--header 'Cookie: locale=en; athlete_id=i346347_5ffe7d3_99ee28bb8a83c5659f1b67d27a753f03238f92eaefa47eb28387a6e1854cc12b' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Basic {key}' \
+--data '{
+        "description": "- 3m 55-65%\n- 3m 65-75%\n- 3m 75-85%\n- 1m 85-95%\n\n- 5m 40-50% intensity=warmup\n\n3x\n- Hard 30s 120-150%\n- Easy 4m 50-60% intensity=rest\n\n- Recovery 10m 50-60% intensity=rest\n\n4x\n- Hard 30s 120-150%\n- Easy 4m 50-60% intensity=rest\n\n- 10m 40-50% intensity=cooldown",
+        "type": "Ride",
+        "indoor": null,
+        "color": null,
+        "name": "In and out",
+        "folder_id": 721356,
+        "day": 0,
+        "days": null,
+        "plan_applied": null,
+        "hide_from_athlete": false,
+        "target": null,
+        "targets": [
+            "POWER"
+        ],
+        "carbs_per_hour": null,
+        "tags": null,
+        "attachments": null,
+        "time": null,
+        "sub_type": null,
+        "for_week": false,
+        "distance": 0.0,
+        "icu_intensity": 67.83438
+    }'

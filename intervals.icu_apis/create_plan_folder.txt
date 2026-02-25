@@ -1,0 +1,39 @@
+url --location 'https://intervals.icu/api/v1/athlete/i346347/folders' \
+--header 'accept: */*' \
+--header 'accept-language: en-GB,en;q=0.7' \
+--header 'priority: u=1, i' \
+--header 'referer: https://intervals.icu/api-docs.html' \
+--header 'sec-ch-ua: "Not:A-Brand";v="99", "Brave";v="145", "Chromium";v="145"' \
+--header 'sec-ch-ua-mobile: ?0' \
+--header 'sec-ch-ua-platform: "macOS"' \
+--header 'sec-fetch-dest: empty' \
+--header 'sec-fetch-mode: cors' \
+--header 'sec-fetch-site: same-origin' \
+--header 'sec-gpc: 1' \
+--header 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' \
+--header 'Cookie: locale=en; athlete_id=i346347_5ffe7d3_99ee28bb8a83c5659f1b67d27a753f03238f92eaefa47eb28387a6e1854cc12b' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ' \
+--data '{
+        "type": "PLAN",
+        "name": "APIS'\''s plan",
+        "description": "this is a description of a plan",
+        
+        "visibility": "PRIVATE",
+        "rollout_weeks": null,
+        "auto_rollout_day": null,
+        "read_only_workouts": false,
+        "starting_ctl": null,
+        "starting_atl": null,
+        "activity_types": [
+            "Ride",
+            "VirtualRide"
+        ],
+        "num_workouts": 12,
+        "duration_weeks": 2,
+        "hours_per_week_min": 2,
+        "hours_per_week_max": 12,
+        "workout_targets": [
+            "POWER"
+        ]
+    }'

@@ -1,0 +1,28 @@
+- 10m 56-75% intensity=warmup
+
+5x
+- 20s 76-90%
+- 40s 56-66% intensity=rest
+
+3x
+- 5m 66-75%
+- 1m 56-61% intensity=rest
+
+3x
+- 3m 66-75%
+- 1m 56-65% intensity=rest
+- 10m 56-66% intensity=cooldown
+
+5x 
+- 20s Z3
+- 40s z2
+
+3x 
+- 5m Z2
+- 60s z2
+
+3x 
+- 3m Z2
+- 60s z2
+
+- 10m z1 intensity = cooldown

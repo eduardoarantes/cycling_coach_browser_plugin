@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ChangeEvent } from 'react';
 import type { Library } from '@/types/api.types';
 
 export interface LibraryCardProps {
@@ -27,9 +27,7 @@ export function LibraryCard({
     }
   };
 
-  const handleCheckboxChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ): void => {
+  const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>): void => {
     e.stopPropagation();
     if (onSelectionChange) {
       onSelectionChange(library.exerciseLibraryId, e.target.checked);

@@ -5,4 +5,4 @@ export {
   IntervalsIcuAdapter,
   intervalsIcuAdapter,
 } from './IntervalsIcuAdapter';
-export type { IntervalsIcuExportConfig } from './IntervalsIcuAdapter';
+export type { IntervalsIcuExportConfig } from '@/types/intervalsicu.types';

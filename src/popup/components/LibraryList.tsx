@@ -1,23 +1,34 @@
 import { useState, useMemo, type ReactElement } from 'react';
 import { useLibraries } from '@/hooks/useLibraries';
-import { useMultiLibraryExport } from '@/hooks/useMultiLibraryExport';
+import {
+  useMultiLibraryExport,
+  type MultiLibraryExportConfig,
+  type ExportStrategy,
+} from '@/hooks/useMultiLibraryExport';
 import { LibraryCard } from './LibraryCard';
 import { LibraryGrid } from './LibraryGrid';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
-import { MultiLibraryExportDialog, ExportResult } from './export';
-import type { MultiLibraryExportConfig } from '@/hooks/useMultiLibraryExport';
+import { ExportDialog, ExportResult, MultiExportResult } from './export';
+import type { LibraryBatchExportStrategy } from './export/ExportDialog';
 import {
   is401Error,
   is403Error,
   getUserFriendlyErrorMessage,
   openTrainingPeaksTab,
 } from '@/utils/trainingPeaksTab';
+import type { ExportDestination } from '@/types/export.types';
+import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import type { IntervalsIcuExportConfig } from '@/types/intervalsicu.types';
 
 export interface LibraryListProps {
   onSelectLibrary: (libraryId: number) => void;
 }
+
+type MultiLibraryDialogConfig =
+  | PlanMyPeakExportConfig
+  | IntervalsIcuExportConfig;
 
 export function LibraryList({
   onSelectLibrary,
@@ -27,6 +38,8 @@ export function LibraryList({
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<Set<number>>(
     new Set()
   );
+  const [libraryBatchStrategy, setLibraryBatchStrategy] =
+    useState<ExportStrategy>('separate');
   const { data: libraries, isLoading, error, refetch } = useLibraries();
 
   const {
@@ -35,6 +48,7 @@ export function LibraryList({
     exportResults,
     progress,
     statusMessage,
+    detailedProgress,
     openDialog,
     closeDialog,
     executeExport,
@@ -53,6 +67,14 @@ export function LibraryList({
         lib.ownerName.toLowerCase().includes(query)
     );
   }, [libraries, searchQuery]);
+
+  const selectedLibraries = useMemo(
+    () =>
+      (libraries || []).filter((lib) =>
+        selectedLibraryIds.has(lib.exerciseLibraryId)
+      ),
+    [libraries, selectedLibraryIds]
+  );
 
   // Selection handlers
   const handleSelectionChange = (
@@ -94,14 +116,33 @@ export function LibraryList({
     openDialog();
   };
 
-  const handleExecuteExport = (config: MultiLibraryExportConfig): void => {
-    if (!libraries) return;
+  const handleExecuteExport = (
+    config: MultiLibraryDialogConfig,
+    destination: ExportDestination
+  ): void => {
+    if (selectedLibraries.length === 0) return;
 
-    const selectedLibraries = libraries.filter((lib) =>
-      selectedLibraryIds.has(lib.exerciseLibraryId)
+    if (destination === 'planmypeak') {
+      const multiConfig: MultiLibraryExportConfig = {
+        ...(config as PlanMyPeakExportConfig),
+        strategy: libraryBatchStrategy,
+      };
+
+      void executeExport(
+        Array.from(selectedLibraryIds),
+        selectedLibraries,
+        multiConfig,
+        destination
+      );
+      return;
+    }
+
+    void executeExport(
+      Array.from(selectedLibraryIds),
+      selectedLibraries,
+      config as IntervalsIcuExportConfig,
+      destination
     );
-
-    executeExport(Array.from(selectedLibraryIds), selectedLibraries, config);
   };
 
   // Loading state
@@ -297,29 +338,39 @@ export function LibraryList({
         </LibraryGrid>
       </div>
 
-      {/* Multi-Library Export Dialog */}
-      {libraries && (
-        <MultiLibraryExportDialog
-          isOpen={isDialogOpen}
-          onClose={closeDialog}
-          onExport={handleExecuteExport}
-          libraries={libraries.filter((lib) =>
-            selectedLibraryIds.has(lib.exerciseLibraryId)
-          )}
-          isExporting={isExporting}
-          progress={progress}
-          statusMessage={statusMessage}
-        />
-      )}
+      {/* Multi-Library Export Dialog (shared UI) */}
+      <ExportDialog
+        key={`multi-library-export-${isDialogOpen ? 'open' : 'closed'}`}
+        isOpen={isDialogOpen}
+        onClose={closeDialog}
+        onExport={handleExecuteExport}
+        itemCount={selectedLibraryIds.size}
+        isExporting={isExporting}
+        exportProgressPercent={progress}
+        exportStatusMessage={statusMessage}
+        trainingPlanExportProgress={detailedProgress || undefined}
+        exportScope="libraries"
+        sourceLibraryNames={selectedLibraries.map((lib) => lib.libraryName)}
+        libraryCount={selectedLibraries.length}
+        libraryBatchStrategy={
+          libraryBatchStrategy as LibraryBatchExportStrategy
+        }
+        onLibraryBatchStrategyChange={(strategy) =>
+          setLibraryBatchStrategy(strategy)
+        }
+      />
 
       {/* Export Results */}
-      {exportResults.map((result, index) => (
-        <ExportResult
-          key={index}
-          result={result}
-          onClose={index === exportResults.length - 1 ? closeResults : () => {}}
+      {exportResults.length > 1 && (
+        <MultiExportResult
+          key={`multi-library-results-${exportResults.length}`}
+          results={exportResults}
+          onClose={closeResults}
         />
-      ))}
+      )}
+      {exportResults.length === 1 && exportResults[0] && (
+        <ExportResult result={exportResults[0]} onClose={closeResults} />
+      )}
     </div>
   );
 }

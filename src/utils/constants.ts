@@ -16,6 +16,11 @@ export const API_BASE_URL = 'https://tpapi.trainingpeaks.com';
 export const RX_API_BASE_URL = 'https://api.peakswaresb.com';
 
 /**
+ * Intervals.icu API base URL
+ */
+export const INTERVALS_API_BASE = 'https://intervals.icu/api/v1';
+
+/**
  * Token expiration threshold (24 hours in milliseconds)
  */
 export const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000;
@@ -36,6 +41,7 @@ export const EXTENSION_VERSION = '1.0.0';
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   TOKEN_TIMESTAMP: 'token_timestamp',
+  INTERVALS_API_KEY: 'intervals_api_key',
 } as const;
 
 /**
@@ -71,7 +77,7 @@ export const CACHE_DURATIONS = {
  * @param token - Bearer token for authentication
  * @returns Headers object for fetch requests
  */
-export function createApiHeaders(token: string): HeadersInit {
+export function createApiHeaders(token: string): Record<string, string> {
   return {
     accept: 'application/json, text/javascript, */*; q=0.01',
     'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
