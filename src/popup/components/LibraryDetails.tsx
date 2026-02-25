@@ -56,6 +56,9 @@ export function LibraryDetails({
     isDialogOpen,
     isExporting,
     exportResult,
+    progress,
+    statusMessage,
+    detailedProgress,
     openDialog,
     closeDialog,
     executeExport,
@@ -147,6 +150,9 @@ export function LibraryDetails({
         onExport={executeExport}
         itemCount={workoutCount}
         isExporting={isExporting}
+        exportProgressPercent={progress}
+        exportStatusMessage={statusMessage}
+        trainingPlanExportProgress={detailedProgress || undefined}
         sourceLibraryName={libraryName}
       />
 

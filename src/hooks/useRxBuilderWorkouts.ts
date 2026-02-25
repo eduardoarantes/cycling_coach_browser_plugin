@@ -3,6 +3,7 @@ import type { RxBuilderWorkout } from '@/types/api.types';
 import type { GetRxBuilderWorkoutsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { logApiResponseError } from '@/utils/apiErrorLogging';
 import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
@@ -32,10 +33,7 @@ async function fetchRxBuilderWorkoutsList(
     );
     return response.data;
   } else {
-    logger.error(
-      'Failed to fetch RxBuilder workouts:',
-      response.error.message || 'Unknown error'
-    );
+    logApiResponseError('Failed to fetch RxBuilder workouts:', response.error);
     throw new Error(
       response.error.message || 'Failed to fetch RxBuilder workouts'
     );

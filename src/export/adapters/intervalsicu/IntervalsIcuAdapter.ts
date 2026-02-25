@@ -21,7 +21,9 @@ import type {
 } from '@/types/intervalsicu.types';
 import type {
   CreateIntervalsFolderMessage,
+  DeleteIntervalsFolderMessage,
   ExportWorkoutsToLibraryMessage,
+  FindIntervalsLibraryFolderByNameMessage,
 } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
@@ -76,23 +78,75 @@ export class IntervalsIcuAdapter implements ExportAdapter<
     // 2. Create folder if requested
     let folderId: number | undefined;
     if (config.createFolder) {
-      const folderResult = await chrome.runtime.sendMessage<
-        CreateIntervalsFolderMessage,
-        ApiResponse<IntervalsFolderResponse>
-      >({
-        type: 'CREATE_INTERVALS_FOLDER',
-        libraryName: config.libraryName || 'TrainingPeaks Library',
-        description: config.description,
-      });
+      const targetLibraryName = config.libraryName || 'TrainingPeaks Library';
 
-      if (!folderResult.success) {
-        throw new Error(
-          `Failed to create folder: ${folderResult.error.message}`
-        );
+      if (config.existingLibraryAction) {
+        const existingFolderResult = await chrome.runtime.sendMessage<
+          FindIntervalsLibraryFolderByNameMessage,
+          ApiResponse<IntervalsFolderResponse | null>
+        >({
+          type: 'FIND_INTERVALS_LIBRARY_FOLDER_BY_NAME',
+          folderName: targetLibraryName,
+        });
+
+        if (!existingFolderResult.success) {
+          throw new Error(
+            `Failed to validate existing folder: ${existingFolderResult.error.message}`
+          );
+        }
+
+        const existingFolder = existingFolderResult.data;
+        if (existingFolder) {
+          if (config.existingLibraryAction === 'append') {
+            folderId = existingFolder.id;
+            logger.info(
+              '[IntervalsIcuAdapter] Reusing existing folder:',
+              folderId,
+              targetLibraryName
+            );
+          } else if (config.existingLibraryAction === 'replace') {
+            const deleteResult = await chrome.runtime.sendMessage<
+              DeleteIntervalsFolderMessage,
+              ApiResponse<null>
+            >({
+              type: 'DELETE_INTERVALS_FOLDER',
+              folderId: existingFolder.id,
+            });
+
+            if (!deleteResult.success) {
+              throw new Error(
+                `Failed to delete existing folder: ${deleteResult.error.message}`
+              );
+            }
+
+            logger.info(
+              '[IntervalsIcuAdapter] Deleted existing folder before replace:',
+              existingFolder.id,
+              targetLibraryName
+            );
+          }
+        }
       }
 
-      folderId = folderResult.data.id;
-      logger.info('[IntervalsIcuAdapter] Created folder:', folderId);
+      if (!folderId) {
+        const folderResult = await chrome.runtime.sendMessage<
+          CreateIntervalsFolderMessage,
+          ApiResponse<IntervalsFolderResponse>
+        >({
+          type: 'CREATE_INTERVALS_FOLDER',
+          libraryName: targetLibraryName,
+          description: config.description,
+        });
+
+        if (!folderResult.success) {
+          throw new Error(
+            `Failed to create folder: ${folderResult.error.message}`
+          );
+        }
+
+        folderId = folderResult.data.id;
+        logger.info('[IntervalsIcuAdapter] Created folder:', folderId);
+      }
     }
 
     // 3. Export workouts to library

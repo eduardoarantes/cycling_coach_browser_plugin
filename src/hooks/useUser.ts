@@ -3,6 +3,7 @@ import type { UserProfile } from '@/types/api.types';
 import type { GetUserMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { logApiResponseError } from '@/utils/apiErrorLogging';
 import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
@@ -23,10 +24,7 @@ async function fetchUserProfile(): Promise<UserProfile> {
     logger.debug('User profile fetched successfully:', response.data.userId);
     return response.data;
   } else {
-    logger.error(
-      'Failed to fetch user profile:',
-      response.error.message || 'Unknown error'
-    );
+    logApiResponseError('Failed to fetch user profile:', response.error);
     throw new Error(response.error.message || 'Failed to fetch user profile');
   }
 }

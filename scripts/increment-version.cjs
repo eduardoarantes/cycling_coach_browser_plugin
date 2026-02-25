@@ -18,11 +18,11 @@ const manifestJson = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 // Parse current version
 const versionParts = packageJson.version.split('.');
+const previousVersion = packageJson.version;
 const major = parseInt(versionParts[0]);
 const minor = parseInt(versionParts[1]);
 const patch = parseInt(versionParts[2]);
-
-// Increment patch
+// Increment patch only
 const newVersion = `${major}.${minor}.${patch + 1}`;
 
 // Update both files
@@ -33,4 +33,6 @@ manifestJson.version = newVersion;
 fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
 fs.writeFileSync(manifestPath, JSON.stringify(manifestJson, null, 2) + '\n');
 
-console.log(`✅ Version incremented: ${packageJson.version} → ${newVersion}`);
+console.log(
+  `✅ Version incremented (patch): ${previousVersion} → ${newVersion}`
+);

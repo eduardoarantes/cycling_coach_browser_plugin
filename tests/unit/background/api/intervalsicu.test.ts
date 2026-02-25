@@ -6,8 +6,19 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { LibraryItem } from '@/schemas/library.schema';
+import type { RxBuilderWorkout } from '@/schemas/rxBuilder.schema';
+import type {
+  PlanWorkout,
+  TrainingPlan,
+  CalendarNote,
+  CalendarEvent,
+} from '@/schemas/trainingPlan.schema';
 import {
+  buildIntervalsPlanStartDateLocal,
   createIntervalsFolder,
+  createIntervalsPlanFolder,
+  exportTrainingPlanToIntervalsPlan,
+  exportPlanWorkoutsToIntervalsPlan,
   exportWorkoutsToLibrary,
 } from '@/background/api/intervalsicu';
 import * as intervalsApiKeyService from '@/services/intervalsApiKeyService';
@@ -35,6 +46,166 @@ describe('Intervals.icu API Client - Redesigned', () => {
     description: '4x10min @ 88-93% FTP with 5min recovery',
     coachComments: 'Focus on smooth power delivery',
   };
+
+  const mockTrainingPlan = {
+    planId: 999001,
+    title: 'TP Build Plan',
+    startDate: '2026-03-05T00:00:00',
+    weekCount: 4,
+    workoutCount: 12,
+    description: 'TrainingPeaks plan description',
+  } as unknown as TrainingPlan;
+
+  function makePlanWorkout(overrides: Partial<PlanWorkout> = {}): PlanWorkout {
+    return {
+      workoutId: 1001,
+      athleteId: 1,
+      title: 'Plan Workout',
+      workoutTypeValueId: 2,
+      code: null,
+      workoutDay: '2026-03-02T00:00:00',
+      startTime: null,
+      startTimePlanned: null,
+      isItAnOr: false,
+      isHidden: false,
+      completed: null,
+      description: 'Plan workout description',
+      userTags: null,
+      coachComments: null,
+      workoutComments: null,
+      newComment: null,
+      hasPrivateWorkoutNoteForCaller: false,
+      publicSettingValue: 0,
+      sharedWorkoutInformationKey: null,
+      sharedWorkoutInformationExpireKey: null,
+      distance: null,
+      distancePlanned: null,
+      distanceCustomized: null,
+      distanceUnitsCustomized: null,
+      totalTime: null,
+      totalTimePlanned: 1,
+      heartRateMinimum: null,
+      heartRateMaximum: null,
+      heartRateAverage: null,
+      calories: null,
+      caloriesPlanned: null,
+      tssActual: null,
+      tssPlanned: 50,
+      tssSource: null,
+      if: null,
+      ifPlanned: null,
+      velocityAverage: null,
+      velocityPlanned: null,
+      velocityMaximum: null,
+      normalizedSpeedActual: null,
+      normalizedPowerActual: null,
+      powerAverage: null,
+      powerMaximum: null,
+      energy: null,
+      energyPlanned: null,
+      elevationGain: null,
+      elevationGainPlanned: null,
+      elevationLoss: null,
+      elevationMinimum: null,
+      elevationAverage: null,
+      elevationMaximum: null,
+      torqueAverage: null,
+      torqueMaximum: null,
+      tempMin: null,
+      tempAvg: null,
+      tempMax: null,
+      cadenceAverage: null,
+      cadenceMaximum: null,
+      lastModifiedDate: '2026-03-01T00:00:00',
+      equipmentBikeId: null,
+      equipmentShoeId: null,
+      isLocked: null,
+      complianceDurationPercent: null,
+      complianceDistancePercent: null,
+      complianceTssPercent: null,
+      rpe: null,
+      feeling: null,
+      structure: null,
+      orderOnDay: null,
+      personalRecordCount: null,
+      syncedTo: null,
+      poolLengthOptionId: null,
+      workoutSubTypeId: null,
+      workoutDeviceSource: null,
+      ...overrides,
+    } as PlanWorkout;
+  }
+
+  function makeRxBuilderWorkout(
+    overrides: Partial<RxBuilderWorkout> = {}
+  ): RxBuilderWorkout {
+    return {
+      id: 'rx-1001',
+      calendarId: 1,
+      title: 'Strength Session',
+      instructions: 'Use controlled tempo',
+      prescribedDate: '2026-03-02',
+      prescribedStartTime: null,
+      startDateTime: null,
+      completedDateTime: null,
+      orderOnDay: null,
+      workoutType: 'StructuredStrength',
+      workoutSubTypeId: null,
+      isLocked: false,
+      isHidden: false,
+      totalBlocks: 2,
+      completedBlocks: 0,
+      totalPrescriptions: 2,
+      completedPrescriptions: 0,
+      totalSets: 6,
+      completedSets: 0,
+      compliancePercent: 0,
+      sequenceSummary: [
+        { sequenceOrder: 'A', title: 'Goblet Squat', compliancePercent: 0 },
+        { sequenceOrder: 'B1', title: 'Split Squat', compliancePercent: 0 },
+      ],
+      rpe: 7,
+      feel: null,
+      prescribedDurationInSeconds: 1800,
+      executedDurationInSeconds: null,
+      lastUpdatedAt: '2026-03-01T00:00:00',
+      ...overrides,
+    } as RxBuilderWorkout;
+  }
+
+  function makeCalendarNote(
+    overrides: Partial<CalendarNote> = {}
+  ): CalendarNote {
+    return {
+      id: 4001,
+      title: 'Note #1',
+      description: 'Base phase note',
+      noteDate: '2026-03-02T00:00:00',
+      createdDate: '2026-03-01T00:00:00',
+      modifiedDate: '2026-03-01T00:00:00',
+      planId: mockTrainingPlan.planId,
+      attachments: [],
+      ...overrides,
+    } as CalendarNote;
+  }
+
+  function makeCalendarEvent(
+    overrides: Partial<CalendarEvent> = {}
+  ): CalendarEvent {
+    return {
+      id: 5001,
+      planId: mockTrainingPlan.planId,
+      eventDate: '2026-03-02T00:00:00',
+      name: 'Race Day',
+      eventType: 'Race',
+      description: 'A-priority race',
+      comment: 'Taper into this event',
+      distance: null,
+      distanceUnits: null,
+      legs: [],
+      ...overrides,
+    } as CalendarEvent;
+  }
 
   /**
    * Helper to mock fetch calls with athlete + folder/workout responses
@@ -649,7 +820,7 @@ describe('Intervals.icu API Client - Redesigned', () => {
 
         // Check for metadata in description
         expect(body.description).toContain('4x10min @ 88-93% FTP');
-        expect(body.description).toContain('Coach Notes');
+        expect(body.description).toContain('Pre workout comments');
         expect(body.description).toContain('Focus on smooth power delivery');
         expect(body.description).not.toContain('IF: 0.88');
       });
@@ -722,8 +893,11 @@ describe('Intervals.icu API Client - Redesigned', () => {
         expect(body.description).toContain('3x');
         expect(body.description).toContain('- Hard 30s 120-150%');
         expect(body.description).toContain('- Easy 4m 50-60% intensity=rest');
-        expect(body.description).toContain('- - - -');
-        expect(body.description).toContain('Coach Notes:');
+        expect(body.description).toContain(
+          '- Easy 4m 50-60% intensity=rest\n\n\n4x10min @ 88-93% FTP'
+        );
+        expect(body.description).not.toContain('- - - -');
+        expect(body.description).toContain('Pre workout comments:');
         expect(body.description).not.toContain('Workout Details:');
       });
 
@@ -1028,6 +1202,625 @@ describe('Intervals.icu API Client - Redesigned', () => {
         if (!result.success) {
           expect(result.error.message).toContain('Network connection failed');
         }
+      });
+    });
+  });
+
+  describe('plan export helpers', () => {
+    it('should compute Monday start_date_local from earliest TP plan workout date', () => {
+      const workouts = [
+        makePlanWorkout({ workoutDay: '2026-03-10T00:00:00' }), // Tue
+        makePlanWorkout({ workoutId: 1002, workoutDay: '2026-03-02T00:00:00' }), // Mon
+      ];
+
+      const result = buildIntervalsPlanStartDateLocal(
+        mockTrainingPlan,
+        workouts
+      );
+
+      expect(result).toBe('2026-03-02T00:00:00');
+    });
+
+    it('should create PLAN folder using TP training plan title as name', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 721356,
+            name: mockTrainingPlan.title,
+            athlete_id: mockAthleteId,
+          }),
+        });
+      });
+
+      const workouts = [makePlanWorkout({ workoutDay: '2026-03-03T00:00:00' })];
+      const result = await createIntervalsPlanFolder(
+        mockTrainingPlan,
+        workouts
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.folder.name).toBe(mockTrainingPlan.title);
+        expect(result.data.start_date_local).toBe('2026-03-02T00:00:00');
+      }
+
+      const [, options] = vi.mocked(global.fetch).mock.calls[1];
+      const body = JSON.parse(options?.body as string);
+      expect(body).toMatchObject({
+        type: 'PLAN',
+        name: mockTrainingPlan.title,
+        start_date_local: '2026-03-02T00:00:00',
+      });
+    });
+
+    it('should map plan workouts to zero-based day offsets (day 0 and day 8)', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 8000 + callCount,
+            name: 'Created Workout',
+            type: 'Ride',
+            category: 'WORKOUT',
+            athlete_id: mockAthleteId,
+            folder_id: 721356,
+          }),
+        });
+      });
+
+      const workouts = [
+        makePlanWorkout({
+          workoutId: 2001,
+          title: 'Day Zero Workout',
+          workoutDay: '2026-03-02T00:00:00',
+        }),
+        makePlanWorkout({
+          workoutId: 2002,
+          title: 'Next Week Workout',
+          workoutDay: '2026-03-10T00:00:00',
+        }),
+      ];
+
+      const result = await exportPlanWorkoutsToIntervalsPlan(
+        workouts,
+        721356,
+        '2026-03-02T00:00:00'
+      );
+
+      expect(result.success).toBe(true);
+
+      const firstWorkoutBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[1]?.[1]?.body as string
+      );
+      const secondWorkoutBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[2]?.[1]?.body as string
+      );
+
+      expect(firstWorkoutBody).toMatchObject({
+        folder_id: 721356,
+        name: 'Day Zero Workout',
+        day: 0,
+        for_week: false,
+      });
+
+      expect(secondWorkoutBody).toMatchObject({
+        folder_id: 721356,
+        name: 'Next Week Workout',
+        day: 8,
+        for_week: false,
+      });
+    });
+
+    it('should fall back to a generated name when TP plan workout title is empty', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 8003,
+            name: 'Created Workout',
+            type: 'Ride',
+            category: 'WORKOUT',
+            athlete_id: mockAthleteId,
+            folder_id: 721356,
+          }),
+        });
+      });
+
+      const workouts = [
+        makePlanWorkout({
+          workoutId: 3001,
+          title: '   ',
+          workoutDay: '2026-03-02T00:00:00',
+        }),
+      ];
+
+      const result = await exportPlanWorkoutsToIntervalsPlan(
+        workouts,
+        721356,
+        '2026-03-02T00:00:00'
+      );
+
+      expect(result.success).toBe(true);
+
+      const requestBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[1]?.[1]?.body as string
+      );
+
+      expect(requestBody.name).toBe('TrainingPeaks Workout 3001');
+    });
+
+    it('should export RxBuilder strength workouts into the Intervals plan with WeightTraining type and day offset', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+
+        if (callCount === 1) {
+          // createIntervalsPlanFolder -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        if (callCount === 2) {
+          // createIntervalsPlanFolder -> POST /folders
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              id: 721356,
+              name: mockTrainingPlan.title,
+              athlete_id: mockAthleteId,
+            }),
+          });
+        }
+
+        if (callCount === 3) {
+          // exportRxBuilderWorkoutsToIntervalsPlan -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        // exportRxBuilderWorkoutsToIntervalsPlan -> POST /workouts
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 9901,
+            name: 'Strength Session',
+            type: 'WeightTraining',
+            category: 'WORKOUT',
+            athlete_id: mockAthleteId,
+            folder_id: 721356,
+          }),
+        });
+      });
+
+      const rxWorkouts = [
+        makeRxBuilderWorkout({
+          id: 'rx-2001',
+          title: 'Lower Body Strength',
+          prescribedDate: '2026-03-10', // day 8 from 2026-03-02 Monday anchor
+        }),
+      ];
+
+      const result = await exportTrainingPlanToIntervalsPlan(
+        mockTrainingPlan,
+        [],
+        rxWorkouts
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.workouts).toHaveLength(1);
+        expect(result.data.start_date_local).toBe('2026-03-09T00:00:00');
+      }
+
+      const folderBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[1]?.[1]?.body as string
+      );
+      expect(folderBody).toMatchObject({
+        type: 'PLAN',
+        name: mockTrainingPlan.title,
+        start_date_local: '2026-03-09T00:00:00',
+      });
+
+      const workoutBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[3]?.[1]?.body as string
+      );
+      expect(workoutBody).toMatchObject({
+        folder_id: 721356,
+        type: 'WeightTraining',
+        name: 'Lower Body Strength',
+        day: 1,
+        for_week: false,
+        moving_time: 1800,
+      });
+      expect(workoutBody.description).toContain('Exercises:');
+      expect(workoutBody.description).toContain('A. Goblet Squat');
+      expect(workoutBody.description).toContain('Instructions:');
+    });
+
+    it('should export plan notes as NOTE items using the /workouts endpoint payload shape', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+
+        if (callCount === 1) {
+          // createIntervalsPlanFolder -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        if (callCount === 2) {
+          // createIntervalsPlanFolder -> POST /folders
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              id: 721439,
+              name: mockTrainingPlan.title,
+              athlete_id: mockAthleteId,
+            }),
+          });
+        }
+
+        if (callCount === 3) {
+          // exportPlanNotesToIntervalsPlan -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        // exportPlanNotesToIntervalsPlan -> POST /workouts
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 9902,
+            name: 'Note #1',
+            type: 'NOTE',
+            athlete_id: mockAthleteId,
+            folder_id: 721439,
+          }),
+        });
+      });
+
+      const notes = [
+        makeCalendarNote({
+          title: 'Note #1 ',
+          description:
+            'This begins 8 weeks of Base efforts to set the stage for building phase workouts later on.',
+        }),
+      ];
+
+      const result = await exportTrainingPlanToIntervalsPlan(
+        mockTrainingPlan,
+        [],
+        [],
+        notes
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.workouts).toHaveLength(1);
+        expect(result.data.workouts[0]?.type).toBe('NOTE');
+      }
+
+      const noteBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[3]?.[1]?.body as string
+      );
+      expect(noteBody).toMatchObject({
+        name: 'Note #1',
+        description:
+          'This begins 8 weeks of Base efforts to set the stage for building phase workouts later on.',
+        type: 'NOTE',
+        color: 'green',
+        day: 0,
+        folder_id: 721439,
+      });
+      expect(noteBody).not.toHaveProperty('category');
+    });
+
+    it('should export plan events as category RACE_A items using the /workouts endpoint payload shape', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(() => {
+        callCount++;
+
+        if (callCount === 1) {
+          // createIntervalsPlanFolder -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        if (callCount === 2) {
+          // createIntervalsPlanFolder -> POST /folders
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              id: 721440,
+              name: mockTrainingPlan.title,
+              athlete_id: mockAthleteId,
+            }),
+          });
+        }
+
+        if (callCount === 3) {
+          // exportPlanEventsToIntervalsPlan -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        // exportPlanEventsToIntervalsPlan -> POST /workouts
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 9903,
+            name: 'Event: Target Race',
+            type: 'Ride',
+            category: 'RACE_A',
+            athlete_id: mockAthleteId,
+            folder_id: 721440,
+          }),
+        });
+      });
+
+      const events = [
+        makeCalendarEvent({
+          name: 'Target Race',
+          eventType: 'Bike',
+          description: 'Season goal event',
+          comment: 'Arrive fresh',
+        }),
+      ];
+
+      const result = await exportTrainingPlanToIntervalsPlan(
+        mockTrainingPlan,
+        [],
+        [],
+        [],
+        undefined,
+        undefined,
+        events
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.workouts).toHaveLength(1);
+        expect(result.data.workouts[0]?.type).toBe('Ride');
+        expect(result.data.workouts[0]?.category).toBe('RACE_A');
+      }
+
+      const eventBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[3]?.[1]?.body as string
+      );
+      expect(eventBody).toMatchObject({
+        name: 'Event: Target Race',
+        description: 'Season goal event\n\nArrive fresh',
+        type: 'Ride',
+        category: 'RACE_A',
+        day: 0,
+        folder_id: 721440,
+      });
+      expect(eventBody).not.toHaveProperty('color');
+    });
+
+    it('should append to an existing Intervals PLAN folder when append strategy is selected', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation((url?: string) => {
+        callCount++;
+
+        if (callCount === 1) {
+          // findIntervalsPlanFolderByName -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        if (callCount === 2) {
+          // listIntervalsFolders -> GET /folders
+          return Promise.resolve({
+            ok: true,
+            json: async () => [
+              {
+                id: 721777,
+                name: mockTrainingPlan.title,
+                athlete_id: mockAthleteId,
+                type: 'PLAN',
+                start_date_local: '2026-03-02T00:00:00',
+              },
+            ],
+          });
+        }
+
+        if (callCount === 3) {
+          // exportPlanWorkoutsToIntervalsPlan -> getCurrentAthlete
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+          });
+        }
+
+        // exportPlanWorkoutsToIntervalsPlan -> POST /workouts
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 9910,
+            name: 'Created Workout',
+            type: 'Ride',
+            category: 'WORKOUT',
+            athlete_id: mockAthleteId,
+            folder_id: 721777,
+          }),
+        });
+      });
+
+      const workouts = [
+        makePlanWorkout({
+          workoutId: 2101,
+          title: 'Append Me',
+          workoutDay: '2026-03-10T00:00:00',
+        }),
+      ];
+
+      const result = await exportTrainingPlanToIntervalsPlan(
+        mockTrainingPlan,
+        workouts,
+        [],
+        [],
+        undefined,
+        'append'
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.folder.id).toBe(721777);
+        expect(result.data.start_date_local).toBe('2026-03-02T00:00:00');
+      }
+
+      expect(vi.mocked(global.fetch).mock.calls).toHaveLength(4);
+      const listFoldersUrl = String(vi.mocked(global.fetch).mock.calls[1]?.[0]);
+      expect(listFoldersUrl).toContain('/athlete/12345/folders');
+
+      const workoutBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[3]?.[1]?.body as string
+      );
+      expect(workoutBody).toMatchObject({
+        folder_id: 721777,
+        name: 'Append Me',
+        day: 8,
+        for_week: false,
+      });
+    });
+
+    it('should replace an existing Intervals PLAN folder when replace strategy is selected', async () => {
+      let callCount = 0;
+      global.fetch = vi
+        .fn()
+        .mockImplementation((_url?: string, options?: RequestInit) => {
+          callCount++;
+
+          if (callCount === 1) {
+            // findIntervalsPlanFolderByName -> getCurrentAthlete
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+            });
+          }
+
+          if (callCount === 2) {
+            // listIntervalsFolders -> GET /folders
+            return Promise.resolve({
+              ok: true,
+              json: async () => [
+                {
+                  id: 721888,
+                  name: mockTrainingPlan.title,
+                  athlete_id: mockAthleteId,
+                  type: 'PLAN',
+                  start_date_local: '2026-03-02T00:00:00',
+                },
+              ],
+            });
+          }
+
+          if (callCount === 3) {
+            // deleteIntervalsFolder -> getCurrentAthlete
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+            });
+          }
+
+          if (callCount === 4) {
+            // deleteIntervalsFolder -> DELETE /folders/{id}
+            expect(options?.method).toBe('DELETE');
+            return Promise.resolve({
+              ok: true,
+              text: async () => '',
+            });
+          }
+
+          if (callCount === 5) {
+            // createIntervalsPlanFolder -> getCurrentAthlete
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ id: mockAthleteId, name: 'Test Athlete' }),
+            });
+          }
+
+          // createIntervalsPlanFolder -> POST /folders
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              id: 721999,
+              name: mockTrainingPlan.title,
+              athlete_id: mockAthleteId,
+            }),
+          });
+        });
+
+      const result = await exportTrainingPlanToIntervalsPlan(
+        mockTrainingPlan,
+        [],
+        [],
+        [],
+        undefined,
+        'replace'
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.folder.id).toBe(721999);
+      }
+
+      const deleteUrl = String(vi.mocked(global.fetch).mock.calls[3]?.[0]);
+      expect(deleteUrl).toContain('/athlete/12345/folders/721888');
+
+      const createFolderUrl = String(
+        vi.mocked(global.fetch).mock.calls[5]?.[0]
+      );
+      expect(createFolderUrl).toContain('/athlete/12345/folders');
+      const createFolderBody = JSON.parse(
+        vi.mocked(global.fetch).mock.calls[5]?.[1]?.body as string
+      );
+      expect(createFolderBody).toMatchObject({
+        type: 'PLAN',
+        name: mockTrainingPlan.title,
       });
     });
   });

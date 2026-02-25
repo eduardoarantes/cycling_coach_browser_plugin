@@ -3,6 +3,7 @@ import type { CalendarEvent } from '@/types/api.types';
 import type { GetPlanEventsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { logApiResponseError } from '@/utils/apiErrorLogging';
 import { CACHE_DURATIONS } from '@/utils/constants';
 
 /**
@@ -27,10 +28,7 @@ async function fetchPlanEventsList(planId: number): Promise<CalendarEvent[]> {
     );
     return response.data;
   } else {
-    logger.error(
-      'Failed to fetch plan events:',
-      response.error.message || 'Unknown error'
-    );
+    logApiResponseError('Failed to fetch plan events:', response.error);
     throw new Error(response.error.message || 'Failed to fetch plan events');
   }
 }

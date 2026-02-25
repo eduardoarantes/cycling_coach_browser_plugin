@@ -6,14 +6,16 @@
  */
 
 import type { ReactElement } from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlanWorkouts } from '@/hooks/usePlanWorkouts';
 import { usePlanNotes } from '@/hooks/usePlanNotes';
 import { usePlanEvents } from '@/hooks/usePlanEvents';
 import { useRxBuilderWorkouts } from '@/hooks/useRxBuilderWorkouts';
+import { useTrainingPlans } from '@/hooks/useTrainingPlans';
 import { LoadingSpinner } from './LoadingSpinner';
 import { CalendarWeekRow } from './CalendarWeekRow';
+import { ExportButton, ExportDialog, ExportResult } from './export';
 import {
   findEarliestDate,
   normalizeToMonday,
@@ -31,7 +33,22 @@ import type {
   RxBuilderWorkout,
   CalendarNote,
   CalendarEvent,
+  ApiResponse,
 } from '@/types/api.types';
+import type { ExportResult as ExportResultType } from '@/export/adapters/base';
+import type { ExportDestination } from '@/types/export.types';
+import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import type {
+  IntervalsIcuExportConfig,
+  IntervalsPlanConflictAction,
+} from '@/types/intervalsicu.types';
+import type {
+  ExportTrainingPlanToIntervalsMessage,
+  TrainingPlanExportProgressMessage,
+  TrainingPlanExportProgressPayload,
+  TrainingPlanExportProgressStatus,
+} from '@/types';
+import type { IntervalsTrainingPlanExportResult } from '@/types/intervalsicu.types';
 
 /**
  * Unified workout type that includes both classic and RxBuilder workouts
@@ -45,6 +62,155 @@ export interface PlanCalendarProps {
   planId: number;
   planName?: string;
   onBack?: () => void;
+}
+
+type PlanExportDialogConfig = PlanMyPeakExportConfig | IntervalsIcuExportConfig;
+
+type TrackedTrainingPlanExportPhase =
+  | 'folder'
+  | 'classicWorkouts'
+  | 'rxWorkouts'
+  | 'notes'
+  | 'events';
+
+type TrainingPlanExportPhaseUiStatus =
+  | 'pending'
+  | TrainingPlanExportProgressStatus;
+
+interface TrainingPlanExportPhaseViewState {
+  label: string;
+  status: TrainingPlanExportPhaseUiStatus;
+  current: number;
+  total: number;
+  itemName?: string;
+  message?: string;
+}
+
+interface TrainingPlanExportProgressViewState {
+  exportId: string;
+  overallCurrent: number;
+  overallTotal: number;
+  currentPhaseLabel: string;
+  currentPhaseCurrent: number;
+  currentPhaseTotal: number;
+  currentItemName?: string;
+  message?: string;
+  phases: Record<
+    TrackedTrainingPlanExportPhase,
+    TrainingPlanExportPhaseViewState
+  >;
+}
+
+function getTrainingPlanExportPhaseLabel(
+  phase: TrainingPlanExportProgressPayload['phase']
+): string {
+  switch (phase) {
+    case 'folder':
+      return 'Creating Plan Folder';
+    case 'classicWorkouts':
+      return 'Classic Workouts';
+    case 'rxWorkouts':
+      return 'Strength Workouts';
+    case 'notes':
+      return 'Notes';
+    case 'events':
+      return 'Events';
+    case 'complete':
+      return 'Completed';
+    default:
+      return 'Exporting';
+  }
+}
+
+function createTrainingPlanExportId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return `intervals-plan-export-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createInitialTrainingPlanExportProgressState(
+  exportId: string,
+  classicCount: number,
+  rxCount: number,
+  notesCount: number,
+  eventsCount: number
+): TrainingPlanExportProgressViewState {
+  return {
+    exportId,
+    overallCurrent: 0,
+    overallTotal: 1 + classicCount + rxCount + notesCount + eventsCount,
+    currentPhaseLabel: 'Preparing export',
+    currentPhaseCurrent: 0,
+    currentPhaseTotal: 1 + classicCount + rxCount + notesCount + eventsCount,
+    phases: {
+      folder: {
+        label: getTrainingPlanExportPhaseLabel('folder'),
+        status: 'pending',
+        current: 0,
+        total: 1,
+      },
+      classicWorkouts: {
+        label: getTrainingPlanExportPhaseLabel('classicWorkouts'),
+        status: 'pending',
+        current: 0,
+        total: classicCount,
+      },
+      rxWorkouts: {
+        label: getTrainingPlanExportPhaseLabel('rxWorkouts'),
+        status: 'pending',
+        current: 0,
+        total: rxCount,
+      },
+      notes: {
+        label: getTrainingPlanExportPhaseLabel('notes'),
+        status: 'pending',
+        current: 0,
+        total: notesCount,
+      },
+      events: {
+        label: getTrainingPlanExportPhaseLabel('events'),
+        status: 'pending',
+        current: 0,
+        total: eventsCount,
+      },
+    },
+  };
+}
+
+function applyTrainingPlanExportProgressUpdate(
+  previous: TrainingPlanExportProgressViewState | null,
+  update: TrainingPlanExportProgressPayload
+): TrainingPlanExportProgressViewState | null {
+  if (!previous) {
+    return previous;
+  }
+
+  const next: TrainingPlanExportProgressViewState = {
+    ...previous,
+    overallCurrent: update.overallCurrent,
+    overallTotal: update.overallTotal,
+    currentPhaseLabel: getTrainingPlanExportPhaseLabel(update.phase),
+    currentPhaseCurrent: update.current,
+    currentPhaseTotal: update.total,
+    currentItemName: update.itemName,
+    message: update.message,
+    phases: { ...previous.phases },
+  };
+
+  if (update.phase !== 'complete') {
+    const phaseState = previous.phases[update.phase];
+    next.phases[update.phase] = {
+      ...phaseState,
+      status: update.status,
+      current: update.current,
+      total: update.total,
+      itemName: update.itemName,
+      message: update.message,
+    };
+  }
+
+  return next;
 }
 
 /**
@@ -102,6 +268,14 @@ export function PlanCalendar({
 }: PlanCalendarProps): ReactElement {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExportingToIntervals, setIsExportingToIntervals] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportResult, setExportResult] = useState<ExportResultType | null>(
+    null
+  );
+  const [trainingPlanExportProgress, setTrainingPlanExportProgress] =
+    useState<TrainingPlanExportProgressViewState | null>(null);
+  const activeTrainingPlanExportIdRef = useRef<string | null>(null);
 
   // Fetch all data in parallel
   const {
@@ -131,6 +305,12 @@ export function PlanCalendar({
     error: eventsError,
     refetch: refetchEvents,
   } = usePlanEvents(planId);
+
+  const { data: trainingPlans } = useTrainingPlans();
+  const selectedTrainingPlan = useMemo(
+    () => trainingPlans?.find((plan) => plan.planId === planId),
+    [trainingPlans, planId]
+  );
 
   // Merge classic and RxBuilder workouts into unified array with deduplication
   const workouts = useMemo((): UnifiedWorkout[] => {
@@ -232,8 +412,44 @@ export function PlanCalendar({
     }
   }, [workouts]);
 
+  useEffect(() => {
+    const handleRuntimeMessage = (
+      message: unknown,
+      _sender: chrome.runtime.MessageSender,
+      _sendResponse: (response?: unknown) => void
+    ): void => {
+      if (
+        !message ||
+        typeof message !== 'object' ||
+        (message as { type?: unknown }).type !== 'TRAINING_PLAN_EXPORT_PROGRESS'
+      ) {
+        return;
+      }
+
+      const progressMessage = message as TrainingPlanExportProgressMessage;
+      if (
+        !activeTrainingPlanExportIdRef.current ||
+        progressMessage.exportId !== activeTrainingPlanExportIdRef.current
+      ) {
+        return;
+      }
+
+      setTrainingPlanExportProgress((previous) =>
+        applyTrainingPlanExportProgressUpdate(
+          previous,
+          progressMessage.progress
+        )
+      );
+    };
+
+    chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
+    };
+  }, []);
+
   // Download training plan as JSON
-  const handleDownload = (): void => {
+  const handleDownload = (customFileName?: string): void => {
     const planData = {
       planId,
       planName: planName || 'Training Plan',
@@ -255,13 +471,164 @@ export function PlanCalendar({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `training-plan-${planId}-${new Date().toISOString().split('T')[0]}.json`;
+    const defaultFileName = `training-plan-${planId}-${new Date().toISOString().split('T')[0]}.json`;
+    link.download =
+      customFileName && customFileName.trim().length > 0
+        ? `${customFileName.trim()}.json`
+        : defaultFileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
     logger.info('📥 Training plan downloaded:', link.download);
+  };
+
+  const openExportDialog = (): void => {
+    setIsExportDialogOpen(true);
+  };
+
+  const closeExportDialog = (): void => {
+    if (isExportingToIntervals) {
+      return;
+    }
+    activeTrainingPlanExportIdRef.current = null;
+    setTrainingPlanExportProgress(null);
+    setIsExportDialogOpen(false);
+  };
+
+  const handleExportToIntervals = async (
+    existingPlanAction?: IntervalsPlanConflictAction
+  ): Promise<void> => {
+    if (!selectedTrainingPlan) {
+      setIsExportDialogOpen(false);
+      setExportResult({
+        success: false,
+        fileName: 'intervals_icu_plan_export',
+        format: 'api',
+        itemsExported: 0,
+        warnings: [],
+        errors: [
+          'Training plan metadata is not loaded yet. Please try again in a moment.',
+        ],
+      });
+      return;
+    }
+
+    const classic = classicWorkouts || [];
+    const strength = rxWorkouts || [];
+    const planNotes = notes || [];
+    const planEvents = events || [];
+    const exportId = createTrainingPlanExportId();
+    activeTrainingPlanExportIdRef.current = exportId;
+    setTrainingPlanExportProgress(
+      createInitialTrainingPlanExportProgressState(
+        exportId,
+        classic.length,
+        strength.length,
+        planNotes.length,
+        planEvents.length
+      )
+    );
+    setIsExportingToIntervals(true);
+
+    try {
+      logger.info(
+        '📤 Exporting TP training plan to Intervals.icu PLAN folder:',
+        selectedTrainingPlan.planId,
+        selectedTrainingPlan.title,
+        'classic workouts:',
+        classic.length,
+        'rx workouts:',
+        strength.length,
+        'notes:',
+        planNotes.length,
+        'events:',
+        planEvents.length
+      );
+
+      const response = await chrome.runtime.sendMessage<
+        ExportTrainingPlanToIntervalsMessage,
+        ApiResponse<IntervalsTrainingPlanExportResult>
+      >({
+        type: 'EXPORT_TRAINING_PLAN_TO_INTERVALS',
+        exportId,
+        existingPlanAction,
+        trainingPlan: selectedTrainingPlan,
+        workouts: classic,
+        rxWorkouts: strength,
+        notes: planNotes,
+        events: planEvents,
+      });
+
+      if (!response.success) {
+        setExportResult({
+          success: false,
+          fileName: selectedTrainingPlan.title,
+          format: 'api',
+          itemsExported: 0,
+          warnings: [],
+          errors: [response.error.message || 'Failed to export training plan'],
+        });
+        return;
+      }
+
+      const warnings: ExportResultType['warnings'] = [];
+      if (classic.length === 0) {
+        warnings.push({
+          field: 'classicWorkouts',
+          severity: 'warning',
+          message: 'No classic plan workouts were available to export',
+        });
+      }
+
+      setExportResult({
+        success: true,
+        fileName: response.data.folder.name,
+        format: 'api',
+        itemsExported: response.data.workouts.length,
+        warnings,
+      });
+    } catch (error) {
+      logger.error('Failed to export training plan to Intervals.icu:', error);
+      setExportResult({
+        success: false,
+        fileName: selectedTrainingPlan.title,
+        format: 'api',
+        itemsExported: 0,
+        warnings: [],
+        errors: [
+          error instanceof Error ? error.message : 'Unknown export error',
+        ],
+      });
+    } finally {
+      setIsExportingToIntervals(false);
+      activeTrainingPlanExportIdRef.current = null;
+      setTrainingPlanExportProgress(null);
+      setIsExportDialogOpen(false);
+    }
+  };
+
+  const handleExportFromDialog = async (
+    config: PlanExportDialogConfig,
+    destination: ExportDestination
+  ): Promise<void> => {
+    if (destination === 'planmypeak') {
+      const pmpConfig = config as PlanMyPeakExportConfig;
+      handleDownload(pmpConfig.fileName || undefined);
+      setIsExportDialogOpen(false);
+      setExportResult({
+        success: true,
+        fileName: `${(pmpConfig.fileName || 'training_plan_export').trim() || 'training_plan_export'}.json`,
+        format: 'json',
+        itemsExported: (classicWorkouts || []).length,
+        warnings: [],
+      });
+      return;
+    }
+
+    const intervalsConfig = config as IntervalsIcuExportConfig;
+    await handleExportToIntervals(intervalsConfig.existingPlanAction);
   };
 
   // Loading state
@@ -480,11 +847,18 @@ export function PlanCalendar({
       {/* Header */}
       <div className="flex items-center justify-between p-2 border-b border-gray-300">
         <h2 className="text-base font-bold text-gray-800">
-          {planName || 'Training Plan'}
+          {planName || selectedTrainingPlan?.title || 'Training Plan'}
         </h2>
         <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={openExportDialog}
+            disabled={isExportingToIntervals}
+            variant="secondary"
+            label={isExportingToIntervals ? 'Exporting…' : 'Export Plan'}
+            title="Export training plan"
+          />
           <button
-            onClick={handleDownload}
+            onClick={() => handleDownload()}
             className="p-1 text-gray-600 hover:text-gray-800"
             title="Download plan as JSON"
             aria-label="Download plan as JSON"
@@ -578,6 +952,62 @@ export function PlanCalendar({
           />
         ))}
       </div>
+
+      <ExportDialog
+        key={`plan-export-${isExportDialogOpen ? 'open' : 'closed'}`}
+        isOpen={isExportDialogOpen}
+        onClose={closeExportDialog}
+        onExport={handleExportFromDialog}
+        itemCount={classicWorkouts?.length ?? 0}
+        isExporting={isExportingToIntervals}
+        trainingPlanExportProgress={
+          trainingPlanExportProgress
+            ? {
+                overallCurrent: trainingPlanExportProgress.overallCurrent,
+                overallTotal: trainingPlanExportProgress.overallTotal,
+                currentPhaseLabel: trainingPlanExportProgress.currentPhaseLabel,
+                currentPhaseCurrent:
+                  trainingPlanExportProgress.currentPhaseCurrent,
+                currentPhaseTotal: trainingPlanExportProgress.currentPhaseTotal,
+                currentItemName: trainingPlanExportProgress.currentItemName,
+                message: trainingPlanExportProgress.message,
+                phases: [
+                  {
+                    id: 'folder',
+                    ...trainingPlanExportProgress.phases.folder,
+                  },
+                  {
+                    id: 'classicWorkouts',
+                    ...trainingPlanExportProgress.phases.classicWorkouts,
+                  },
+                  {
+                    id: 'rxWorkouts',
+                    ...trainingPlanExportProgress.phases.rxWorkouts,
+                  },
+                  {
+                    id: 'notes',
+                    ...trainingPlanExportProgress.phases.notes,
+                  },
+                  {
+                    id: 'events',
+                    ...trainingPlanExportProgress.phases.events,
+                  },
+                ],
+              }
+            : undefined
+        }
+        sourceLibraryName={
+          selectedTrainingPlan?.title || planName || 'Training Plan'
+        }
+        exportScope="trainingPlan"
+      />
+
+      {exportResult && (
+        <ExportResult
+          result={exportResult}
+          onClose={() => setExportResult(null)}
+        />
+      )}
     </div>
   );
 }

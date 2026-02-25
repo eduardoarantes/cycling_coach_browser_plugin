@@ -7,8 +7,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   IntervalsFolderPayloadSchema,
+  IntervalsPlanFolderPayloadSchema,
   IntervalsFolderResponseSchema,
   IntervalsWorkoutPayloadSchema,
+  IntervalsPlanWorkoutPayloadSchema,
+  IntervalsPlanNotePayloadSchema,
+  IntervalsPlanEventPayloadSchema,
   IntervalsWorkoutResponseSchema,
   IntervalsWorkoutBulkResponseSchema,
   IntervalsIcuExportConfigSchema,
@@ -118,6 +122,21 @@ describe('IntervalsFolderResponseSchema', () => {
 
       expect(result.name).toBe('Library & Workouts (2024)');
     });
+
+    it('should validate folder response when list endpoint returns null plan fields', () => {
+      const response = {
+        id: 1001,
+        name: 'General Library',
+        athlete_id: 111,
+        type: null,
+        start_date_local: null,
+      };
+
+      const result = IntervalsFolderResponseSchema.parse(response);
+
+      expect(result.type).toBeNull();
+      expect(result.start_date_local).toBeNull();
+    });
   });
 
   describe('invalid data', () => {
@@ -158,6 +177,32 @@ describe('IntervalsFolderResponseSchema', () => {
 
       expect(() => IntervalsFolderResponseSchema.parse(response)).toThrow();
     });
+  });
+});
+
+describe('IntervalsPlanFolderPayloadSchema', () => {
+  it('should validate PLAN folder payload with TP plan name and start_date_local', () => {
+    const payload = {
+      type: 'PLAN' as const,
+      name: '12 Week Base Builder',
+      start_date_local: '2026-03-02T00:00:00',
+      visibility: 'PRIVATE' as const,
+      duration_weeks: 12,
+      num_workouts: 48,
+    };
+
+    const result = IntervalsPlanFolderPayloadSchema.parse(payload);
+
+    expect(result).toEqual(payload);
+  });
+
+  it('should reject PLAN payload without start_date_local', () => {
+    const payload = {
+      type: 'PLAN',
+      name: 'Plan without start',
+    };
+
+    expect(() => IntervalsPlanFolderPayloadSchema.parse(payload)).toThrow();
   });
 });
 
@@ -328,6 +373,109 @@ describe('IntervalsWorkoutPayloadSchema', () => {
 
       expect(() => IntervalsWorkoutPayloadSchema.parse(payload)).toThrow();
     });
+  });
+});
+
+describe('IntervalsPlanNotePayloadSchema', () => {
+  it('should validate NOTE payload used for plan notes via /workouts', () => {
+    const payload = {
+      name: 'Note #1',
+      description: 'Base phase guidance',
+      type: 'NOTE' as const,
+      color: 'green',
+      day: 0,
+      folder_id: 721439,
+    };
+
+    const result = IntervalsPlanNotePayloadSchema.parse(payload);
+
+    expect(result).toEqual(payload);
+  });
+
+  it('should reject NOTE payload without color', () => {
+    const payload = {
+      name: 'Note #1',
+      description: 'Base phase guidance',
+      type: 'NOTE',
+      folder_id: 721439,
+    };
+
+    expect(() => IntervalsPlanNotePayloadSchema.parse(payload)).toThrow();
+  });
+
+  it('should reject NOTE payload without day', () => {
+    const payload = {
+      name: 'Note #1',
+      description: 'Base phase guidance',
+      type: 'NOTE',
+      color: 'green',
+      folder_id: 721439,
+    };
+
+    expect(() => IntervalsPlanNotePayloadSchema.parse(payload)).toThrow();
+  });
+});
+
+describe('IntervalsPlanEventPayloadSchema', () => {
+  it('should validate event payload with category RACE_A used for plan events via /workouts', () => {
+    const payload = {
+      name: 'Target Race',
+      description: 'A race event marker',
+      type: 'Ride',
+      category: 'RACE_A' as const,
+      day: 0,
+      folder_id: 721439,
+    };
+
+    const result = IntervalsPlanEventPayloadSchema.parse(payload);
+
+    expect(result).toEqual(payload);
+  });
+
+  it('should reject event payload without day', () => {
+    const payload = {
+      name: 'Target Race',
+      description: 'A race event marker',
+      type: 'Ride',
+      category: 'RACE_A',
+      folder_id: 721439,
+    };
+
+    expect(() => IntervalsPlanEventPayloadSchema.parse(payload)).toThrow();
+  });
+});
+
+describe('IntervalsPlanWorkoutPayloadSchema', () => {
+  it('should validate plan workout payload with day offset', () => {
+    const payload = {
+      name: 'VO2 30/20',
+      description: '- 5m 50-60% intensity=warmup',
+      type: 'Ride',
+      category: 'WORKOUT' as const,
+      folder_id: 123,
+      day: 8,
+      for_week: false,
+      moving_time: 3600,
+      icu_training_load: 78,
+    };
+
+    const result = IntervalsPlanWorkoutPayloadSchema.parse(payload);
+    expect(result.day).toBe(8);
+    expect(result.for_week).toBe(false);
+  });
+
+  it('should reject negative day offsets', () => {
+    const payload = {
+      name: 'Bad day',
+      description: 'Test',
+      type: 'Ride',
+      category: 'WORKOUT' as const,
+      folder_id: 123,
+      day: -1,
+      for_week: false,
+    };
+
+    expect(() => IntervalsPlanWorkoutPayloadSchema.parse(payload)).toThrow();
   });
 });
 
