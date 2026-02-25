@@ -1,9 +1,9 @@
 # TrainingPeaks Browser Extension - Claude AI Development Guide
 
 **Project**: TrainingPeaks Workout Library Browser Extension
-**Status**: Phase 2 Complete (Authentication), Phase 3 Ready (API Integration)
+**Status**: Intervals.icu Integration Complete (Issue #90-91)
 **Version**: 1.0.0
-**Last Updated**: 2026-02-20
+**Last Updated**: 2026-02-24
 
 ---
 
@@ -185,7 +185,7 @@ sequenceDiagram
 
 ## Current Implementation Status
 
-### ✅ Completed (Phases 1-3.3)
+### ✅ Completed (Phases 1-5)
 
 **Phase 1: Project Foundation**
 
@@ -214,30 +214,62 @@ sequenceDiagram
 - ✅ Type-safe chrome.runtime.sendMessage with generics
 - ✅ 125 unit tests with 100% coverage
 
+**Phase 4: Intervals.icu Integration** (Issues #90)
+
+- ✅ Type system redesign (library-based, no dates)
+- ✅ Zod schemas for Intervals.icu API (57 tests)
+- ✅ API client implementation (33 tests)
+- ✅ Export adapter (24 tests)
+- ✅ API key management service (25 tests)
+- ✅ IntervalsApiKeyBanner component
+- ✅ Multi-library export dialog
+- ✅ Folder creation and organization
+- ✅ 139 tests with >95% coverage
+
+**Phase 5: Testing & Validation** (Issue #91)
+
+- ✅ Fixed athlete_id schema validation bug
+- ✅ All 139 Intervals.icu tests passing
+- ✅ 100% coverage on schemas, services, adapter
+- ✅ 97.72% coverage on API client
+- ✅ TypeScript compilation: 0 errors
+- ✅ Production build successful
+- ✅ Comprehensive test results documentation
+
+**Phase 6: Documentation Updates** (Issue #91)
+
+- ✅ README.md updated with library-based export guide
+- ✅ INTERVALSICU_INTEGRATION.md comprehensive guide
+- ✅ CLAUDE.md architecture patterns documented
+- ✅ Test results documentation (PHASE_5_TEST_RESULTS.md)
+
 **API Endpoints Implemented**:
+
+**TrainingPeaks API**:
 
 1. ✅ `GET /users/v3/user` - User profile
 2. ✅ `GET /exerciselibrary/v2/libraries` - Library list
 3. ✅ `GET /exerciselibrary/v2/libraries/{id}/items` - Library content
 
-**Documentation**
+**Intervals.icu API**:
 
-- ✅ Architecture document (6,000+ lines)
-- ✅ Testing guide (TESTING.md)
-- ✅ README with installation instructions
-- ✅ Makefile with common commands
-- ✅ CLAUDE.md guides (this file, src/, tests/)
-- ✅ Implementation plan (Phase 3.3 - React Query)
+1. ✅ `POST /athlete/0/folders` - Create workout folder
+2. ✅ `POST /athlete/0/workouts` - Create workout template
 
-### ⏳ Next Up (Phase 4)
+### ⏳ Future Enhancements
 
-**UI Components** - Library Display Interface
+**UI Component Testing**
 
-- ⏳ LibraryList component (consumes `useLibraries`)
-- ⏳ LibraryCard component
-- ⏳ WorkoutList component (consumes `useLibraryItems`)
-- ⏳ Loading/error states
-- ⏳ Empty states
+- ⏳ React Testing Library tests for UI components
+- ⏳ E2E tests with Playwright
+- ⏳ Integration tests for message handlers
+
+**Additional Features**
+
+- ⏳ OAuth 2.0 authentication for Intervals.icu
+- ⏳ Structured workout parsing (intervals preservation)
+- ⏳ Selective workout export
+- ⏳ Sync status tracking
 
 ---
 
@@ -609,6 +641,127 @@ if (error) {
   return <ErrorMessage error={error} onRetry={refetch} />;
 }
 ```
+
+---
+
+## Export Adapters
+
+### Intervals.icu Export Adapter
+
+**Pattern**: Library-based export (templates, not calendar events)
+
+The Intervals.icu integration exports TrainingPeaks workout libraries as reusable templates in Intervals.icu, organized in folders. Workouts are saved without dates, allowing flexible scheduling later.
+
+**Key Files**:
+
+- `src/export/adapters/intervalsicu/IntervalsIcuAdapter.ts` - Adapter implementation
+- `src/background/api/intervalsicu.ts` - API client
+- `src/types/intervalsicu.types.ts` - Type definitions
+- `src/schemas/intervalsicu.schema.ts` - Zod validation schemas
+
+**Architecture**:
+
+1. **Create Folder** (optional): `POST /athlete/0/folders`
+2. **Export Workouts**: `POST /athlete/0/workouts` (individual requests)
+3. **No Dates**: Workouts saved as templates for later scheduling
+
+**Config Interface**:
+
+```typescript
+interface IntervalsIcuExportConfig {
+  apiKey: string; // User's Intervals.icu API key
+  libraryName: string; // Folder name (from TrainingPeaks library)
+  createFolder?: boolean; // Create folder or use existing
+  description?: string; // Optional folder description
+}
+```
+
+**Usage**:
+
+```typescript
+import { IntervalsIcuAdapter } from '@/export/adapters/intervalsicu';
+
+const adapter = new IntervalsIcuAdapter();
+
+const config: IntervalsIcuExportConfig = {
+  apiKey: 'user_api_key',
+  libraryName: 'Cycling Base Training',
+  createFolder: true,
+  description: 'Base training workouts for cycling',
+};
+
+// Transform library items to Intervals.icu format
+const workouts = await adapter.transform(items, config);
+// Returns: IntervalsWorkoutResponse[] (templates, not events)
+
+// Validate results
+const validation = adapter.validate(workouts);
+if (!validation.valid) {
+  console.error('Export failed:', validation.errors);
+}
+
+// Get export summary
+const result = adapter.export(workouts, config);
+console.log(
+  `Exported ${result.count} workouts to folder: ${result.destination}`
+);
+```
+
+**Key Differences from Calendar-Based Export**:
+
+- No `start_date_local` field in workout payloads
+- Uses `/folders` and `/workouts` endpoints (not `/events/bulk`)
+- Workouts organized by `folder_id` instead of dates
+- Users schedule workouts in Intervals.icu by dragging to calendar
+
+**API Endpoints**:
+
+```typescript
+// Get current athlete (fetch real athlete ID)
+GET /api/v1/athlete/0
+Response: { id: 12345, name: "Athlete Name", email: "..." }
+
+// Create folder (uses real athlete ID)
+POST /api/v1/athlete/{athleteId}/folders
+{
+  "name": "Cycling Base Training",
+  "description": "Base training workouts"
+}
+
+// Create workout template (uses real athlete ID)
+POST /api/v1/athlete/{athleteId}/workouts
+{
+  "category": "WORKOUT",
+  "type": "Ride",
+  "name": "Sweet Spot Intervals",
+  "description": "4x10min @ 88-93% FTP\n\n**Coach Notes:**...",
+  "moving_time": 3600,
+  "icu_training_load": 85,
+  "folder_id": 123  // Optional folder organization
+}
+```
+
+**Note**: The integration first calls `GET /athlete/0` to fetch the current user's athlete ID, then uses that real ID (`/athlete/{athleteId}/`) in folder and workout API calls.
+
+**Error Handling**:
+
+```typescript
+// API client returns ApiResponse<T>
+const result = await createIntervalsWorkout(payload);
+
+if (result.success) {
+  console.log('Created workout:', result.data.id);
+} else {
+  // Handle errors: NO_API_KEY, INVALID_API_KEY, EXPORT_ERROR, API_ERROR
+  console.error('Export failed:', result.error.message);
+}
+```
+
+**Testing**:
+
+- 100% coverage on adapter, API client, and schemas
+- 139 total tests for Intervals.icu integration
+- Tests located in `tests/unit/export/adapters/intervalsicu/`
 
 ---
 

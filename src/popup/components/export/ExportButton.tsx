@@ -16,6 +16,10 @@ interface ExportButtonProps {
   variant?: 'primary' | 'secondary';
   /** Full width button */
   fullWidth?: boolean;
+  /** Custom button label */
+  label?: string;
+  /** Optional title tooltip */
+  title?: string;
 }
 
 export function ExportButton({
@@ -24,6 +28,8 @@ export function ExportButton({
   itemCount,
   variant = 'secondary',
   fullWidth = false,
+  label = 'Export Workouts',
+  title,
 }: ExportButtonProps): ReactElement {
   const baseClasses =
     'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -42,11 +48,12 @@ export function ExportButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`${baseClasses} ${variantClasses[variant]} ${widthClass}`}
       aria-label={
-        itemCount
+        itemCount && label === 'Export Workouts'
           ? `Export ${itemCount} workout${itemCount !== 1 ? 's' : ''}`
-          : 'Export to PlanMyPeak'
+          : label
       }
     >
       {/* Export icon */}
@@ -61,12 +68,12 @@ export function ExportButton({
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={2}
-          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+          d="M7 17L17 7m0 0H9m8 0v8M7 7h4M5 11v8a1 1 0 001 1h8"
         />
       </svg>
 
       <span>
-        Export to PlanMyPeak
+        {label}
         {itemCount !== undefined && itemCount > 0 && (
           <span className="ml-1 opacity-80">({itemCount})</span>
         )}

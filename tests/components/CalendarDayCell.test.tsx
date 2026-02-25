@@ -440,7 +440,7 @@ describe('CalendarDayCell', () => {
 
   describe('accessibility', () => {
     it('should have semantic HTML structure', () => {
-      const { container } = render(
+      render(
         <CalendarDayCell
           dayOfWeek={0}
           workouts={[mockWorkout]}

@@ -3,6 +3,7 @@ import type { TrainingPlan } from '@/types/api.types';
 import type { GetTrainingPlansMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { logApiResponseError } from '@/utils/apiErrorLogging';
 import { CACHE_DURATIONS } from '@/utils/constants';
 import { useUser } from './useUser';
 
@@ -27,10 +28,7 @@ async function fetchTrainingPlansList(): Promise<TrainingPlan[]> {
     );
     return response.data;
   } else {
-    logger.error(
-      'Failed to fetch training plans:',
-      response.error.message || 'Unknown error'
-    );
+    logApiResponseError('Failed to fetch training plans:', response.error);
     throw new Error(response.error.message || 'Failed to fetch training plans');
   }
 }

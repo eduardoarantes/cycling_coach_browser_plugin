@@ -4,7 +4,7 @@
  * Modal dialog for configuring and executing multi-library workout export
  */
 import type { ReactElement } from 'react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Library } from '@/types/api.types';
 import type {
   MultiLibraryExportConfig,
@@ -51,16 +51,8 @@ export function MultiLibraryExportDialog({
   // Note: Library type doesn't include itemCount, so we estimate
   const libraryCount = libraries.length;
 
-  // Reset state when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      setHasAcknowledged(false);
-      setDestination('planmypeak');
-      setFileName(
-        strategy === 'combined' ? 'combined_export' : 'planmypeak_export'
-      );
-    }
-  }, [isOpen, strategy]);
+  // Note: Dialog state is reset via key prop in parent component
+  // This approach is more React-idiomatic than setState in useEffect
 
   if (!isOpen) return null;
 

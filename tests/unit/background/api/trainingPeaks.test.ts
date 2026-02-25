@@ -109,6 +109,10 @@ describe('trainingPeaks API', () => {
       if (!result.success) {
         expect(result.error.status).toBe(401);
       }
+      expect(mockRemove).toHaveBeenCalledWith([
+        'auth_token',
+        'token_timestamp',
+      ]);
     });
 
     it('should return error on 404 response', async () => {
@@ -247,6 +251,10 @@ describe('trainingPeaks API', () => {
       if (!result.success) {
         expect(result.error.status).toBe(401);
       }
+      expect(mockRemove).toHaveBeenCalledWith([
+        'auth_token',
+        'token_timestamp',
+      ]);
     });
 
     it('should return error on network failure', async () => {
@@ -368,6 +376,10 @@ describe('trainingPeaks API', () => {
       if (!result.success) {
         expect(result.error.status).toBe(401);
       }
+      expect(mockRemove).toHaveBeenCalledWith([
+        'auth_token',
+        'token_timestamp',
+      ]);
     });
 
     it('should return error on 404 (library not found)', async () => {

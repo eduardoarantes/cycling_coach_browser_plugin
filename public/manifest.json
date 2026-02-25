@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "PlanMyPeak Importer",
-  "version": "1.0.84",
+  "version": "1.11.16",
   "description": "Access your workout libraries and training plans directly from your browser",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://tpapi.trainingpeaks.com/*",
     "https://api.peakswaresb.com/*",
-    "https://app.trainingpeaks.com/*"
+    "https://app.trainingpeaks.com/*",
+    "https://intervals.icu/*"
   ],
   "background": {
     "service_worker": "src/background/index.ts",

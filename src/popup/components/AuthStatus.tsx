@@ -50,6 +50,15 @@ export function AuthStatus(): ReactElement {
     useAuth();
   const { data: user } = useUser({ enabled: isAuthenticated });
 
+  const handleRefreshClick = async (): Promise<void> => {
+    // Refresh TrainingPeaks tab to renew/capture token if needed
+    await refreshTrainingPeaksTab();
+    // Wait briefly for page load/interceptor to run, then sync auth panel state
+    setTimeout(() => {
+      refreshAuth();
+    }, 2000);
+  };
+
   if (isLoading) {
     return (
       <div className="mb-3 p-2 bg-gray-100 rounded-lg">
@@ -72,9 +81,9 @@ export function AuthStatus(): ReactElement {
             </p>
           </div>
           <button
-            onClick={refreshAuth}
+            onClick={handleRefreshClick}
             className="ml-2 text-red-600 hover:text-red-800 flex-shrink-0"
-            title="Retry authentication"
+            title="Refresh TrainingPeaks tab and retry authentication"
             aria-label="Retry authentication"
           >
             <svg
@@ -97,15 +106,6 @@ export function AuthStatus(): ReactElement {
   }
 
   if (!isAuthenticated) {
-    const handleRefreshClick = async (): Promise<void> => {
-      // Refresh TrainingPeaks tab to help user log in
-      await refreshTrainingPeaksTab();
-      // Wait a moment for the page to load, then check auth again
-      setTimeout(() => {
-        refreshAuth();
-      }, 2000);
-    };
-
     return (
       <div className="mb-3 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
         <div className="flex items-center justify-between">
@@ -161,9 +161,9 @@ export function AuthStatus(): ReactElement {
           </p>
         </div>
         <button
-          onClick={refreshAuth}
+          onClick={handleRefreshClick}
           className="ml-2 text-green-600 hover:text-green-800 flex-shrink-0"
-          title="Refresh authentication status"
+          title="Refresh TrainingPeaks tab and authentication status"
           aria-label="Refresh authentication"
         >
           <svg
