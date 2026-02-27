@@ -6,6 +6,7 @@
 import type { ReactElement } from 'react';
 import { useState, useEffect, useRef } from 'react';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import type { PlanMyPeakLibrary } from '@/schemas/planMyPeakApi.schema';
 import type {
   IntervalsFolderResponse,
   IntervalsIcuExportConfig,
@@ -16,6 +17,7 @@ import {
   type ExportDestination,
 } from '@/types/export.types';
 import type {
+  GetPlanMyPeakLibrariesMessage,
   FindIntervalsLibraryFolderByNameMessage,
   FindIntervalsPlanFolderByNameMessage,
   GetIntervalsApiKeyMessage,
@@ -23,6 +25,7 @@ import type {
 } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
+import { useConnectionSettings } from '@/hooks/useConnectionSettings';
 
 type ExportConfig = PlanMyPeakExportConfig | IntervalsIcuExportConfig;
 export type ExportScope =
@@ -102,13 +105,11 @@ export function ExportDialog({
   sourceTrainingPlanNames,
   trainingPlanCount,
   libraryCount,
-  libraryBatchStrategy = 'separate',
-  onLibraryBatchStrategyChange,
   exportScope = 'library',
   trainingPlanExportProgress,
 }: ExportDialogProps): ReactElement | null {
   const dialogScrollRef = useRef<HTMLDivElement | null>(null);
-  const [fileName, setFileName] = useState('planmypeak_export');
+  const fileName = 'planmypeak_export';
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
   const [destination, setDestination] =
     useState<ExportDestination>('planmypeak');
@@ -125,10 +126,56 @@ export function ExportDialog({
   const [existingPlanConflictError, setExistingPlanConflictError] = useState<
     string | null
   >(null);
+  const [
+    existingPlanMyPeakLibraryConflict,
+    setExistingPlanMyPeakLibraryConflict,
+  ] = useState<PlanMyPeakLibrary | null>(null);
+  const [
+    existingPlanMyPeakLibraryBatchConflicts,
+    setExistingPlanMyPeakLibraryBatchConflicts,
+  ] = useState<PlanMyPeakLibrary[]>([]);
+  const [pendingPlanMyPeakConfig, setPendingPlanMyPeakConfig] =
+    useState<PlanMyPeakExportConfig | null>(null);
+  const [
+    existingPlanMyPeakLibraryConflictError,
+    setExistingPlanMyPeakLibraryConflictError,
+  ] = useState<string | null>(null);
+  const {
+    isPlanMyPeakEnabled,
+    isIntervalsEnabled,
+    isLoading: isConnectionSettingsLoading,
+  } = useConnectionSettings();
+
+  const enabledDestinations = EXPORT_DESTINATIONS.filter((dest) => {
+    if (!dest.available) {
+      return false;
+    }
+    if (dest.id === 'planmypeak') {
+      return isPlanMyPeakEnabled;
+    }
+    if (dest.id === 'intervalsicu') {
+      return isIntervalsEnabled;
+    }
+    return false;
+  });
+  const hasEnabledDestinations = enabledDestinations.length > 0;
+
+  useEffect(() => {
+    if (!isOpen || !hasEnabledDestinations) {
+      return;
+    }
+
+    const hasValidSelection = enabledDestinations.some(
+      (dest) => dest.id === destination
+    );
+    if (!hasValidSelection) {
+      setDestination(enabledDestinations[0].id);
+    }
+  }, [isOpen, hasEnabledDestinations, enabledDestinations, destination]);
 
   // Check for Intervals.icu API key when dialog opens
   useEffect(() => {
-    if (isOpen && destination === 'intervalsicu') {
+    if (isOpen && destination === 'intervalsicu' && isIntervalsEnabled) {
       chrome.runtime
         .sendMessage<HasIntervalsApiKeyMessage, { hasKey: boolean }>({
           type: 'HAS_INTERVALS_API_KEY',
@@ -139,13 +186,17 @@ export function ExportDialog({
           setHasIntervalsApiKey(false);
         });
     }
-  }, [isOpen, destination]);
+  }, [isOpen, destination, isIntervalsEnabled]);
 
   useEffect(() => {
     setExistingPlanConflict(null);
     setExistingPlanBatchConflicts([]);
     setPendingIntervalsPlanConfig(null);
     setExistingPlanConflictError(null);
+    setExistingPlanMyPeakLibraryConflict(null);
+    setExistingPlanMyPeakLibraryBatchConflicts([]);
+    setPendingPlanMyPeakConfig(null);
+    setExistingPlanMyPeakLibraryConflictError(null);
     setIsCheckingExistingPlan(false);
   }, [destination, isOpen]);
 
@@ -157,7 +208,10 @@ export function ExportDialog({
     if (
       !existingPlanConflict &&
       existingPlanBatchConflicts.length === 0 &&
-      !existingPlanConflictError
+      !existingPlanConflictError &&
+      !existingPlanMyPeakLibraryConflict &&
+      existingPlanMyPeakLibraryBatchConflicts.length === 0 &&
+      !existingPlanMyPeakLibraryConflictError
     ) {
       return;
     }
@@ -171,6 +225,9 @@ export function ExportDialog({
     existingPlanConflict,
     existingPlanBatchConflicts,
     existingPlanConflictError,
+    existingPlanMyPeakLibraryConflict,
+    existingPlanMyPeakLibraryBatchConflicts,
+    existingPlanMyPeakLibraryConflictError,
   ]);
 
   // Note: Dialog state is reset via key prop in parent component
@@ -178,9 +235,10 @@ export function ExportDialog({
 
   if (!isOpen) return null;
 
-  const selectedDestination = EXPORT_DESTINATIONS.find(
+  const selectedDestination = enabledDestinations.find(
     (d) => d.id === destination
   );
+  const activeDestination = selectedDestination?.id ?? null;
   const isTrainingPlanScope = exportScope === 'trainingPlan';
   const isTrainingPlansBatchScope = exportScope === 'trainingPlans';
   const isSingleLibraryScope = exportScope === 'library';
@@ -193,10 +251,18 @@ export function ExportDialog({
   const showGenericExportProgress = !showDetailedExportProgress && isExporting;
   const isWaitingForConflictDecision =
     (isTrainingPlanLikeScope || (isLibraryLikeScope && createFolder)) &&
-    destination === 'intervalsicu' &&
+    activeDestination === 'intervalsicu' &&
     !isExporting &&
     (!!existingPlanConflict || existingPlanBatchConflicts.length > 0) &&
     !!pendingIntervalsPlanConfig;
+  const isWaitingForPlanMyPeakConflictDecision =
+    isLibraryLikeScope &&
+    createFolder &&
+    activeDestination === 'planmypeak' &&
+    !isExporting &&
+    (!!existingPlanMyPeakLibraryConflict ||
+      existingPlanMyPeakLibraryBatchConflicts.length > 0) &&
+    !!pendingPlanMyPeakConfig;
 
   const proceedWithIntervalsExport = async (
     config: IntervalsIcuExportConfig
@@ -206,6 +272,16 @@ export function ExportDialog({
     setPendingIntervalsPlanConfig(null);
     setExistingPlanConflictError(null);
     await onExport(config, 'intervalsicu');
+  };
+
+  const proceedWithPlanMyPeakExport = async (
+    config: PlanMyPeakExportConfig
+  ): Promise<void> => {
+    setExistingPlanMyPeakLibraryConflict(null);
+    setExistingPlanMyPeakLibraryBatchConflicts([]);
+    setPendingPlanMyPeakConfig(null);
+    setExistingPlanMyPeakLibraryConflictError(null);
+    await onExport(config, 'planmypeak');
   };
 
   const handleExistingPlanConflictAction = async (
@@ -239,14 +315,112 @@ export function ExportDialog({
     });
   };
 
+  const handleExistingPlanMyPeakConflictAction = async (
+    action: IntervalsPlanConflictAction | 'ignore'
+  ): Promise<void> => {
+    if (action === 'ignore') {
+      setExistingPlanMyPeakLibraryConflict(null);
+      setExistingPlanMyPeakLibraryBatchConflicts([]);
+      setPendingPlanMyPeakConfig(null);
+      setExistingPlanMyPeakLibraryConflictError(null);
+      onClose();
+      return;
+    }
+
+    if (!pendingPlanMyPeakConfig) {
+      return;
+    }
+
+    await proceedWithPlanMyPeakExport({
+      ...pendingPlanMyPeakConfig,
+      existingLibraryAction: action,
+    });
+  };
+
   const handleExport = async (): Promise<void> => {
-    if (destination === 'planmypeak') {
+    if (!hasEnabledDestinations || !activeDestination) {
+      return;
+    }
+
+    if (activeDestination === 'planmypeak') {
       const config: PlanMyPeakExportConfig = {
         fileName,
+        createFolder: isTrainingPlanLikeScope ? true : createFolder,
+        targetLibraryName: sourceLibraryName?.trim() || undefined,
         includeMetadata: true,
       };
-      await onExport(config, destination);
-    } else if (destination === 'intervalsicu') {
+
+      setExistingPlanMyPeakLibraryConflict(null);
+      setExistingPlanMyPeakLibraryBatchConflicts([]);
+      setPendingPlanMyPeakConfig(null);
+      setExistingPlanMyPeakLibraryConflictError(null);
+
+      if (isLibraryLikeScope && config.createFolder) {
+        const uniqueLibraryNames = Array.from(
+          new Set(
+            (isLibraryBatchScope
+              ? sourceLibraryNames || []
+              : sourceLibraryName
+                ? [sourceLibraryName]
+                : []
+            )
+              .map((name) => name.trim())
+              .filter((name) => name.length > 0)
+          )
+        );
+
+        if (uniqueLibraryNames.length > 0) {
+          setIsCheckingExistingPlan(true);
+          try {
+            const librariesResponse = await chrome.runtime.sendMessage<
+              GetPlanMyPeakLibrariesMessage,
+              ApiResponse<PlanMyPeakLibrary[]>
+            >({
+              type: 'GET_PLANMYPEAK_LIBRARIES',
+            });
+
+            if (!librariesResponse.success) {
+              setExistingPlanMyPeakLibraryConflictError(
+                librariesResponse.error.message ||
+                  'Failed to check existing PlanMyPeak libraries'
+              );
+              return;
+            }
+
+            const userLibraries = librariesResponse.data.filter(
+              (library) => !library.is_system
+            );
+            const conflicts: PlanMyPeakLibrary[] = [];
+
+            for (const libraryName of uniqueLibraryNames) {
+              const existing = userLibraries.find(
+                (library) =>
+                  library.name.trim().toLowerCase() ===
+                  libraryName.toLowerCase()
+              );
+              if (existing) {
+                conflicts.push(existing);
+              }
+            }
+
+            if (conflicts.length > 0) {
+              setExistingPlanMyPeakLibraryBatchConflicts(
+                isLibraryBatchScope ? conflicts : []
+              );
+              setExistingPlanMyPeakLibraryConflict(
+                isLibraryBatchScope ? null : (conflicts[0] ?? null)
+              );
+              setPendingPlanMyPeakConfig(config);
+              return;
+            }
+          } finally {
+            setIsCheckingExistingPlan(false);
+          }
+        }
+      }
+
+      await proceedWithPlanMyPeakExport(config);
+    } else if (activeDestination === 'intervalsicu') {
       // Get API key for Intervals.icu export
       try {
         setExistingPlanConflict(null);
@@ -611,6 +785,17 @@ export function ExportDialog({
                 </div>
               )}
 
+              {existingPlanMyPeakLibraryConflictError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-sm font-medium text-red-900">
+                    Unable to validate existing PlanMyPeak libraries
+                  </p>
+                  <p className="text-xs text-red-800 mt-1">
+                    {existingPlanMyPeakLibraryConflictError}
+                  </p>
+                </div>
+              )}
+
               {isWaitingForConflictDecision && existingPlanConflict && (
                 <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
                   <p className="text-sm font-medium text-amber-900">
@@ -662,6 +847,52 @@ export function ExportDialog({
                   </div>
                 </div>
               )}
+
+              {isWaitingForPlanMyPeakConflictDecision &&
+                existingPlanMyPeakLibraryConflict && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                    <p className="text-sm font-medium text-amber-900">
+                      Library already exists in PlanMyPeak
+                    </p>
+                    <p className="text-xs text-amber-900 mt-1">
+                      Found existing PlanMyPeak library "
+                      {existingPlanMyPeakLibraryConflict.name}" (ID:{' '}
+                      {existingPlanMyPeakLibraryConflict.id}).
+                    </p>
+                    <p className="text-xs text-amber-800 mt-2">
+                      Choose how to continue:
+                    </p>
+                    <div className="mt-3 grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleExistingPlanMyPeakConflictAction('replace')
+                        }
+                        className="px-3 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                      >
+                        Replace Existing Library
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleExistingPlanMyPeakConflictAction('append')
+                        }
+                        className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                      >
+                        Append to Existing Library (may duplicate workouts)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleExistingPlanMyPeakConflictAction('ignore')
+                        }
+                        className="px-3 py-2 rounded-md bg-gray-200 text-gray-800 text-sm font-medium hover:bg-gray-300"
+                      >
+                        Ignore Upload
+                      </button>
+                    </div>
+                  </div>
+                )}
 
               {isWaitingForConflictDecision &&
                 existingPlanBatchConflicts.length > 0 && (
@@ -734,166 +965,172 @@ export function ExportDialog({
                   </div>
                 )}
 
+              {isWaitingForPlanMyPeakConflictDecision &&
+                existingPlanMyPeakLibraryBatchConflicts.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                    <p className="text-sm font-medium text-amber-900">
+                      Some selected libraries already exist in PlanMyPeak
+                    </p>
+                    <p className="text-xs text-amber-900 mt-1">
+                      Found {existingPlanMyPeakLibraryBatchConflicts.length}{' '}
+                      existing PlanMyPeak librar
+                      {existingPlanMyPeakLibraryBatchConflicts.length === 1
+                        ? 'y'
+                        : 'ies'}{' '}
+                      with the same name as selected TrainingPeaks libraries.
+                    </p>
+                    <div className="mt-2 bg-white/70 border border-amber-200 rounded p-2 max-h-32 overflow-y-auto">
+                      <ul className="text-xs text-amber-900 space-y-1">
+                        {existingPlanMyPeakLibraryBatchConflicts
+                          .slice(0, 8)
+                          .map((library) => (
+                            <li key={library.id}>
+                              • {library.name} (ID: {library.id})
+                            </li>
+                          ))}
+                        {existingPlanMyPeakLibraryBatchConflicts.length > 8 && (
+                          <li>
+                            • ... and{' '}
+                            {existingPlanMyPeakLibraryBatchConflicts.length - 8}{' '}
+                            more
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                    <p className="text-xs text-amber-800 mt-2">
+                      Choose how to handle all duplicates in this batch:
+                    </p>
+                    <div className="mt-3 grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleExistingPlanMyPeakConflictAction('replace')
+                        }
+                        className="px-3 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+                      >
+                        Replace Existing Libraries
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleExistingPlanMyPeakConflictAction('append')
+                        }
+                        className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                      >
+                        Append to Existing Libraries (may duplicate workouts)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleExistingPlanMyPeakConflictAction('ignore')
+                        }
+                        className="px-3 py-2 rounded-md bg-gray-200 text-gray-800 text-sm font-medium hover:bg-gray-300"
+                      >
+                        Ignore Upload
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               {/* Destination Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Export Destination
                 </label>
-                <div className="space-y-2">
-                  {EXPORT_DESTINATIONS.map((dest) => (
-                    <label
-                      key={dest.id}
-                      className={`flex items-start gap-3 p-3 border rounded-md transition-colors ${
-                        dest.available
-                          ? 'cursor-pointer hover:bg-gray-50'
-                          : 'cursor-not-allowed bg-gray-50 opacity-60'
-                      } ${
-                        destination === dest.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="destination"
-                        value={dest.id}
-                        checked={destination === dest.id}
-                        onChange={(e) =>
-                          setDestination(e.target.value as ExportDestination)
-                        }
-                        disabled={!dest.available}
-                        className="mt-0.5"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                {isConnectionSettingsLoading ? (
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs text-gray-600">
+                      Loading enabled destinations...
+                    </p>
+                  </div>
+                ) : hasEnabledDestinations ? (
+                  <div className="space-y-2">
+                    {enabledDestinations.map((dest) => (
+                      <label
+                        key={dest.id}
+                        className={`flex items-start gap-3 p-3 border rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${
+                          destination === dest.id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="destination"
+                          value={dest.id}
+                          checked={destination === dest.id}
+                          onChange={(e) =>
+                            setDestination(e.target.value as ExportDestination)
+                          }
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">
                             {dest.name}
                           </p>
-                          {!dest.available && (
-                            <span className="px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded">
-                              Coming Soon
-                            </span>
-                          )}
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {dest.description}
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-600 mt-0.5">
-                          {dest.description}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-medium text-amber-900">
+                      No export destinations enabled
+                    </p>
+                    <p className="mt-1 text-xs text-amber-800">
+                      Open Settings and enable PlanMyPeak and/or Intervals.icu
+                      to export.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* File Name (PlanMyPeak only) */}
-              {destination === 'planmypeak' && (
-                <div>
-                  {isLibraryBatchScope && (
-                    <div className="mb-3 space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Export Strategy
-                      </label>
-                      <div className="space-y-2">
-                        <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
-                          <input
-                            type="radio"
-                            name="libraryBatchStrategy"
-                            value="separate"
-                            checked={libraryBatchStrategy === 'separate'}
-                            onChange={() =>
-                              onLibraryBatchStrategyChange?.('separate')
-                            }
-                            className="mt-0.5"
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              Separate Files
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              One JSON file per selected library
-                            </p>
-                          </div>
-                        </label>
-                        <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
-                          <input
-                            type="radio"
-                            name="libraryBatchStrategy"
-                            value="combined"
-                            checked={libraryBatchStrategy === 'combined'}
-                            onChange={() =>
-                              onLibraryBatchStrategyChange?.('combined')
-                            }
-                            className="mt-0.5"
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              Combined File
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Merge all selected library workouts into one JSON
-                              file
-                            </p>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                  <label
-                    htmlFor="fileName"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    {isLibraryBatchScope && libraryBatchStrategy === 'separate'
-                      ? 'File Name Prefix'
-                      : 'File Name'}
-                  </label>
-                  <input
-                    id="fileName"
-                    type="text"
-                    value={fileName}
-                    onChange={(e) => setFileName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="planmypeak_export"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    {isLibraryBatchScope && libraryBatchStrategy === 'separate'
-                      ? 'Each library file will use the library name (prefix is optional)'
-                      : `File will be saved as ${fileName}.json`}
-                  </p>
-                </div>
-              )}
-
-              {/* Library folder option (Intervals.icu library export only) */}
-              {destination === 'intervalsicu' && !isTrainingPlanLikeScope && (
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={createFolder}
-                      onChange={(e) => setCreateFolder(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Create folder in Intervals.icu library
-                    </span>
-                  </label>
-                  <p className="text-xs text-gray-500 mt-1 ml-6">
-                    {isLibraryBatchScope
-                      ? 'Each selected TrainingPeaks library will be uploaded as workout templates and organized in a matching Intervals.icu folder (no dates assigned).'
-                      : 'Workouts will be organized in a folder named "TrainingPeaks Library" and saved as templates (no dates assigned)'}
-                  </p>
-                </div>
-              )}
-              {destination === 'intervalsicu' && isTrainingPlanLikeScope && (
-                <div>
-                  <p className="text-xs text-gray-500">
-                    {isTrainingPlansBatchScope
-                      ? 'Creates reusable Intervals.icu training plans (`PLAN` folders) using each TrainingPeaks plan name and plan-day offsets.'
-                      : 'Creates a reusable Intervals.icu training plan (`PLAN` folder) using the TrainingPeaks plan name and day offsets.'}
-                  </p>
-                </div>
-              )}
+              {/* Library/folder option (destination library exports only) */}
+              {hasEnabledDestinations &&
+                (activeDestination === 'intervalsicu' ||
+                  activeDestination === 'planmypeak') &&
+                !isTrainingPlanLikeScope && (
+                  <div>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={createFolder}
+                        onChange={(e) => setCreateFolder(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        {activeDestination === 'intervalsicu'
+                          ? 'Create folder in Intervals.icu library'
+                          : 'Create library in PlanMyPeak'}
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 ml-6">
+                      {activeDestination === 'intervalsicu'
+                        ? isLibraryBatchScope
+                          ? 'Each selected TrainingPeaks library will be uploaded as workout templates and organized in a matching Intervals.icu folder (no dates assigned).'
+                          : 'Workouts will be organized in a folder named "TrainingPeaks Library" and saved as templates (no dates assigned)'
+                        : isLibraryBatchScope
+                          ? 'Each selected TrainingPeaks library will be uploaded into a matching PlanMyPeak library (created if missing).'
+                          : 'Workouts will be uploaded into a PlanMyPeak library with the same name as the TrainingPeaks source library (created if missing).'}
+                    </p>
+                  </div>
+                )}
+              {activeDestination === 'intervalsicu' &&
+                isTrainingPlanLikeScope && (
+                  <div>
+                    <p className="text-xs text-gray-500">
+                      {isTrainingPlansBatchScope
+                        ? 'Creates reusable Intervals.icu training plans (`PLAN` folders) using each TrainingPeaks plan name and plan-day offsets.'
+                        : 'Creates a reusable Intervals.icu training plan (`PLAN` folder) using the TrainingPeaks plan name and day offsets.'}
+                    </p>
+                  </div>
+                )}
 
               {/* API Key Warning (Intervals.icu only) */}
-              {destination === 'intervalsicu' && !hasIntervalsApiKey && (
+              {activeDestination === 'intervalsicu' && !hasIntervalsApiKey && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                   <div className="flex items-start gap-2">
                     <svg
@@ -918,42 +1155,7 @@ export function ExportDialog({
                 </div>
               )}
 
-              {/* Info Box - Destination specific */}
-              {destination === 'planmypeak' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                  <div className="flex items-start gap-2">
-                    <svg
-                      className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <div className="text-sm text-blue-800">
-                      <p className="font-medium mb-1">
-                        Automatic Classification
-                      </p>
-                      <p className="text-xs">
-                        {isTrainingPlanScope
-                          ? 'Downloads a JSON snapshot of the current TrainingPeaks plan data shown in the calendar view (classic workouts, RxBuilder workouts, notes, and events).'
-                          : isTrainingPlansBatchScope
-                            ? 'Downloads a JSON snapshot for each selected TrainingPeaks plan (classic workouts, RxBuilder workouts, notes, and events) in a single export file.'
-                            : isLibraryBatchScope
-                              ? libraryBatchStrategy === 'combined'
-                                ? 'Downloads one combined PlanMyPeak JSON file containing workouts from all selected TrainingPeaks libraries.'
-                                : 'Downloads one PlanMyPeak JSON file per selected TrainingPeaks library.'
-                              : 'Each workout will be automatically classified based on its Intensity Factor (IF) and TSS values. Workout type, intensity level, and suitable training phases are determined individually for each workout.'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {destination === 'intervalsicu' && hasIntervalsApiKey && (
+              {activeDestination === 'intervalsicu' && hasIntervalsApiKey && (
                 <div className="bg-green-50 border border-green-200 rounded-md p-3">
                   <div className="flex items-start gap-2">
                     <svg
@@ -984,6 +1186,39 @@ export function ExportDialog({
                   </div>
                 </div>
               )}
+
+              {activeDestination === 'planmypeak' &&
+                !isTrainingPlanLikeScope && (
+                  <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                    <div className="flex items-start gap-2">
+                      <svg
+                        className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <div className="text-sm text-green-800">
+                        <p className="font-medium mb-1">
+                          Direct Upload to Library
+                        </p>
+                        <p className="text-xs">
+                          {isLibraryBatchScope
+                            ? createFolder
+                              ? 'Selected TrainingPeaks libraries will be uploaded to PlanMyPeak via API, using a matching PlanMyPeak library for each TrainingPeaks library (created if missing).'
+                              : 'Selected TrainingPeaks libraries will be uploaded to your default PlanMyPeak library via API.'
+                            : createFolder
+                              ? 'Workouts will be uploaded directly to PlanMyPeak via API and organized in a library matching the TrainingPeaks source library name.'
+                              : 'Workouts will be uploaded directly to your default PlanMyPeak library via API.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               {/* Summary */}
               <div className="bg-gray-50 rounded-md p-3 border border-gray-200">
@@ -1085,8 +1320,12 @@ export function ExportDialog({
               isExporting ||
               isCheckingExistingPlan ||
               isWaitingForConflictDecision ||
-              (destination === 'planmypeak' && !fileName.trim()) ||
-              (destination === 'intervalsicu' && !hasIntervalsApiKey) ||
+              isWaitingForPlanMyPeakConflictDecision ||
+              isConnectionSettingsLoading ||
+              !hasEnabledDestinations ||
+              !selectedDestination ||
+              (activeDestination === 'planmypeak' && !fileName.trim()) ||
+              (activeDestination === 'intervalsicu' && !hasIntervalsApiKey) ||
               !hasAcknowledged ||
               !selectedDestination?.available
             }

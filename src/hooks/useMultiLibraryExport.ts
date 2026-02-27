@@ -65,6 +65,8 @@ function createMultiLibraryDetailedProgress(
   totalLibraries: number,
   destination: ExportDestination
 ): TrainingPlanExportProgressDialogState {
+  const isDirectUploadDestination =
+    destination === 'intervalsicu' || destination === 'planmypeak';
   return {
     overallCurrent: 0,
     overallTotal: Math.max(1, totalLibraries * 4),
@@ -89,8 +91,7 @@ function createMultiLibraryDetailedProgress(
       },
       {
         id: 'transform',
-        label:
-          destination === 'intervalsicu' ? 'Upload / Transform' : 'Transform',
+        label: isDirectUploadDestination ? 'Upload / Transform' : 'Transform',
         status: 'pending',
         current: 0,
         total: 1,
@@ -104,8 +105,7 @@ function createMultiLibraryDetailedProgress(
       },
       {
         id: 'export',
-        label:
-          destination === 'intervalsicu' ? 'Finalize Upload' : 'Generate File',
+        label: isDirectUploadDestination ? 'Finalize Upload' : 'Generate File',
         status: 'pending',
         current: 0,
         total: 1,
@@ -485,7 +485,7 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
                   currentPhaseLabel: `Library ${i + 1}/${totalLibraries} · Export`,
                   itemName: library.libraryName,
                   message: validation.isValid
-                    ? 'Generating file...'
+                    ? 'Uploading workouts...'
                     : 'Validation failed',
                 })
               );
@@ -493,8 +493,8 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
               if (!validation.isValid) {
                 results.push({
                   success: false,
-                  fileName: `${library.libraryName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`,
-                  format: 'json',
+                  fileName: library.libraryName,
+                  format: 'api',
                   itemsExported: 0,
                   warnings: validation.warnings,
                   errors: validation.errors.map((e) => e.message),
@@ -506,6 +506,7 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
               const libraryConfig = {
                 ...config,
                 ...planMyPeakConfig,
+                targetLibraryName: library.libraryName,
                 fileName:
                   planMyPeakConfig.fileName ||
                   library.libraryName.replace(/[^a-z0-9]/gi, '_').toLowerCase(),
@@ -537,8 +538,8 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
               );
               results.push({
                 success: false,
-                fileName: `${library.libraryName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`,
-                format: 'json',
+                fileName: library.libraryName,
+                format: 'api',
                 itemsExported: 0,
                 warnings: [],
                 errors: [
@@ -666,12 +667,12 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
               phaseStatus: validation.isValid ? 'completed' : 'failed',
               phaseCurrent: 1,
               currentPhaseLabel: validation.isValid
-                ? 'Generating combined file'
+                ? 'Uploading combined export'
                 : 'Validation failed',
               currentPhaseCurrent: validation.isValid ? 0 : 1,
               currentPhaseTotal: 1,
               message: validation.isValid
-                ? 'Generating file...'
+                ? 'Uploading workouts...'
                 : 'Validation failed',
             })
           );
@@ -684,8 +685,9 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
             setExportResults([
               {
                 success: false,
-                fileName: planMyPeakConfig.fileName || 'combined_export.json',
-                format: 'json',
+                fileName:
+                  planMyPeakConfig.targetLibraryName || 'PlanMyPeak Library',
+                format: 'api',
                 itemsExported: 0,
                 warnings: validation.warnings,
                 errors: validation.errors.map((e) => e.message),
@@ -722,7 +724,7 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
               currentPhaseLabel: 'Completed',
               currentPhaseCurrent: libraryIds.length + 3,
               currentPhaseTotal: libraryIds.length + 3,
-              message: 'Combined export completed',
+              message: 'Combined upload completed',
             })
           );
 
@@ -756,7 +758,7 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
           {
             success: false,
             fileName: config.fileName || 'export',
-            format: destination === 'intervalsicu' ? 'api' : 'json',
+            format: 'api',
             itemsExported: 0,
             warnings: [],
             errors: [

@@ -10,6 +10,58 @@ const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[TP Extension - MAIN World]', ...args);
 };
 
+const MYPEAK_SUPABASE_HOSTS = ['127.0.0.1:54361', 'localhost:54361'];
+
+function isMyPeakSupabaseRequest(url: string): boolean {
+  return MYPEAK_SUPABASE_HOSTS.some((host) => url.includes(host));
+}
+
+function maybePostMyPeakSupabaseAuth(
+  url: string,
+  headers: Headers,
+  context: 'fetch' | 'xhr'
+): void {
+  if (!isMyPeakSupabaseRequest(url)) {
+    return;
+  }
+
+  const authHeader = headers.get('authorization');
+  const apiKey = headers.get('apikey');
+  const bearerToken =
+    authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : null;
+
+  // Supabase login requests often use Authorization: Bearer <anon apikey>.
+  // We only store a MyPeak user token when it differs from the anon key, or
+  // when the request is clearly a user validation endpoint.
+  const isUserEndpoint = url.includes('/auth/v1/user');
+  const isUserToken =
+    !!bearerToken &&
+    (isUserEndpoint || (apiKey ? bearerToken !== apiKey : true));
+
+  if (!apiKey && !isUserToken) {
+    return;
+  }
+
+  log('  🧩 MyPeak/Supabase auth headers detected:', context, url);
+  log('  🔑 apikey present:', !!apiKey);
+  log('  🎫 user bearer present:', !!isUserToken);
+
+  window.postMessage(
+    {
+      type: 'MY_PEAK_AUTH_FOUND',
+      token: isUserToken ? bearerToken : null,
+      apiKey: apiKey || null,
+      timestamp: Date.now(),
+      source: 'trainingpeaks-extension-main',
+    },
+    '*'
+  );
+
+  log('  ✅ Posted MyPeak auth details to isolated world');
+}
+
 log('🚀 Main world interceptor loading...');
 
 // Store original fetch
@@ -68,6 +120,8 @@ window.fetch = async function (...args) {
         );
       }
     }
+
+    maybePostMyPeakSupabaseAuth(urlStr, headers, 'fetch');
   } else {
     log('  ℹ️  No headers');
   }
@@ -110,6 +164,12 @@ XMLHttpRequest.prototype.open = function (
   this.addEventListener('loadstart', function () {
     const headers = xhrHeaders.get(this);
     if (headers) {
+      maybePostMyPeakSupabaseAuth(
+        url.toString(),
+        new Headers(Array.from(headers.entries())),
+        'xhr'
+      );
+
       const authHeader = headers.get('authorization');
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);

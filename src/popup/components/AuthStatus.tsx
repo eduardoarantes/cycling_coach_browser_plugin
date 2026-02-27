@@ -1,186 +1,114 @@
 /**
  * AuthStatus component
  *
- * Displays current authentication status with user info in a compact format
+ * Displays compact authentication status rows for TrainingPeaks and PlanMyPeak.
  */
 
 import type { ReactElement } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useUser } from '@/hooks/useUser';
-
-/**
- * Refresh TrainingPeaks tab or open a new one
- * Helps users get authenticated by ensuring they're on TrainingPeaks
- */
-async function refreshTrainingPeaksTab(): Promise<void> {
-  // Find all TrainingPeaks tabs
-  const tabs = await chrome.tabs.query({
-    url: 'https://app.trainingpeaks.com/*',
-  });
-
-  if (tabs.length > 0 && tabs[0].id) {
-    // Refresh the first TrainingPeaks tab
-    await chrome.tabs.reload(tabs[0].id);
-    // Focus the tab so user sees it
-    await chrome.tabs.update(tabs[0].id, { active: true });
-  } else {
-    // No TrainingPeaks tab open - open one
-    await chrome.tabs.create({
-      url: 'https://app.trainingpeaks.com',
-      active: true,
-    });
-  }
-}
-
-/**
- * Format token age for display
- */
-const formatTokenAge = (age: number | null): string => {
-  if (age === null) return 'Unknown';
-  const hours = Math.floor(age / (1000 * 60 * 60));
-  const minutes = Math.floor((age % (1000 * 60 * 60)) / (1000 * 60));
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ago`;
-  }
-  return `${minutes}m ago`;
-};
+import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
+import { openMyPeakTab } from '@/utils/myPeakTab';
+import {
+  formatTokenAge,
+  buildProviderStatusLabel,
+  AUTH_STATUS_STRINGS,
+} from '@/utils/uiStrings';
+import { AuthRow } from './shared/AuthRow';
 
 export function AuthStatus(): ReactElement {
-  const { isAuthenticated, isLoading, error, tokenAge, refreshAuth } =
-    useAuth();
-  const { data: user } = useUser({ enabled: isAuthenticated });
+  const {
+    isAuthenticated: isTpAuthenticated,
+    isLoading: isTpLoading,
+    error: tpError,
+    tokenAge: tpTokenAge,
+    refreshAuth: refreshTpAuth,
+  } = useAuth();
+  const { data: user } = useUser({ enabled: isTpAuthenticated });
 
-  const handleRefreshClick = async (): Promise<void> => {
-    // Refresh TrainingPeaks tab to renew/capture token if needed
-    await refreshTrainingPeaksTab();
-    // Wait briefly for page load/interceptor to run, then sync auth panel state
+  const {
+    isAuthenticated: isMyPeakAuthenticated,
+    isLoading: isMyPeakLoading,
+    error: myPeakError,
+    tokenAge: myPeakTokenAge,
+    refreshAuth: refreshMyPeakAuth,
+    validateAuth: validateMyPeakAuth,
+  } = useMyPeakAuth();
+
+  const handleTrainingPeaksRefresh = async (): Promise<void> => {
+    await openTrainingPeaksTab();
     setTimeout(() => {
-      refreshAuth();
+      void refreshTpAuth();
     }, 2000);
   };
 
-  if (isLoading) {
-    return (
-      <div className="mb-3 p-2 bg-gray-100 rounded-lg">
-        <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-gray-600">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleMyPeakRefresh = async (): Promise<void> => {
+    await openMyPeakTab();
+    setTimeout(() => {
+      void (async () => {
+        await refreshMyPeakAuth();
+        await validateMyPeakAuth();
+      })();
+    }, 2000);
+  };
 
-  if (error) {
-    return (
-      <div className="mb-3 p-2 bg-red-50 rounded-lg border border-red-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 flex-1 min-w-0">
-            <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></div>
-            <p className="text-xs font-medium text-red-800 truncate">
-              Authentication Error
-            </p>
-          </div>
-          <button
-            onClick={handleRefreshClick}
-            className="ml-2 text-red-600 hover:text-red-800 flex-shrink-0"
-            title="Refresh TrainingPeaks tab and retry authentication"
-            aria-label="Retry authentication"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="mb-3 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 flex-1 min-w-0">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full flex-shrink-0"></div>
-            <p className="text-xs font-medium text-yellow-800 truncate">
-              Not Authenticated
-            </p>
-          </div>
-          <button
-            onClick={handleRefreshClick}
-            className="ml-2 text-yellow-600 hover:text-yellow-800 flex-shrink-0"
-            title="Open/refresh TrainingPeaks and check authentication"
-            aria-label="Refresh authentication"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Authenticated - show user info inline
-  const fullName = user
+  // Build status labels using centralized string functions
+  const userName = user
     ? `${user.firstName} ${user.lastName}`.trim()
-    : 'Authenticated User';
-  const tooltipText = user
-    ? `${user.email}\nToken obtained ${formatTokenAge(tokenAge)}`
-    : `Token obtained ${formatTokenAge(tokenAge)}`;
+    : undefined;
+  const tpLabel = buildProviderStatusLabel(
+    'TrainingPeaks',
+    isTpLoading,
+    isTpAuthenticated,
+    tpError,
+    userName
+  );
+
+  const tpSubtitle = isTpAuthenticated
+    ? `${AUTH_STATUS_STRINGS.TOKEN_AGE_PREFIX} ${formatTokenAge(tpTokenAge)}`
+    : AUTH_STATUS_STRINGS.TRAINING_PEAKS.OPEN_TO_CAPTURE;
+
+  const tpTooltip = user
+    ? `${user.email}\nTrainingPeaks token obtained ${formatTokenAge(tpTokenAge)}`
+    : `TrainingPeaks token obtained ${formatTokenAge(tpTokenAge)}`;
+
+  const myPeakLabel = buildProviderStatusLabel(
+    'PlanMyPeak',
+    isMyPeakLoading,
+    isMyPeakAuthenticated,
+    myPeakError
+  );
+
+  const myPeakSubtitle = isMyPeakAuthenticated
+    ? `${AUTH_STATUS_STRINGS.TOKEN_AGE_PREFIX} ${formatTokenAge(myPeakTokenAge)} ${AUTH_STATUS_STRINGS.PLANMYPEAK.SUPABASE_SUFFIX}`
+    : AUTH_STATUS_STRINGS.PLANMYPEAK.OPEN_TO_SIGN_IN;
+
+  const myPeakTooltip = isMyPeakAuthenticated
+    ? `PlanMyPeak (localhost:3006) Supabase token obtained ${formatTokenAge(myPeakTokenAge)}`
+    : 'PlanMyPeak local auth not detected';
 
   return (
-    <div
-      className="mb-3 p-2 bg-green-50 rounded-lg border border-green-200"
-      title={tooltipText}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2 flex-1 min-w-0">
-          <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-          <p className="text-xs font-medium text-green-800 truncate">
-            {fullName}
-          </p>
-        </div>
-        <button
-          onClick={handleRefreshClick}
-          className="ml-2 text-green-600 hover:text-green-800 flex-shrink-0"
-          title="Refresh TrainingPeaks tab and authentication status"
-          aria-label="Refresh authentication"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
-      </div>
+    <div className="mb-3 space-y-2">
+      <AuthRow
+        label={tpLabel}
+        isLoading={isTpLoading}
+        isAuthenticated={isTpAuthenticated}
+        error={tpError}
+        subtitle={tpSubtitle}
+        title={tpTooltip}
+        onRefresh={handleTrainingPeaksRefresh}
+      />
+
+      <AuthRow
+        label={myPeakLabel}
+        isLoading={isMyPeakLoading}
+        isAuthenticated={isMyPeakAuthenticated}
+        error={myPeakError}
+        subtitle={myPeakSubtitle}
+        title={myPeakTooltip}
+        onRefresh={handleMyPeakRefresh}
+      />
     </div>
   );
 }

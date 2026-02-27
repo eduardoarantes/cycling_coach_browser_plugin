@@ -10,6 +10,16 @@
 export const API_BASE_URL = 'https://tpapi.trainingpeaks.com';
 
 /**
+ * MyPeak local app URL (temporary local development integration)
+ */
+export const MYPEAK_APP_URL = 'http://localhost:3006';
+
+/**
+ * Local Supabase URL used by MyPeak during development
+ */
+export const MYPEAK_SUPABASE_URL = 'http://127.0.0.1:54361';
+
+/**
  * TrainingPeaks RxBuilder (structured strength) API base URL
  * Uses a different domain from the classic API
  */
@@ -41,7 +51,12 @@ export const EXTENSION_VERSION = '1.0.0';
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   TOKEN_TIMESTAMP: 'token_timestamp',
+  MYPEAK_AUTH_TOKEN: 'mypeak_auth_token',
+  MYPEAK_TOKEN_TIMESTAMP: 'mypeak_token_timestamp',
+  MYPEAK_SUPABASE_API_KEY: 'mypeak_supabase_api_key',
   INTERVALS_API_KEY: 'intervals_api_key',
+  CONNECTION_ENABLE_PLANMYPEAK: 'connection_enable_planmypeak',
+  CONNECTION_ENABLE_INTERVALS: 'connection_enable_intervals',
 } as const;
 
 /**

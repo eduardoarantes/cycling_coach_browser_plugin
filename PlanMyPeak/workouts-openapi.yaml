@@ -1,0 +1,1716 @@
+openapi: 3.0.3
+info:
+  title: PlanMyPeak API
+  description: |
+    Comprehensive API for the PlanMyPeak training platform.
+
+    ## Overview
+    This API provides endpoints for managing:
+    - **Training Plans** - Create and manage custom training plan templates
+    - **Workout Libraries** - Organize workout collections (system + user libraries)
+    - **Workouts** - CRUD operations for individual workouts across multiple sports
+    - **Notes** - Add notes to training plan templates
+
+    ## Multi-Sport Support
+    The platform supports multiple sports:
+    - Cycling (power-based training with FTP)
+    - Running (pace-based training)
+    - Swimming (pace and stroke rate)
+    - Strength Training (resistance-based)
+
+    ## Authentication
+    Most endpoints require authentication via Supabase JWT token.
+    - **Unauthenticated**: Access public workouts in system library only
+    - **Authenticated**: Full access to personal + public resources
+
+    ## External Import Deduplication
+    Resources support a `source_id` field for deduplication when importing from external platforms:
+    - Format: `{SOURCE_PREFIX}:{EXTERNAL_ID}` (e.g., `TP:3600970303`)
+    - **Source Prefixes:**
+      - `TP:` - TrainingPeaks
+      - `ZW:` - Zwift
+      - `TR:` - TrainerRoad
+      - `WO:` - Wahoo
+      - `GC:` - Garmin Connect
+
+  version: 2.0.0
+  contact:
+    name: PlanMyPeak Support
+    url: https://planmypeak.com/support
+    email: support@planmypeak.com
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://app.planmypeak.com/api
+    description: Production server
+
+tags:
+  - name: Training Plans
+    description: Create and manage custom training plan templates
+  - name: Plan Notes
+    description: Add notes to training plan templates
+  - name: Workout Libraries
+    description: Manage workout library collections
+  - name: Workouts
+    description: CRUD operations for individual workouts
+
+# =============================================================================
+# PATHS
+# =============================================================================
+paths:
+
+  # ---------------------------------------------------------------------------
+  # TRAINING PLANS
+  # ---------------------------------------------------------------------------
+  /training-plans:
+    get:
+      tags:
+        - Training Plans
+      summary: List training plans
+      description: Returns all custom training plans for the authenticated user
+      operationId: listTrainingPlans
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of training plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TrainingPlanSummary'
+              example:
+                plans:
+                  - id: '550e8400-e29b-41d4-a716-446655440000'
+                    name: 'Base Building - 4 Weeks'
+                    description: 'Aerobic base building phase'
+                    goal: 'Build aerobic endurance'
+                    weeks_total: 4
+                    status: 'active'
+                    is_draft: false
+                    source_id: null
+                    created_at: '2026-02-26T22:30:00.000Z'
+                    updated_at: '2026-02-26T22:30:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Training Plans
+      summary: Create a new training plan
+      description: |
+        Creates a new training plan template with weeks and workouts.
+
+        **Important:** Workouts should reference valid library workout IDs.
+      operationId: createTrainingPlan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrainingPlanRequest'
+      responses:
+        '201':
+          description: Plan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavePlanResponse'
+              example:
+                success: true
+                planId: '550e8400-e29b-41d4-a716-446655440000'
+                savedAt: '2026-02-26T22:30:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /training-plans/{planId}:
+    parameters:
+      - name: planId
+        in: path
+        required: true
+        description: UUID of the training plan
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Training Plans
+      summary: Get a specific training plan
+      description: Returns full details of a training plan including weeks and workouts
+      operationId: getTrainingPlan
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Training plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingPlanDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Training Plans
+      summary: Update a training plan
+      description: Updates an existing training plan (replaces all weeks)
+      operationId: updateTrainingPlan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrainingPlanRequest'
+      responses:
+        '200':
+          description: Plan updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavePlanResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Training Plans
+      summary: Delete a training plan
+      description: Deletes a training plan and all associated weeks/notes
+      operationId: deleteTrainingPlan
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Plan deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ---------------------------------------------------------------------------
+  # PLAN NOTES
+  # ---------------------------------------------------------------------------
+  /training-plans/{planId}/notes:
+    parameters:
+      - name: planId
+        in: path
+        required: true
+        description: UUID of the training plan
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags:
+        - Plan Notes
+      summary: List notes for a training plan
+      description: Returns all notes attached to a training plan template
+      operationId: listPlanNotes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of notes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlanNote'
+                  total:
+                    type: integer
+              example:
+                notes:
+                  - id: '660e8400-e29b-41d4-a716-446655440001'
+                    training_plan_id: '550e8400-e29b-41d4-a716-446655440000'
+                    week_number: 1
+                    day_of_week: 0
+                    title: 'Hard workout day'
+                    description: 'Focus on maintaining power in the intervals'
+                    created_at: '2026-02-26T22:35:00.000Z'
+                    updated_at: '2026-02-26T22:35:00.000Z'
+                total: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Plan Notes
+      summary: Add a note to a training plan
+      description: |
+        Adds a note to a specific week/day in the training plan template.
+
+        **Day of Week:** 0 = Monday, 6 = Sunday
+
+        Notes are copied when the plan is scheduled onto the calendar.
+      operationId: createPlanNote
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanNoteRequest'
+            examples:
+              mondayNote:
+                summary: Note for Monday of Week 1
+                value:
+                  week_number: 1
+                  day_of_week: 0
+                  title: 'Hard workout day'
+                  description: 'Focus on maintaining power in the intervals. Keep cadence above 90 RPM.'
+      responses:
+        '201':
+          description: Note created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  note:
+                    $ref: '#/components/schemas/PlanNote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Note already exists for this week/day
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /training-plans/{planId}/notes/{noteId}:
+    parameters:
+      - name: planId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    put:
+      tags:
+        - Plan Notes
+      summary: Update a training plan note
+      operationId: updatePlanNote
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                description:
+                  type: string
+                  maxLength: 5000
+                  nullable: true
+      responses:
+        '200':
+          description: Note updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  note:
+                    $ref: '#/components/schemas/PlanNote'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Plan Notes
+      summary: Delete a training plan note
+      operationId: deletePlanNote
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Note deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ---------------------------------------------------------------------------
+  # WORKOUT LIBRARIES
+  # ---------------------------------------------------------------------------
+  /v1/workouts/libraries:
+    get:
+      tags:
+        - Workout Libraries
+      summary: List workout libraries
+      description: |
+        Fetch all workout libraries accessible to the current user.
+
+        **Access Rules:**
+        - Unauthenticated: Only system library (PlanMyPeak Library)
+        - Authenticated: System library + user's own libraries
+      operationId: listWorkoutLibraries
+      security:
+        - bearerAuth: []
+        - {}
+      responses:
+        '200':
+          description: Successfully retrieved libraries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLibrariesResponse'
+              example:
+                libraries:
+                  - id: '00000000-0000-0000-0000-000000000001'
+                    name: 'PlanMyPeak Library'
+                    owner_id: null
+                    is_system: true
+                    is_default: false
+                    source_id: null
+                    created_at: '2026-02-25T05:37:59.650726Z'
+                    updated_at: '2026-02-25T05:37:59.650726Z'
+                  - id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+                    name: 'My Library'
+                    owner_id: 'user-uuid-here'
+                    is_system: false
+                    is_default: true
+                    source_id: null
+                    created_at: '2026-02-25T06:00:00.000000Z'
+                    updated_at: '2026-02-25T06:00:00.000000Z'
+                total: 2
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Workout Libraries
+      summary: Create a workout library
+      description: Creates a new workout library owned by the authenticated user
+      operationId: createWorkoutLibrary
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLibraryRequest'
+      responses:
+        '201':
+          description: Library created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLibrary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Library with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/workouts/libraries/{libraryId}:
+    parameters:
+      - name: libraryId
+        in: path
+        required: true
+        description: UUID of the library
+        schema:
+          type: string
+          format: uuid
+
+    put:
+      tags:
+        - Workout Libraries
+      summary: Update library name
+      description: |
+        Updates the name of a workout library.
+        - Only the library owner can update it
+        - Cannot update system library
+      operationId: updateWorkoutLibrary
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLibraryRequest'
+      responses:
+        '200':
+          description: Library updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLibrary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Workout Libraries
+      summary: Delete a workout library
+      description: |
+        Deletes a workout library.
+        - Only the library owner can delete it
+        - Cannot delete system library or default library
+        - Cannot delete library with workouts (must be empty)
+      operationId: deleteWorkoutLibrary
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Library deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Library contains workouts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ---------------------------------------------------------------------------
+  # WORKOUTS
+  # ---------------------------------------------------------------------------
+  /v1/workouts/library:
+    get:
+      tags:
+        - Workouts
+      summary: List and filter workouts
+      description: |
+        Fetch workouts from the library with advanced filtering options.
+
+        **Access Rules:**
+        - Unauthenticated: Public workouts only
+        - Authenticated: Public + own + shared workouts
+
+        **Caching:**
+        - Unauthenticated: 24 hours (CDN cacheable)
+        - Authenticated: 1 hour (browser cache only)
+      operationId: listWorkouts
+      security:
+        - bearerAuth: []
+        - {}
+      parameters:
+        - name: library_id
+          in: query
+          description: |
+            Filter by library ID. Special values:
+            - `system`: System library only
+            - `user`: User's libraries only (requires auth)
+            - UUID: Specific library
+          schema:
+            type: string
+        - name: sport_type
+          in: query
+          description: Filter by sport type
+          schema:
+            $ref: '#/components/schemas/SportType'
+        - name: type
+          in: query
+          description: Filter by workout type (comma-separated for multiple)
+          schema:
+            type: string
+          example: 'endurance,tempo'
+        - name: intensity
+          in: query
+          description: Filter by intensity (comma-separated for multiple)
+          schema:
+            type: string
+          example: 'moderate,hard'
+        - name: phase
+          in: query
+          description: Filter by training phase (comma-separated for multiple)
+          schema:
+            type: string
+          example: 'Base,Build'
+        - name: minDuration
+          in: query
+          description: Minimum workout duration in minutes
+          schema:
+            type: integer
+            minimum: 1
+        - name: maxDuration
+          in: query
+          description: Maximum workout duration in minutes
+          schema:
+            type: integer
+            minimum: 1
+        - name: search
+          in: query
+          description: Search in workout name and description
+          schema:
+            type: string
+        - name: source_id
+          in: query
+          description: |
+            Filter by external source ID for import deduplication.
+            Format: `{SOURCE_PREFIX}:{EXTERNAL_ID}`
+          schema:
+            type: string
+          example: 'TP:3600970303'
+      responses:
+        '200':
+          description: Successfully retrieved workouts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLibraryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Required for user library filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Workouts
+      summary: Create a custom workout
+      description: |
+        Creates a new custom workout in a user's library.
+
+        **Notes:**
+        - Requires authentication
+        - Cannot add to system library
+        - Must own the target library
+        - Duplicate structures (same signature per owner) are rejected
+      operationId: createWorkout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkoutRequest'
+      responses:
+        '201':
+          description: Workout created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workout:
+                    $ref: '#/components/schemas/WorkoutLibraryItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Library not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Duplicate workout structure
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  message:
+                    type: string
+              example:
+                error: 'Duplicate workout'
+                message: 'A workout with identical structure already exists in your library'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /v1/workouts/library/{workoutId}:
+    parameters:
+      - name: workoutId
+        in: path
+        required: true
+        description: NanoID of the workout
+        schema:
+          type: string
+        example: 'luDI1qLqxE'
+
+    get:
+      tags:
+        - Workouts
+      summary: Get a single workout
+      description: Returns a single workout by its ID
+      operationId: getWorkout
+      security:
+        - bearerAuth: []
+        - {}
+      responses:
+        '200':
+          description: Successfully retrieved workout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLibraryItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Workouts
+      summary: Update a workout
+      description: |
+        Updates a workout. Only the workout owner can update it.
+        Cannot update system library workouts.
+      operationId: updateWorkout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkoutRequest'
+      responses:
+        '200':
+          description: Workout updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLibraryItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Workouts
+      summary: Delete a workout
+      description: |
+        Deletes a workout. Only the workout owner can delete it.
+        Cannot delete system library workouts.
+      operationId: deleteWorkout
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Workout deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+# =============================================================================
+# COMPONENTS
+# =============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token from authentication
+
+  # ---------------------------------------------------------------------------
+  # SHARED SCHEMAS
+  # ---------------------------------------------------------------------------
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+
+    SportType:
+      type: string
+      enum:
+        - cycling
+        - running
+        - swimming
+        - strength
+      description: Sport type supported by the platform
+
+    TrainingPhase:
+      type: string
+      enum:
+        - Base
+        - Build
+        - Peak
+        - Recovery
+        - Taper
+        - Foundation
+
+    WorkoutIntensity:
+      type: string
+      enum:
+        - easy
+        - moderate
+        - hard
+        - very_hard
+
+    # ---------------------------------------------------------------------------
+    # TRAINING PLAN SCHEMAS
+    # ---------------------------------------------------------------------------
+    TrainingPlanSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        goal:
+          type: string
+        weeks_total:
+          type: integer
+        status:
+          type: string
+          enum: [draft, active, completed, archived]
+        is_draft:
+          type: boolean
+        source_id:
+          type: string
+          nullable: true
+          description: |
+            External source ID for deduplication when importing plans.
+            Format: `{SOURCE_PREFIX}:{EXTERNAL_ID}` (e.g., `TP:3600970303`)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TrainingPlanDetails:
+      type: object
+      properties:
+        plan:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+            goal:
+              type: string
+            targetFtp:
+              type: integer
+              nullable: true
+            isDraft:
+              type: boolean
+            status:
+              type: string
+            source_id:
+              type: string
+              nullable: true
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+        weeks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeekState'
+
+    CreateTrainingPlanRequest:
+      type: object
+      required:
+        - metadata
+        - weeks
+      properties:
+        metadata:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: Plan name
+            description:
+              type: string
+              nullable: true
+            goal:
+              type: string
+            targetFtp:
+              type: integer
+              description: Target FTP in watts
+            source_id:
+              type: string
+              nullable: true
+              description: |
+                External source ID for deduplication when importing plans.
+                Format: `{SOURCE_PREFIX}:{EXTERNAL_ID}` (e.g., `TP:3600970303`)
+        weeks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeekData'
+        publish:
+          type: boolean
+          default: true
+          description: Whether to publish (false = save as draft)
+
+    SavePlanResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        planId:
+          type: string
+          format: uuid
+        savedAt:
+          type: string
+          format: date-time
+
+    WeekState:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        weekNumber:
+          type: integer
+        phase:
+          $ref: '#/components/schemas/TrainingPhase'
+        workouts:
+          $ref: '#/components/schemas/WorkoutsData'
+        weeklyTss:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+
+    WeekData:
+      type: object
+      required:
+        - weekNumber
+        - phase
+        - weeklyTss
+        - workouts
+      properties:
+        weekNumber:
+          type: integer
+          minimum: 1
+        phase:
+          $ref: '#/components/schemas/TrainingPhase'
+        weeklyTss:
+          type: integer
+          description: Total TSS for the week
+        notes:
+          type: string
+          description: Week-level notes/focus
+        workouts:
+          $ref: '#/components/schemas/WorkoutsData'
+
+    WorkoutsData:
+      type: object
+      description: Workouts organized by day of week
+      properties:
+        monday:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutPlacement'
+        tuesday:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutPlacement'
+        wednesday:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutPlacement'
+        thursday:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutPlacement'
+        friday:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutPlacement'
+        saturday:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutPlacement'
+        sunday:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutPlacement'
+
+    WorkoutPlacement:
+      type: object
+      required:
+        - id
+        - order
+        - workoutKey
+        - workout
+      properties:
+        id:
+          type: string
+          description: Unique ID for this workout placement
+        order:
+          type: integer
+          minimum: 0
+          description: Display order within the day (0-indexed)
+        workoutKey:
+          type: string
+          description: Library workout ID (NanoID)
+        workout:
+          type: object
+          required:
+            - name
+            - type
+            - sport_type
+            - base_duration_min
+            - base_tss
+          properties:
+            name:
+              type: string
+            type:
+              type: string
+            sport_type:
+              $ref: '#/components/schemas/SportType'
+            base_duration_min:
+              type: integer
+            base_tss:
+              type: integer
+
+    # ---------------------------------------------------------------------------
+    # PLAN NOTE SCHEMAS
+    # ---------------------------------------------------------------------------
+    PlanNote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        training_plan_id:
+          type: string
+          format: uuid
+        week_number:
+          type: integer
+          minimum: 1
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0 = Monday, 6 = Sunday
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreatePlanNoteRequest:
+      type: object
+      required:
+        - week_number
+        - day_of_week
+        - title
+      properties:
+        week_number:
+          type: integer
+          minimum: 1
+          description: Week number (1-based)
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: Day of week (0 = Monday, 6 = Sunday)
+        title:
+          type: string
+          maxLength: 200
+          description: Note title
+        description:
+          type: string
+          maxLength: 5000
+          nullable: true
+          description: Note description (optional)
+
+    # ---------------------------------------------------------------------------
+    # WORKOUT LIBRARY SCHEMAS
+    # ---------------------------------------------------------------------------
+    WorkoutLibrary:
+      type: object
+      required:
+        - id
+        - name
+        - is_system
+        - is_default
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Library UUID
+        name:
+          type: string
+          description: Library display name
+        owner_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: User ID of library owner (null for system library)
+        is_system:
+          type: boolean
+          description: Whether this is the system library
+        is_default:
+          type: boolean
+          description: Whether this is the user's default library
+        source_id:
+          type: string
+          nullable: true
+          description: |
+            External source ID for deduplication when importing libraries.
+            Format: `{SOURCE_PREFIX}:{EXTERNAL_ID}` (e.g., `TP:3600970303`)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WorkoutLibrariesResponse:
+      type: object
+      required:
+        - libraries
+        - total
+      properties:
+        libraries:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutLibrary'
+        total:
+          type: integer
+          description: Total number of libraries
+
+    CreateLibraryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Library name (unique per user)
+        source_id:
+          type: string
+          maxLength: 200
+          nullable: true
+          description: |
+            External source ID for deduplication when importing libraries.
+            Format: `{SOURCE_PREFIX}:{EXTERNAL_ID}` (e.g., `TP:3600970303`)
+
+    UpdateLibraryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: New library name (unique per user)
+
+    # ---------------------------------------------------------------------------
+    # WORKOUT SCHEMAS
+    # ---------------------------------------------------------------------------
+    WorkoutLibraryItem:
+      type: object
+      required:
+        - id
+        - name
+        - sport_type
+        - type
+        - intensity
+        - structure
+        - base_duration_min
+        - library_id
+      properties:
+        id:
+          type: string
+          description: Unique workout identifier (NanoID format)
+        name:
+          type: string
+          description: Workout display name
+        detailed_description:
+          type: string
+          nullable: true
+          description: Detailed workout description with instructions
+        sport_type:
+          $ref: '#/components/schemas/SportType'
+        type:
+          type: string
+          description: Workout type (endurance, tempo, threshold, vo2max, etc.)
+        intensity:
+          $ref: '#/components/schemas/WorkoutIntensity'
+        suitable_phases:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TrainingPhase'
+        suitable_weekdays:
+          type: array
+          nullable: true
+          description: Days of week (0=Sunday, 6=Saturday)
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        structure:
+          $ref: '#/components/schemas/WorkoutStructure'
+        base_duration_min:
+          type: integer
+          minimum: 1
+          description: Base duration in minutes
+        base_tss:
+          type: number
+          nullable: true
+          minimum: 0
+          description: Training Stress Score (cycling only)
+        variable_components:
+          nullable: true
+          $ref: '#/components/schemas/VariableComponents'
+        is_public:
+          type: boolean
+          description: Whether workout is publicly visible
+        owner_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: User ID of workout owner (null for system workouts)
+        library_id:
+          type: string
+          format: uuid
+          description: Parent library UUID
+        signature:
+          type: string
+          nullable: true
+          description: SHA-256 hash of structure for duplicate detection (per owner)
+        source_id:
+          type: string
+          nullable: true
+          description: |
+            External source ID for deduplication when importing workouts.
+            Format: `{SOURCE_PREFIX}:{EXTERNAL_ID}` (e.g., `TP:3600970303`)
+        created_at:
+          type: string
+          format: date-time
+
+    WorkoutLibraryResponse:
+      type: object
+      required:
+        - workouts
+        - total
+        - filters_applied
+      properties:
+        workouts:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkoutLibraryItem'
+        total:
+          type: integer
+          description: Total number of workouts matching filters
+        filters_applied:
+          type: object
+          properties:
+            library_id:
+              type: string
+              nullable: true
+            sport_type:
+              type: string
+              nullable: true
+            type:
+              type: array
+              items:
+                type: string
+            intensity:
+              type: array
+              items:
+                type: string
+            phase:
+              type: array
+              items:
+                type: string
+            minDuration:
+              type: integer
+              nullable: true
+            maxDuration:
+              type: integer
+              nullable: true
+            search:
+              type: string
+              nullable: true
+            source_id:
+              type: string
+              nullable: true
+
+    CreateWorkoutRequest:
+      type: object
+      required:
+        - name
+        - sport_type
+        - type
+        - intensity
+        - structure
+        - base_duration_min
+        - library_id
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        detailed_description:
+          type: string
+          maxLength: 2000
+        sport_type:
+          $ref: '#/components/schemas/SportType'
+        type:
+          type: string
+        intensity:
+          $ref: '#/components/schemas/WorkoutIntensity'
+        suitable_phases:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingPhase'
+        suitable_weekdays:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        structure:
+          $ref: '#/components/schemas/WorkoutStructure'
+        base_duration_min:
+          type: integer
+          minimum: 1
+        base_tss:
+          type: number
+          minimum: 0
+        variable_components:
+          $ref: '#/components/schemas/VariableComponents'
+        is_public:
+          type: boolean
+          default: false
+        library_id:
+          type: string
+          format: uuid
+          description: Target library UUID (must be owned by user)
+        source_id:
+          type: string
+          nullable: true
+          description: External source ID for deduplication
+
+    UpdateWorkoutRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        detailed_description:
+          type: string
+          maxLength: 2000
+        type:
+          type: string
+        intensity:
+          $ref: '#/components/schemas/WorkoutIntensity'
+        suitable_phases:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingPhase'
+        suitable_weekdays:
+          type: array
+          items:
+            type: integer
+        structure:
+          $ref: '#/components/schemas/WorkoutStructure'
+        base_duration_min:
+          type: integer
+          minimum: 1
+        base_tss:
+          type: number
+          minimum: 0
+        variable_components:
+          $ref: '#/components/schemas/VariableComponents'
+        is_public:
+          type: boolean
+        source_id:
+          type: string
+          nullable: true
+
+    # ---------------------------------------------------------------------------
+    # WORKOUT STRUCTURE SCHEMAS
+    # ---------------------------------------------------------------------------
+    WorkoutStructure:
+      type: object
+      required:
+        - primaryIntensityMetric
+        - primaryLengthMetric
+        - structure
+      properties:
+        primaryIntensityMetric:
+          type: string
+          enum:
+            - percentOfFtp
+            - watts
+            - heartrate
+            - percentOfThresholdPace
+            - pace
+            - speed
+            - resistance
+          description: Primary metric for workout intensity
+        primaryLengthMetric:
+          type: string
+          enum:
+            - duration
+            - distance
+          description: Primary metric for workout length
+        structure:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/StructuredWorkoutSegment'
+
+    StructuredWorkoutSegment:
+      type: object
+      required:
+        - type
+        - length
+        - steps
+      properties:
+        type:
+          type: string
+          enum:
+            - step
+            - repetition
+          description: |
+            - `step`: Single execution block
+            - `repetition`: Repeated interval block
+        length:
+          $ref: '#/components/schemas/SegmentLength'
+        steps:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/WorkoutStep'
+
+    SegmentLength:
+      type: object
+      required:
+        - unit
+        - value
+      properties:
+        unit:
+          type: string
+          enum:
+            - repetition
+        value:
+          type: integer
+          minimum: 1
+          description: Number of repetitions
+
+    WorkoutStep:
+      type: object
+      required:
+        - name
+        - intensityClass
+        - length
+        - targets
+      properties:
+        name:
+          type: string
+          minLength: 1
+        intensityClass:
+          type: string
+          enum:
+            - warmUp
+            - active
+            - rest
+            - coolDown
+        length:
+          $ref: '#/components/schemas/StepLength'
+        openDuration:
+          type: boolean
+          description: Whether duration is open-ended (lap button press)
+        targets:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/StepTarget'
+
+    StepLength:
+      type: object
+      required:
+        - unit
+        - value
+      properties:
+        unit:
+          type: string
+          enum:
+            - second
+            - minute
+            - hour
+            - meter
+            - kilometer
+            - mile
+            - repetition
+        value:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+
+    StepTarget:
+      type: object
+      required:
+        - type
+        - minValue
+        - maxValue
+      properties:
+        type:
+          type: string
+          enum:
+            - power
+            - heartrate
+            - cadence
+            - pace
+            - speed
+            - strokeRate
+            - resistance
+        minValue:
+          type: number
+          minimum: 0
+        maxValue:
+          type: number
+          minimum: 0
+        unit:
+          type: string
+          enum:
+            # Power units (cycling)
+            - percentOfFtp
+            - watts
+            # Heart rate units (all sports)
+            - bpm
+            - percentOfMaxHr
+            - percentOfThresholdHr
+            # Cadence units
+            - rpm
+            - roundOrStridePerMinute
+            # Pace units (running, swimming)
+            - secondsPerKilometer
+            - secondsPerMile
+            - secondsPer100Meters
+            - secondsPer100Yards
+            # Speed units (running)
+            - kilometersPerHour
+            - milesPerHour
+            # Resistance units (strength)
+            - kilograms
+            - pounds
+            - percentOf1RM
+
+    VariableComponents:
+      type: object
+      required:
+        - adjustable_field
+        - min_value
+        - max_value
+      properties:
+        adjustable_field:
+          type: string
+          enum:
+            - duration
+            - sets
+        min_value:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        max_value:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        tss_per_unit:
+          type: number
+          minimum: 0
+          description: Required when adjustable_field is 'sets'
+        duration_per_unit_min:
+          type: number
+          minimum: 0
+          description: Required when adjustable_field is 'sets'
+
+  # ---------------------------------------------------------------------------
+  # SHARED RESPONSES
+  # ---------------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'Invalid request parameters'
+
+    Unauthorized:
+      description: Unauthorized - Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'Unauthorized'
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'Forbidden: You do not have permission to access this resource'
+
+    NotFound:
+      description: Not Found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'Resource not found'
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'Internal server error'
