@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { CONNECTION_HEALTH_MESSAGES } from '@/utils/uiStrings';
 
 export interface ConnectionHealthSummaryProps {
   isTrainingPeaksAuthenticated: boolean;
@@ -62,7 +63,7 @@ export function ConnectionHealthSummary(
           dot: 'bg-green-500',
           title: 'text-green-900',
           subtitle: 'text-green-800',
-          label: 'All enabled connections authenticated',
+          label: CONNECTION_HEALTH_MESSAGES.ALL_AUTHENTICATED,
         }
       : status === 'yellow'
         ? {
@@ -70,14 +71,14 @@ export function ConnectionHealthSummary(
             dot: 'bg-yellow-500',
             title: 'text-yellow-900',
             subtitle: 'text-yellow-800',
-            label: 'Some enabled connections are not authenticated',
+            label: CONNECTION_HEALTH_MESSAGES.SOME_NOT_AUTHENTICATED,
           }
         : {
             container: 'bg-red-50 border-red-200',
             dot: 'bg-red-500',
             title: 'text-red-900',
             subtitle: 'text-red-800',
-            label: 'No enabled connections authenticated',
+            label: CONNECTION_HEALTH_MESSAGES.NONE_AUTHENTICATED,
           };
 
   return (
@@ -90,8 +91,10 @@ export function ConnectionHealthSummary(
         <div>
           <p className={`text-sm font-semibold ${tone.title}`}>{tone.label}</p>
           <p className={`text-xs ${tone.subtitle}`}>
-            Authenticated {authenticatedCount}/{enabledCount} enabled
-            connections. Manage optional providers in Settings.
+            {CONNECTION_HEALTH_MESSAGES.authenticatedCount(
+              authenticatedCount,
+              enabledCount
+            )}
           </p>
         </div>
       </div>

@@ -8,11 +8,33 @@ import type { ApiResponse } from '@/types/api.types';
 
 // Mock chrome.runtime.sendMessage
 const mockSendMessage = vi.fn();
-global.chrome = {
-  runtime: {
-    sendMessage: mockSendMessage,
-  },
-} as never;
+
+// Extend the global chrome mock from setup.ts instead of replacing it
+if (global.chrome) {
+  global.chrome.runtime.sendMessage = mockSendMessage;
+} else {
+  global.chrome = {
+    runtime: {
+      sendMessage: mockSendMessage,
+      onMessage: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+    },
+    storage: {
+      local: {
+        get: vi.fn(() => Promise.resolve({})),
+        set: vi.fn(() => Promise.resolve()),
+        remove: vi.fn(() => Promise.resolve()),
+        clear: vi.fn(() => Promise.resolve()),
+      },
+      onChanged: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+    },
+  } as never;
+}
 
 describe('LibraryDetails', () => {
   let queryClient: QueryClient;
