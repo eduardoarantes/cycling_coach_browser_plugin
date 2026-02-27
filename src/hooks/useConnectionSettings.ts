@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '@/utils/constants';
+import { parseConnectionSettings } from '@/schemas/storage.schema';
+import { logger } from '@/utils/logger';
 
 interface ConnectionSettings {
   isPlanMyPeakEnabled: boolean;
@@ -11,11 +13,6 @@ interface ConnectionSettings {
   refresh: () => Promise<void>;
 }
 
-interface ConnectionSettingsStorage {
-  [STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK]?: boolean;
-  [STORAGE_KEYS.CONNECTION_ENABLE_INTERVALS]?: boolean;
-}
-
 export function useConnectionSettings(): ConnectionSettings {
   const [isPlanMyPeakEnabled, setIsPlanMyPeakEnabledState] = useState(false);
   const [isIntervalsEnabled, setIsIntervalsEnabledState] = useState(false);
@@ -25,23 +22,25 @@ export function useConnectionSettings(): ConnectionSettings {
   const refresh = useCallback(async () => {
     try {
       setError(null);
-      const data = (await chrome.storage.local.get([
+      const data = await chrome.storage.local.get([
         STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK,
         STORAGE_KEYS.CONNECTION_ENABLE_INTERVALS,
-      ])) as ConnectionSettingsStorage;
+      ]);
 
-      setIsPlanMyPeakEnabledState(
-        data[STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK] === true
-      );
-      setIsIntervalsEnabledState(
-        data[STORAGE_KEYS.CONNECTION_ENABLE_INTERVALS] === true
-      );
+      // Use Zod schema validation with defaults
+      const validated = parseConnectionSettings(data);
+
+      setIsPlanMyPeakEnabledState(validated.isPlanMyPeakEnabled);
+      setIsIntervalsEnabledState(validated.isIntervalsEnabled);
+
+      logger.debug('Connection settings loaded:', validated);
     } catch (refreshError) {
-      setError(
+      const errorMessage =
         refreshError instanceof Error
           ? refreshError.message
-          : 'Failed to load connection settings'
-      );
+          : 'Failed to load connection settings';
+      logger.error('Failed to load connection settings:', refreshError);
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
