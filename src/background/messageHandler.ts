@@ -20,9 +20,21 @@ import type {
   RxBuilderWorkout,
   ApiResponse,
 } from '@/types/api.types';
+import type {
+  PlanMyPeakLibrary,
+  PlanMyPeakWorkoutLibraryItem,
+} from '@/schemas/planMyPeakApi.schema';
+import type {
+  PlanMyPeakCreatePlanNoteRequest,
+  PlanMyPeakCreateTrainingPlanRequest,
+  PlanMyPeakSaveTrainingPlanResponse,
+  PlanMyPeakTrainingPlanNote,
+  PlanMyPeakWorkout,
+} from '@/types/planMyPeak.types';
 import { logger } from '@/utils/logger';
 import {
   API_BASE_URL,
+  MYPEAK_SUPABASE_URL,
   STORAGE_KEYS,
   createApiHeaders,
 } from '@/utils/constants';
@@ -37,6 +49,15 @@ import {
   fetchRxBuilderWorkouts,
 } from './api/trainingPeaks';
 import {
+  fetchPlanMyPeakLibraries,
+  fetchPlanMyPeakWorkoutBySourceId,
+  createPlanMyPeakLibrary,
+  deletePlanMyPeakLibrary,
+  createPlanMyPeakTrainingPlan,
+  createPlanMyPeakTrainingPlanNote,
+  exportWorkoutsToPlanMyPeakLibrary,
+} from './api/planMyPeak';
+import {
   createIntervalsFolder,
   deleteIntervalsFolder,
   findIntervalsLibraryFolderByName,
@@ -48,6 +69,7 @@ import {
   setIntervalsApiKey,
   getIntervalsApiKey,
   hasIntervalsApiKey,
+  clearIntervalsApiKey,
 } from '@/services/intervalsApiKeyService';
 import type {
   IntervalsFolderResponse,
@@ -59,11 +81,14 @@ type MessageResponse =
   | { success: true }
   | { success: false; error: string }
   | { token: string | null; timestamp: number | null }
-  | { valid: boolean; userId?: number }
+  | { valid: boolean; userId?: number | string }
   | { apiKey: string | null }
   | { hasKey: boolean }
   | ApiResponse<UserProfile>
   | ApiResponse<Library[]>
+  | ApiResponse<PlanMyPeakLibrary[]>
+  | ApiResponse<PlanMyPeakWorkoutLibraryItem[]>
+  | ApiResponse<PlanMyPeakWorkoutLibraryItem | null>
   | ApiResponse<LibraryItem[]>
   | ApiResponse<TrainingPlan[]>
   | ApiResponse<PlanWorkout[]>
@@ -73,6 +98,9 @@ type MessageResponse =
   | ApiResponse<IntervalsFolderResponse | null>
   | ApiResponse<IntervalsTrainingPlanExportResult>
   | ApiResponse<IntervalsWorkoutResponse[]>
+  | ApiResponse<PlanMyPeakLibrary>
+  | ApiResponse<PlanMyPeakSaveTrainingPlanResponse>
+  | ApiResponse<PlanMyPeakTrainingPlanNote>
   | ApiResponse<null>;
 
 /**
@@ -106,6 +134,52 @@ async function handleTokenFound(
     );
   } catch (error) {
     logger.error('❌ Failed to store token:', error);
+    throw error;
+  }
+}
+
+/**
+ * Handle MY_PEAK_AUTH_FOUND message from content script
+ *
+ * Stores MyPeak/Supabase auth details observed in browser requests.
+ * `apiKey` may be captured before an authenticated user token, so both fields
+ * are stored independently and only updated when present.
+ */
+async function handleMyPeakAuthFound(
+  token: string | null | undefined,
+  apiKey: string | null | undefined,
+  timestamp: number
+): Promise<void> {
+  try {
+    const payload: Record<string, string | number> = {};
+
+    if (typeof apiKey === 'string' && apiKey.length > 0) {
+      payload[STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY] = apiKey;
+      logger.info(
+        '🔐 Stored MyPeak Supabase API key from browser request, length:',
+        apiKey.length
+      );
+    }
+
+    if (typeof token === 'string' && token.length > 0) {
+      payload[STORAGE_KEYS.MYPEAK_AUTH_TOKEN] = token;
+      payload[STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP] = timestamp;
+      logger.info('🎫 Stored MyPeak auth token, length:', token.length);
+      logger.info(
+        '📅 MyPeak token timestamp:',
+        new Date(timestamp).toISOString()
+      );
+    }
+
+    if (Object.keys(payload).length === 0) {
+      logger.debug('No MyPeak auth fields to store (message ignored)');
+      return;
+    }
+
+    await chrome.storage.local.set(payload);
+    logger.info('✅ MyPeak auth details stored successfully');
+  } catch (error) {
+    logger.error('❌ Failed to store MyPeak auth details:', error);
     throw error;
   }
 }
@@ -248,6 +322,80 @@ async function handleValidateToken(): Promise<{
 }
 
 /**
+ * Handle VALIDATE_MY_PEAK_TOKEN message from popup
+ *
+ * Validates MyPeak auth by calling the local Supabase user endpoint.
+ * Requires both a captured user access token and Supabase anon API key.
+ */
+async function handleValidateMyPeakToken(): Promise<{
+  valid: boolean;
+  userId?: string;
+}> {
+  try {
+    logger.debug('Starting MyPeak/Supabase token validation...');
+
+    const data = await chrome.storage.local.get([
+      STORAGE_KEYS.MYPEAK_AUTH_TOKEN,
+      STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY,
+    ]);
+
+    const token = data[STORAGE_KEYS.MYPEAK_AUTH_TOKEN] as string | undefined;
+    const apiKey = data[STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY] as
+      | string
+      | undefined;
+
+    if (!token) {
+      logger.debug('No MyPeak auth token to validate');
+      return { valid: false };
+    }
+
+    if (!apiKey) {
+      logger.debug('No MyPeak Supabase API key captured yet');
+      return { valid: false };
+    }
+
+    const endpoint = `${MYPEAK_SUPABASE_URL}/auth/v1/user`;
+    logger.debug('Validating MyPeak token via Supabase endpoint:', endpoint);
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        authorization: `Bearer ${token}`,
+        apikey: apiKey,
+      },
+    });
+
+    if (response.ok) {
+      const user = (await response.json()) as { id?: string };
+      logger.info('MyPeak token is valid, Supabase user:', user?.id);
+      return { valid: true, userId: user?.id };
+    }
+
+    const errorText = await response.text();
+    logger.warn(
+      'MyPeak token validation failed - Status:',
+      response.status,
+      'Response:',
+      errorText
+    );
+
+    if (response.status === 401) {
+      await chrome.storage.local.remove([
+        STORAGE_KEYS.MYPEAK_AUTH_TOKEN,
+        STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP,
+      ]);
+      logger.warn('Cleared MyPeak auth token after VALIDATE_MY_PEAK_TOKEN 401');
+    }
+
+    return { valid: false };
+  } catch (error) {
+    logger.error('Error validating MyPeak token:', error);
+    return { valid: false };
+  }
+}
+
+/**
  * Handle GET_USER message from popup
  * Fetches user profile from TrainingPeaks API
  */
@@ -263,6 +411,105 @@ async function handleGetUser(): Promise<ApiResponse<UserProfile>> {
 async function handleGetLibraries(): Promise<ApiResponse<Library[]>> {
   logger.debug('Handling GET_LIBRARIES message');
   return await fetchLibraries();
+}
+
+/**
+ * Handle GET_PLANMYPEAK_LIBRARIES message from popup
+ * Fetches workout libraries from PlanMyPeak API
+ */
+async function handleGetPlanMyPeakLibraries(): Promise<
+  ApiResponse<PlanMyPeakLibrary[]>
+> {
+  logger.debug('Handling GET_PLANMYPEAK_LIBRARIES message');
+  return await fetchPlanMyPeakLibraries();
+}
+
+/**
+ * Handle CREATE_PLANMYPEAK_LIBRARY message from popup
+ * Creates a workout library in PlanMyPeak
+ */
+async function handleCreatePlanMyPeakLibrary(
+  name: string,
+  sourceId?: string | null
+): Promise<ApiResponse<PlanMyPeakLibrary>> {
+  logger.debug('Handling CREATE_PLANMYPEAK_LIBRARY message:', name);
+  return await createPlanMyPeakLibrary(name, sourceId);
+}
+
+/**
+ * Handle DELETE_PLANMYPEAK_LIBRARY message from popup
+ * Deletes a workout library in PlanMyPeak
+ */
+async function handleDeletePlanMyPeakLibrary(
+  libraryId: string
+): Promise<ApiResponse<null>> {
+  logger.debug('Handling DELETE_PLANMYPEAK_LIBRARY message:', libraryId);
+  return await deletePlanMyPeakLibrary(libraryId);
+}
+
+/**
+ * Handle EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message from popup
+ * Uploads transformed workouts to a PlanMyPeak library
+ */
+async function handleExportWorkoutsToPlanMyPeakLibrary(
+  workouts: PlanMyPeakWorkout[],
+  libraryId: string
+): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
+  logger.debug(
+    'Handling EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message:',
+    workouts.length,
+    'workouts -> library',
+    libraryId
+  );
+  return await exportWorkoutsToPlanMyPeakLibrary(workouts, libraryId);
+}
+
+/**
+ * Handle GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID message from popup
+ * Finds a PlanMyPeak workout by source_id (optionally constrained to a library)
+ */
+async function handleGetPlanMyPeakWorkoutBySourceId(
+  sourceId: string,
+  libraryId?: string
+): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem | null>> {
+  logger.debug(
+    'Handling GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID message:',
+    sourceId,
+    'library:',
+    libraryId ?? '(any)'
+  );
+  return await fetchPlanMyPeakWorkoutBySourceId(sourceId, libraryId);
+}
+
+/**
+ * Handle CREATE_PLANMYPEAK_TRAINING_PLAN message from popup
+ * Creates a training plan template in PlanMyPeak
+ */
+async function handleCreatePlanMyPeakTrainingPlan(
+  payload: PlanMyPeakCreateTrainingPlanRequest
+): Promise<ApiResponse<PlanMyPeakSaveTrainingPlanResponse>> {
+  logger.debug(
+    'Handling CREATE_PLANMYPEAK_TRAINING_PLAN message:',
+    payload.metadata.name
+  );
+  return await createPlanMyPeakTrainingPlan(payload);
+}
+
+/**
+ * Handle CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE message from popup
+ * Adds a note to a specific week/day in a PlanMyPeak training plan
+ */
+async function handleCreatePlanMyPeakTrainingPlanNote(
+  planId: string,
+  payload: PlanMyPeakCreatePlanNoteRequest
+): Promise<ApiResponse<PlanMyPeakTrainingPlanNote>> {
+  logger.debug(
+    'Handling CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE message:',
+    planId,
+    payload.week_number,
+    payload.day_of_week
+  );
+  return await createPlanMyPeakTrainingPlanNote(planId, payload);
 }
 
 /**
@@ -470,6 +717,15 @@ async function handleHasIntervalsApiKey(): Promise<{ hasKey: boolean }> {
 }
 
 /**
+ * Handle CLEAR_INTERVALS_API_KEY message from popup
+ * Removes Intervals.icu API key from chrome.storage
+ */
+async function handleClearIntervalsApiKey(): Promise<{ success: true }> {
+  await clearIntervalsApiKey();
+  return { success: true };
+}
+
+/**
  * Main message router
  */
 export async function handleMessage(
@@ -483,6 +739,14 @@ export async function handleMessage(
       await handleTokenFound(message.token, message.timestamp);
       return { success: true };
 
+    case 'MY_PEAK_AUTH_FOUND':
+      await handleMyPeakAuthFound(
+        message.token,
+        message.apiKey,
+        message.timestamp
+      );
+      return { success: true };
+
     case 'GET_TOKEN':
       return await handleGetToken();
 
@@ -493,11 +757,47 @@ export async function handleMessage(
     case 'VALIDATE_TOKEN':
       return await handleValidateToken();
 
+    case 'VALIDATE_MY_PEAK_TOKEN':
+      return await handleValidateMyPeakToken();
+
     case 'GET_USER':
       return await handleGetUser();
 
     case 'GET_LIBRARIES':
       return await handleGetLibraries();
+
+    case 'GET_PLANMYPEAK_LIBRARIES':
+      return await handleGetPlanMyPeakLibraries();
+
+    case 'CREATE_PLANMYPEAK_LIBRARY':
+      return await handleCreatePlanMyPeakLibrary(
+        message.name,
+        message.sourceId
+      );
+
+    case 'DELETE_PLANMYPEAK_LIBRARY':
+      return await handleDeletePlanMyPeakLibrary(message.libraryId);
+
+    case 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY':
+      return await handleExportWorkoutsToPlanMyPeakLibrary(
+        message.workouts,
+        message.libraryId
+      );
+
+    case 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID':
+      return await handleGetPlanMyPeakWorkoutBySourceId(
+        message.sourceId,
+        message.libraryId
+      );
+
+    case 'CREATE_PLANMYPEAK_TRAINING_PLAN':
+      return await handleCreatePlanMyPeakTrainingPlan(message.payload);
+
+    case 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE':
+      return await handleCreatePlanMyPeakTrainingPlanNote(
+        message.planId,
+        message.payload
+      );
 
     case 'GET_LIBRARY_ITEMS':
       return await handleGetLibraryItems(message.libraryId);
@@ -561,6 +861,9 @@ export async function handleMessage(
 
     case 'HAS_INTERVALS_API_KEY':
       return await handleHasIntervalsApiKey();
+
+    case 'CLEAR_INTERVALS_API_KEY':
+      return await handleClearIntervalsApiKey();
 
     default:
       logger.warn('Unknown message type received');

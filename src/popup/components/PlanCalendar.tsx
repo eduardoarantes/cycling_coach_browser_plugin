@@ -38,6 +38,7 @@ import type {
 import type { ExportResult as ExportResultType } from '@/export/adapters/base';
 import type { ExportDestination } from '@/types/export.types';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import { exportTrainingPlanClassicWorkoutsToPlanMyPeak } from '@/export/adapters/planMyPeak';
 import type {
   IntervalsIcuExportConfig,
   IntervalsPlanConflictAction,
@@ -134,21 +135,25 @@ function createInitialTrainingPlanExportProgressState(
   classicCount: number,
   rxCount: number,
   notesCount: number,
-  eventsCount: number
+  eventsCount: number,
+  folderStepCount = 1
 ): TrainingPlanExportProgressViewState {
+  const overallTotal =
+    folderStepCount + classicCount + rxCount + notesCount + eventsCount;
+
   return {
     exportId,
     overallCurrent: 0,
-    overallTotal: 1 + classicCount + rxCount + notesCount + eventsCount,
+    overallTotal,
     currentPhaseLabel: 'Preparing export',
     currentPhaseCurrent: 0,
-    currentPhaseTotal: 1 + classicCount + rxCount + notesCount + eventsCount,
+    currentPhaseTotal: overallTotal,
     phases: {
       folder: {
         label: getTrainingPlanExportPhaseLabel('folder'),
         status: 'pending',
         current: 0,
-        total: 1,
+        total: folderStepCount,
       },
       classicWorkouts: {
         label: getTrainingPlanExportPhaseLabel('classicWorkouts'),
@@ -190,7 +195,10 @@ function applyTrainingPlanExportProgressUpdate(
     ...previous,
     overallCurrent: update.overallCurrent,
     overallTotal: update.overallTotal,
-    currentPhaseLabel: getTrainingPlanExportPhaseLabel(update.phase),
+    currentPhaseLabel:
+      update.status === 'failed'
+        ? 'Failed'
+        : getTrainingPlanExportPhaseLabel(update.phase),
     currentPhaseCurrent: update.current,
     currentPhaseTotal: update.total,
     currentItemName: update.itemName,
@@ -609,21 +617,92 @@ export function PlanCalendar({
     }
   };
 
+  const handleExportToPlanMyPeak = async (
+    config: PlanMyPeakExportConfig
+  ): Promise<void> => {
+    if (!selectedTrainingPlan) {
+      setIsExportDialogOpen(false);
+      setExportResult({
+        success: false,
+        fileName: 'planmypeak_training_plan_export',
+        format: 'api',
+        itemsExported: 0,
+        warnings: [],
+        errors: [
+          'Training plan metadata is not loaded yet. Please try again in a moment.',
+        ],
+      });
+      return;
+    }
+
+    const classic = classicWorkouts || [];
+    const planNotes = notes || [];
+    const targetPlanName =
+      selectedTrainingPlan.title || planName || `Training Plan ${planId}`;
+    const exportId = createTrainingPlanExportId();
+
+    activeTrainingPlanExportIdRef.current = exportId;
+    setTrainingPlanExportProgress(
+      createInitialTrainingPlanExportProgressState(
+        exportId,
+        classic.length,
+        0,
+        planNotes.length,
+        0,
+        2
+      )
+    );
+
+    setIsExportingToIntervals(true);
+
+    try {
+      logger.info(
+        '📤 Exporting TP training plan classic workouts to PlanMyPeak library:',
+        planId,
+        targetPlanName,
+        'classic workouts:',
+        classic.length
+      );
+
+      const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+        trainingPlan: selectedTrainingPlan,
+        workouts: classic,
+        notes: planNotes,
+        config,
+        onProgress: (update) => {
+          setTrainingPlanExportProgress((previous) =>
+            applyTrainingPlanExportProgressUpdate(previous, update)
+          );
+        },
+      });
+
+      setExportResult(result);
+    } catch (error) {
+      logger.error('Failed to export training plan to PlanMyPeak:', error);
+      setExportResult({
+        success: false,
+        fileName: targetPlanName,
+        format: 'api',
+        itemsExported: 0,
+        warnings: [],
+        errors: [
+          error instanceof Error ? error.message : 'Unknown export error',
+        ],
+      });
+    } finally {
+      setIsExportingToIntervals(false);
+      activeTrainingPlanExportIdRef.current = null;
+      setTrainingPlanExportProgress(null);
+      setIsExportDialogOpen(false);
+    }
+  };
+
   const handleExportFromDialog = async (
     config: PlanExportDialogConfig,
     destination: ExportDestination
   ): Promise<void> => {
     if (destination === 'planmypeak') {
-      const pmpConfig = config as PlanMyPeakExportConfig;
-      handleDownload(pmpConfig.fileName || undefined);
-      setIsExportDialogOpen(false);
-      setExportResult({
-        success: true,
-        fileName: `${(pmpConfig.fileName || 'training_plan_export').trim() || 'training_plan_export'}.json`,
-        format: 'json',
-        itemsExported: (classicWorkouts || []).length,
-        warnings: [],
-      });
+      await handleExportToPlanMyPeak(config as PlanMyPeakExportConfig);
       return;
     }
 

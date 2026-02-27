@@ -16,7 +16,7 @@ export const EXPORT_DESTINATIONS: ExportDestinationInfo[] = [
   {
     id: 'planmypeak',
     name: 'PlanMyPeak',
-    description: 'Export to PlanMyPeak JSON format',
+    description: 'Direct upload to PlanMyPeak workout library via API',
     icon: '🚴',
     available: true,
   },

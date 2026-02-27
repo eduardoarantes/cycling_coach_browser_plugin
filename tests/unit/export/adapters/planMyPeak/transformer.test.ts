@@ -61,13 +61,21 @@ describe('transformToPlanMyPeak', () => {
       );
     });
 
-    it('should use description as detailed_description', () => {
+    it('should merge description and coachComments into detailed_description', () => {
       const result = transformToPlanMyPeak(baseLibraryItem, defaultConfig);
-      expect(result.detailed_description).toBe('Test workout description');
+      expect(result.detailed_description).toBe(
+        'Test workout description\n\nPre workout comments:\nCoach comments here'
+      );
     });
 
     it('should use coachComments if description is null', () => {
       const item = { ...baseLibraryItem, description: null };
+      const result = transformToPlanMyPeak(item, defaultConfig);
+      expect(result.detailed_description).toBe('Coach comments here');
+    });
+
+    it('should ignore blank description and use coachComments', () => {
+      const item = { ...baseLibraryItem, description: '   ' };
       const result = transformToPlanMyPeak(item, defaultConfig);
       expect(result.detailed_description).toBe('Coach comments here');
     });
@@ -112,10 +120,10 @@ describe('transformToPlanMyPeak', () => {
       expect(result.type).toBe('threshold');
     });
 
-    it('should infer tempo for IF >= 0.85', () => {
+    it('should infer sweet_spot for IF >= 0.88', () => {
       const item = { ...baseLibraryItem, ifPlanned: 0.88 };
       const result = transformToPlanMyPeak(item, defaultConfig);
-      expect(result.type).toBe('tempo');
+      expect(result.type).toBe('sweet_spot');
     });
 
     it('should infer endurance for IF >= 0.7', () => {
@@ -162,10 +170,10 @@ describe('transformToPlanMyPeak', () => {
       expect(result.intensity).toBe('easy');
     });
 
-    it('should infer very_easy for low IF', () => {
+    it('should infer easy for low IF', () => {
       const item = { ...baseLibraryItem, ifPlanned: 0.6 };
       const result = transformToPlanMyPeak(item, defaultConfig);
-      expect(result.intensity).toBe('very_easy');
+      expect(result.intensity).toBe('easy');
     });
 
     it('should use config default intensity if provided', () => {
@@ -194,10 +202,10 @@ describe('transformToPlanMyPeak', () => {
       expect(result.suitable_phases).toEqual(['Base', 'Build']);
     });
 
-    it('should assign Recovery for recovery workouts', () => {
+    it('should assign Recovery and Taper for recovery workouts', () => {
       const item = { ...baseLibraryItem, ifPlanned: 0.6 };
       const result = transformToPlanMyPeak(item, defaultConfig);
-      expect(result.suitable_phases).toEqual(['Recovery']);
+      expect(result.suitable_phases).toEqual(['Recovery', 'Taper']);
     });
 
     it('should use config default phases if provided', () => {

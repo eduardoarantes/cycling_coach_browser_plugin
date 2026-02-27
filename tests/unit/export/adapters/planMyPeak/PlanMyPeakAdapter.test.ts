@@ -1,10 +1,81 @@
 /**
  * Unit tests for PlanMyPeak Adapter
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PlanMyPeakAdapter } from '@/export/adapters/planMyPeak/PlanMyPeakAdapter';
 import type { LibraryItem } from '@/types';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
+
+function createLibrary(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    owner_id: string | null;
+    is_system: boolean;
+    is_default: boolean;
+    source_id: string | null;
+    created_at: string;
+    updated_at: string;
+  }> = {}
+): {
+  id: string;
+  name: string;
+  owner_id: string | null;
+  is_system: boolean;
+  is_default: boolean;
+  source_id: string | null;
+  created_at: string;
+  updated_at: string;
+} {
+  return {
+    id: 'lib-default',
+    name: 'TrainingPeaks Library',
+    owner_id: 'user-1',
+    is_system: false,
+    is_default: true,
+    source_id: null,
+    created_at: '2026-02-27T00:00:00.000Z',
+    updated_at: '2026-02-27T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function createUploadedWorkout(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    type: string;
+    intensity: string;
+    structure: unknown;
+    base_duration_min: number;
+    base_tss: number;
+    library_id: string;
+    source_id: string | null;
+  }> = {}
+): {
+  id: string;
+  name: string;
+  type: string;
+  intensity: string;
+  structure: unknown;
+  base_duration_min: number;
+  base_tss: number;
+  library_id: string;
+  source_id: string | null;
+} {
+  return {
+    id: 'wk-1',
+    name: 'Test Workout',
+    type: 'tempo',
+    intensity: 'moderate',
+    structure: {},
+    base_duration_min: 60,
+    base_tss: 50,
+    library_id: 'lib-default',
+    source_id: null,
+    ...overrides,
+  };
+}
 
 describe('PlanMyPeakAdapter', () => {
   let adapter: PlanMyPeakAdapter;
@@ -27,8 +98,8 @@ describe('PlanMyPeakAdapter', () => {
       expect(adapter.description).toContain('PlanMyPeak');
     });
 
-    it('should support json format', () => {
-      expect(adapter.supportedFormats).toContain('json');
+    it('should support api format', () => {
+      expect(adapter.supportedFormats).toContain('api');
     });
 
     it('should have an icon', () => {
@@ -82,6 +153,7 @@ describe('PlanMyPeakAdapter', () => {
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('Test Workout');
       expect(result[0].id).toBeTruthy();
+      expect(result[0].sport_type).toBe('cycling');
     });
 
     it('should transform multiple workouts', async () => {
@@ -126,6 +198,7 @@ describe('PlanMyPeakAdapter', () => {
       id: 'test123',
       name: 'Test Workout',
       detailed_description: 'Description',
+      sport_type: 'cycling',
       type: 'tempo',
       intensity: 'moderate',
       suitable_phases: ['Base', 'Build'],
@@ -256,6 +329,7 @@ describe('PlanMyPeakAdapter', () => {
       id: 'test123',
       name: 'Test Workout',
       detailed_description: 'Description',
+      sport_type: 'cycling',
       type: 'tempo',
       intensity: 'moderate',
       suitable_phases: ['Base', 'Build'],
@@ -294,66 +368,228 @@ describe('PlanMyPeakAdapter', () => {
       signature: '1234567890abcdef',
     };
 
-    it('should export workouts to JSON file', async () => {
+    it('should export workouts to PlanMyPeak API library', async () => {
+      const library = createLibrary();
+
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: [library] };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return { success: true, data: [createUploadedWorkout()] };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
       const result = await adapter.export([mockWorkout], {});
 
       expect(result.success).toBe(true);
-      expect(result.fileUrl).toBeTruthy();
-      expect(result.fileName).toMatch(/\.json$/);
-      expect(result.format).toBe('json');
+      expect(result.fileName).toBe('TrainingPeaks Library');
+      expect(result.format).toBe('api');
       expect(result.itemsExported).toBe(1);
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
+          libraryId: 'lib-default',
+        })
+      );
     });
 
-    it('should use custom file name', async () => {
+    it('should create target library when no matching library exists', async () => {
+      const createdLibrary = createLibrary({
+        id: 'lib-new',
+        name: 'My Export Library',
+        is_default: false,
+      });
+
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: [] };
+          }
+
+          if (typed.type === 'CREATE_PLANMYPEAK_LIBRARY') {
+            return { success: true, data: createdLibrary };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return {
+              success: true,
+              data: [
+                createUploadedWorkout({
+                  library_id: 'lib-new',
+                }),
+              ],
+            };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
       const result = await adapter.export([mockWorkout], {
-        fileName: 'my_workouts',
+        targetLibraryName: 'My Export Library',
       });
 
       expect(result.success).toBe(true);
-      expect(result.fileName).toBe('my_workouts.json');
+      expect(result.fileName).toBe('My Export Library');
+      expect(result.format).toBe('api');
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'CREATE_PLANMYPEAK_LIBRARY',
+          name: 'My Export Library',
+        })
+      );
     });
 
-    it('should add .json extension if not present', async () => {
-      const result = await adapter.export([mockWorkout], {
-        fileName: 'my_workouts',
-      });
-
-      expect(result.fileName).toBe('my_workouts.json');
-    });
-
-    it('should not duplicate .json extension', async () => {
-      const result = await adapter.export([mockWorkout], {
-        fileName: 'my_workouts.json',
-      });
-
-      expect(result.fileName).toBe('my_workouts.json');
-      expect(result.fileName).not.toBe('my_workouts.json.json');
-    });
-
-    it('should export multiple workouts', async () => {
-      const workouts = [
-        mockWorkout,
-        { ...mockWorkout, id: 'test456', name: 'Workout 2' },
+    it('should use explicit targetLibraryId when provided', async () => {
+      const libraries = [
+        createLibrary({
+          id: 'lib-default',
+          name: 'TrainingPeaks Library',
+        }),
+        createLibrary({
+          id: 'lib-target',
+          name: 'Target Library',
+          is_default: false,
+        }),
       ];
 
-      const result = await adapter.export(workouts, {});
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: libraries };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return {
+              success: true,
+              data: [
+                createUploadedWorkout({
+                  library_id: typed.libraryId as string,
+                }),
+              ],
+            };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
+      const result = await adapter.export([mockWorkout], {
+        targetLibraryId: 'lib-target',
+      });
 
       expect(result.success).toBe(true);
-      expect(result.itemsExported).toBe(2);
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
+          libraryId: 'lib-target',
+        })
+      );
     });
 
-    it('should create downloadable blob URL', async () => {
+    it('should return failed export result when upload fails', async () => {
+      const library = createLibrary();
+
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: [library] };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return {
+              success: false,
+              error: { message: 'Upload failed' },
+            };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
       const result = await adapter.export([mockWorkout], {});
 
-      expect(result.fileUrl).toBeTruthy();
-      expect(result.fileUrl).toMatch(/^blob:/);
+      expect(result.success).toBe(false);
+      expect(result.fileName).toBe('TrainingPeaks Library');
+      expect(result.itemsExported).toBe(0);
+      expect(result.errors).toContain('Upload failed');
     });
 
-    it('should include warnings in export result', async () => {
+    it('should include transform warnings in export result', async () => {
+      const library = createLibrary();
+      const unsupportedItem: LibraryItem = {
+        exerciseLibraryId: 2550514,
+        exerciseLibraryItemId: 777,
+        exerciseLibraryItemType: 'WorkoutTemplate',
+        itemName: 'Unsupported Strength Workout',
+        workoutTypeId: 5,
+        distancePlanned: null,
+        totalTimePlanned: 1.0,
+        caloriesPlanned: null,
+        tssPlanned: 50,
+        ifPlanned: 0.75,
+        velocityPlanned: null,
+        energyPlanned: null,
+        elevationGainPlanned: null,
+        description: null,
+        coachComments: null,
+        structure: null,
+      };
+
+      // Populate lastTransformWarnings with an unsupported TP workout.
+      const transformed = await adapter.transform([unsupportedItem], {});
+      expect(transformed).toHaveLength(0);
+
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: [library] };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return { success: true, data: [createUploadedWorkout()] };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
       const result = await adapter.export([mockWorkout], {});
 
-      expect(result.warnings).toBeDefined();
-      expect(Array.isArray(result.warnings)).toBe(true);
+      expect(result.success).toBe(true);
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0].message).toContain('Skipped');
     });
   });
 
@@ -398,6 +634,25 @@ describe('PlanMyPeakAdapter', () => {
         },
       };
 
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: [createLibrary()] };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return { success: true, data: [createUploadedWorkout()] };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
       // Transform
       const workouts = await adapter.transform([mockItem], {});
       expect(workouts).toHaveLength(1);
@@ -407,13 +662,11 @@ describe('PlanMyPeakAdapter', () => {
       expect(validation.isValid).toBe(true);
 
       // Export
-      const exportResult = await adapter.export(workouts, {
-        fileName: 'e2e_test',
-      });
+      const exportResult = await adapter.export(workouts, {});
 
       expect(exportResult.success).toBe(true);
-      expect(exportResult.fileUrl).toBeTruthy();
-      expect(exportResult.fileName).toBe('e2e_test.json');
+      expect(exportResult.fileName).toBe('TrainingPeaks Library');
+      expect(exportResult.format).toBe('api');
       expect(exportResult.itemsExported).toBe(1);
     });
   });

@@ -16,7 +16,38 @@ window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   if (!event.data || event.data.source !== 'trainingpeaks-extension-main')
     return;
-  if (event.data.type !== 'TP_TOKEN_FOUND') return;
+  if (
+    event.data.type !== 'TP_TOKEN_FOUND' &&
+    event.data.type !== 'MY_PEAK_AUTH_FOUND'
+  )
+    return;
+
+  if (event.data.type === 'MY_PEAK_AUTH_FOUND') {
+    console.log(
+      '[TP Extension - ISOLATED World] 📨 Received MyPeak auth details from MAIN world'
+    );
+
+    chrome.runtime
+      .sendMessage({
+        type: 'MY_PEAK_AUTH_FOUND',
+        token: event.data.token ?? null,
+        apiKey: event.data.apiKey ?? null,
+        timestamp: event.data.timestamp,
+      })
+      .then(() => {
+        console.log(
+          '[TP Extension - ISOLATED World] ✅ MyPeak auth details sent to background successfully'
+        );
+      })
+      .catch((error) => {
+        console.error(
+          '[TP Extension - ISOLATED World] ❌ Failed to send MyPeak auth details to background:',
+          error
+        );
+      });
+
+    return;
+  }
 
   console.log(
     '[TP Extension - ISOLATED World] 📨 Received token from MAIN world'

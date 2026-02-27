@@ -25,7 +25,7 @@ The PlanMyPeak export adapter transforms TrainingPeaks workout data into the Pla
 | ----------------------- | ---------------------- | ---------------------------------------- |
 | `exerciseLibraryItemId` | `id`                   | Converted to base-36 string              |
 | `itemName`              | `name`                 | Direct copy                              |
-| `description`           | `detailed_description` | Direct copy (or `coachComments` if null) |
+| `description`           | `detailed_description` | Merged with `coachComments` when present |
 | `tssPlanned`            | `base_tss`             | Direct copy                              |
 | `totalTimePlanned`      | `base_duration_min`    | Converted from hours to minutes          |
 | `ifPlanned`             | `type`, `intensity`    | Inferred from IF value                   |

@@ -4,6 +4,7 @@
  * Displays the result of an export operation with success/error messages
  */
 import type { ReactElement } from 'react';
+import { useEffect, useState } from 'react';
 import type { ExportResult as ExportResultType } from '@/export/adapters/base';
 
 interface ExportResultProps {
@@ -17,6 +18,20 @@ export function ExportResult({
   result,
   onClose,
 }: ExportResultProps): ReactElement {
+  const [showAllWarnings, setShowAllWarnings] = useState(false);
+  const [showAllErrors, setShowAllErrors] = useState(false);
+
+  useEffect(() => {
+    setShowAllWarnings(false);
+    setShowAllErrors(false);
+  }, [result]);
+
+  const displayedWarnings = showAllWarnings
+    ? result.warnings
+    : result.warnings.slice(0, 3);
+  const allErrors = result.errors ?? [];
+  const displayedErrors = showAllErrors ? allErrors : allErrors.slice(0, 5);
+
   const handleDownload = (): void => {
     if (result.fileUrl) {
       const link = document.createElement('a');
@@ -131,16 +146,30 @@ export function ExportResult({
                         {result.warnings.length} Warning
                         {result.warnings.length !== 1 ? 's' : ''}
                       </p>
-                      <ul className="text-xs text-yellow-700 space-y-1">
-                        {result.warnings.slice(0, 3).map((warning, index) => (
-                          <li key={index}>• {warning.message}</li>
-                        ))}
-                        {result.warnings.length > 3 && (
-                          <li className="text-yellow-600">
-                            ... and {result.warnings.length - 3} more
-                          </li>
-                        )}
-                      </ul>
+                      <div
+                        className={
+                          showAllWarnings ? 'max-h-56 overflow-y-auto pr-1' : ''
+                        }
+                      >
+                        <ul className="text-xs text-yellow-700 space-y-1">
+                          {displayedWarnings.map((warning, index) => (
+                            <li key={index}>• {warning.message}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      {result.warnings.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowAllWarnings((previous) => !previous)
+                          }
+                          className="mt-2 text-xs font-medium text-yellow-800 hover:text-yellow-900 underline underline-offset-2"
+                        >
+                          {showAllWarnings
+                            ? 'Show fewer warnings'
+                            : `Show all ${result.warnings.length} warnings`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -190,11 +219,30 @@ export function ExportResult({
                       <p className="text-sm font-medium text-red-800 mb-1">
                         Export Errors
                       </p>
-                      <ul className="text-xs text-red-700 space-y-1">
-                        {result.errors.map((error, index) => (
-                          <li key={index}>• {error}</li>
-                        ))}
-                      </ul>
+                      <div
+                        className={
+                          showAllErrors ? 'max-h-56 overflow-y-auto pr-1' : ''
+                        }
+                      >
+                        <ul className="text-xs text-red-700 space-y-1">
+                          {displayedErrors.map((error, index) => (
+                            <li key={index}>• {error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      {allErrors.length > 5 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowAllErrors((previous) => !previous)
+                          }
+                          className="mt-2 text-xs font-medium text-red-800 hover:text-red-900 underline underline-offset-2"
+                        >
+                          {showAllErrors
+                            ? 'Show fewer errors'
+                            : `Show all ${allErrors.length} errors`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
