@@ -52,7 +52,11 @@ function createSingleLibraryDetailedProgress(
   const transformLabel =
     destination === 'intervalsicu' ? 'Upload Workouts' : 'Transform Workouts';
   const finalizeLabel =
-    destination === 'intervalsicu' ? 'Finalize Export' : 'Generate File';
+    destination === 'intervalsicu'
+      ? 'Finalize Export'
+      : destination === 'planmypeak'
+        ? 'Upload Workouts'
+        : 'Generate File';
 
   return {
     overallCurrent: 0,
@@ -248,8 +252,8 @@ export function useExport(items: LibraryItem[]): UseExportReturn {
             logger.error('[useExport] Validation failed:', validation.errors);
             setExportResult({
               success: false,
-              fileName: pmpConfig.fileName || 'export.json',
-              format: 'json',
+              fileName: pmpConfig.targetLibraryName || 'PlanMyPeak Library',
+              format: 'api',
               itemsExported: 0,
               warnings: validation.warnings,
               errors: validation.errors.map((e) => e.message),
@@ -273,7 +277,7 @@ export function useExport(items: LibraryItem[]): UseExportReturn {
           }
 
           // Step 3: Export
-          setStatusMessage('Generating file...');
+          setStatusMessage('Uploading workouts to PlanMyPeak...');
           setProgress(80);
           setDetailedProgress((prev) =>
             updateDetailedPhase(prev, {
@@ -281,7 +285,7 @@ export function useExport(items: LibraryItem[]): UseExportReturn {
               phaseStatus: 'completed',
               phaseCurrent: 1,
               overallCurrent: 2,
-              currentPhaseLabel: 'Generating file',
+              currentPhaseLabel: 'Uploading workouts to PlanMyPeak',
               currentPhaseCurrent: 0,
               currentPhaseTotal: 1,
             })
@@ -289,6 +293,7 @@ export function useExport(items: LibraryItem[]): UseExportReturn {
           setDetailedProgress((prev) =>
             updateDetailedPhase(prev, {
               phaseId: 'finalize',
+              phaseLabel: 'Upload Workouts',
               phaseStatus: 'progress',
               phaseCurrent: 0,
             })
@@ -437,7 +442,7 @@ export function useExport(items: LibraryItem[]): UseExportReturn {
         setExportResult({
           success: false,
           fileName: config.fileName || 'export',
-          format: destination === 'planmypeak' ? 'json' : 'api',
+          format: 'api',
           itemsExported: 0,
           warnings: [],
           errors: [

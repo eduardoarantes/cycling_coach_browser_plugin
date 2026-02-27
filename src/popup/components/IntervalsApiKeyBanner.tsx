@@ -8,6 +8,7 @@
 import type { ReactElement } from 'react';
 import { useState, useEffect } from 'react';
 import type {
+  ClearIntervalsApiKeyMessage,
   SetIntervalsApiKeyMessage,
   HasIntervalsApiKeyMessage,
 } from '@/types';
@@ -43,6 +44,22 @@ async function saveApiKey(apiKey: string): Promise<void> {
 
   if (!response.success) {
     throw new Error(response.error || 'Failed to save API key');
+  }
+}
+
+/**
+ * Remove Intervals.icu API key from storage
+ */
+async function clearApiKey(): Promise<void> {
+  const response = await chrome.runtime.sendMessage<
+    ClearIntervalsApiKeyMessage,
+    { success: boolean; error?: string }
+  >({
+    type: 'CLEAR_INTERVALS_API_KEY',
+  });
+
+  if (!response.success) {
+    throw new Error(response.error || 'Failed to clear API key');
   }
 }
 
@@ -99,7 +116,7 @@ export function IntervalsApiKeyBanner(): ReactElement {
     setError(null);
 
     try {
-      await saveApiKey('');
+      await clearApiKey();
       setHasKey(false);
       setApiKey('');
       setSuccess(false);
