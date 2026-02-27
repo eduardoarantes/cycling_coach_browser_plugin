@@ -888,18 +888,9 @@ make build
 
 ---
 
-## Next Steps for Development
+## If you are working on a new integration
 
-**Immediate (Phase 3)**:
-
-1. Create API type definitions in `src/types/api.types.ts`
-2. Create Zod schemas for API responses in `src/schemas/`
-3. Implement API service in `src/background/api/trainingPeaks.ts`
-4. Configure React Query in popup
-5. Create custom hooks for data fetching
-6. Test API integration with real TrainingPeaks account
-
-**See**: Issues #10-13 on GitHub for detailed tasks
+read @docs/EXPORT_DESTINATION_INTEGRATION_FLOW.md
 
 ---
 

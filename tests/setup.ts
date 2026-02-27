@@ -48,6 +48,12 @@ const mockStorage = {
   }),
 };
 
+// Mock chrome.storage.onChanged event
+const mockStorageOnChanged = {
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+};
+
 // Mock chrome.runtime
 const mockRuntime = {
   sendMessage: vi.fn(() => Promise.resolve({ success: true })),
@@ -61,6 +67,7 @@ const mockRuntime = {
 global.chrome = {
   storage: {
     local: mockStorage,
+    onChanged: mockStorageOnChanged,
   },
   runtime: mockRuntime,
 } as never;

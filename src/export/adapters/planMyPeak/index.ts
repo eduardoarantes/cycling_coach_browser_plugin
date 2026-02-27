@@ -3,3 +3,8 @@
  */
 export { PlanMyPeakAdapter, planMyPeakAdapter } from './PlanMyPeakAdapter';
 export { transformToPlanMyPeak } from './transformer';
+export {
+  normalizeTpPlanWorkoutToPlanMyPeakLibraryItem,
+  normalizeTpPlanWorkoutsToPlanMyPeakLibraryItems,
+} from './trainingPlanNormalizer';
+export { exportTrainingPlanClassicWorkoutsToPlanMyPeak } from './trainingPlanExport';

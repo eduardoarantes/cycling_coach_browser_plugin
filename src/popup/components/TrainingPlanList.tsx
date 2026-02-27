@@ -33,6 +33,7 @@ import type { ExportResult as ExportResultType } from '@/export/adapters/base';
 import type { ValidationMessage } from '@/export/adapters/base';
 import type { ExportDestination } from '@/types/export.types';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import { exportTrainingPlanClassicWorkoutsToPlanMyPeak } from '@/export/adapters/planMyPeak';
 import type {
   IntervalsIcuExportConfig,
   IntervalsTrainingPlanExportResult,
@@ -108,7 +109,8 @@ function createPhaseRows(
   classicCount: number,
   rxCount: number,
   notesCount: number,
-  eventsCount: number
+  eventsCount: number,
+  folderStepCount = 1
 ): TrainingPlanExportProgressDialogState['phases'] {
   return [
     {
@@ -116,7 +118,7 @@ function createPhaseRows(
       label: 'Creating Plan Folder',
       status: 'pending',
       current: 0,
-      total: 1,
+      total: folderStepCount,
     },
     {
       id: 'classicWorkouts',
@@ -187,6 +189,34 @@ function createPlanExecutionProgressState(
   };
 }
 
+function getPlanMyPeakPlanStepCount(
+  bundle: TrainingPlanBatchExportBundle
+): number {
+  return 2 + bundle.workouts.length + bundle.notes.length;
+}
+
+function createPlanMyPeakExecutionProgressState(
+  bundle: TrainingPlanBatchExportBundle,
+  context: ActiveBatchTrainingPlanProgressContext
+): TrainingPlanExportProgressDialogState {
+  return {
+    overallCurrent: context.completedStepsBeforePlan,
+    overallTotal: context.batchOverallTotal,
+    currentPhaseLabel: `Plan ${context.planIndex}/${context.planCount} · Preparing export`,
+    currentPhaseCurrent: 0,
+    currentPhaseTotal: getPlanMyPeakPlanStepCount(bundle),
+    currentItemName: context.planName,
+    message: context.planName,
+    phases: createPhaseRows(
+      bundle.workouts.length,
+      0,
+      bundle.notes.length,
+      0,
+      2
+    ),
+  };
+}
+
 function applyBatchTrainingPlanExportProgressUpdate(
   previous: TrainingPlanExportProgressDialogState | null,
   update: TrainingPlanExportProgressPayload,
@@ -218,7 +248,10 @@ function applyBatchTrainingPlanExportProgressUpdate(
       context.completedStepsBeforePlan + update.overallCurrent
     ),
     overallTotal: context.batchOverallTotal,
-    currentPhaseLabel: `Plan ${context.planIndex}/${context.planCount} · ${getTrainingPlanExportPhaseLabel(update.phase)}`,
+    currentPhaseLabel:
+      update.status === 'failed'
+        ? `Plan ${context.planIndex}/${context.planCount} · Failed`
+        : `Plan ${context.planIndex}/${context.planCount} · ${getTrainingPlanExportPhaseLabel(update.phase)}`,
     currentPhaseCurrent: update.current,
     currentPhaseTotal: update.total,
     currentItemName: update.itemName || context.planName,
@@ -336,19 +369,6 @@ async function fetchTrainingPlanBatchExportBundle(
     totalStepCount:
       1 + workouts.length + rxWorkouts.length + notes.length + events.length,
   };
-}
-
-function downloadJsonFile(fileName: string, data: unknown): void {
-  const jsonString = JSON.stringify(data, null, 2);
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName.endsWith('.json') ? fileName : `${fileName}.json`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 export function TrainingPlanList({
@@ -526,61 +546,133 @@ export function TrainingPlanList({
     config: PlanMyPeakExportConfig
   ): Promise<void> => {
     const bundles = await preloadSelectedPlanBundles(plansToExport);
-    const fileBaseName =
-      (config.fileName || 'training_plans_export').trim() ||
-      'training_plans_export';
+    const batchOverallTotal = bundles.reduce(
+      (sum, bundle) => sum + getPlanMyPeakPlanStepCount(bundle),
+      0
+    );
+    activeTrainingPlanExportIdRef.current = null;
+    activeBatchTrainingPlanProgressContextRef.current = null;
 
-    const exportPayload = {
-      exportDate: new Date().toISOString(),
-      source: 'trainingPeaks',
-      planCount: bundles.length,
-      plans: bundles.map((bundle) => ({
-        planId: bundle.trainingPlan.planId,
-        planName: bundle.trainingPlan.title,
-        trainingPlan: bundle.trainingPlan,
-        classicWorkouts: bundle.workouts,
-        rxBuilderWorkouts: bundle.rxWorkouts,
-        notes: bundle.notes,
-        events: bundle.events,
-        summary: {
-          totalClassicWorkouts: bundle.workouts.length,
-          totalRxBuilderWorkouts: bundle.rxWorkouts.length,
-          totalNotes: bundle.notes.length,
-          totalEvents: bundle.events.length,
-        },
-      })),
-      summary: {
-        totalPlans: bundles.length,
-        totalClassicWorkouts: bundles.reduce(
-          (sum, bundle) => sum + bundle.workouts.length,
-          0
-        ),
-        totalRxBuilderWorkouts: bundles.reduce(
-          (sum, bundle) => sum + bundle.rxWorkouts.length,
-          0
-        ),
-        totalNotes: bundles.reduce(
-          (sum, bundle) => sum + bundle.notes.length,
-          0
-        ),
-        totalEvents: bundles.reduce(
-          (sum, bundle) => sum + bundle.events.length,
-          0
-        ),
-      },
-    };
+    let successCount = 0;
+    let exportedWorkoutCount = 0;
+    let completedSteps = 0;
+    const warnings: ValidationMessage[] = [];
+    const errors: string[] = [];
 
-    downloadJsonFile(`${fileBaseName}.json`, exportPayload);
+    for (let i = 0; i < bundles.length; i++) {
+      const bundle = bundles[i];
+      const planName = bundle.trainingPlan.title;
+      const context: ActiveBatchTrainingPlanProgressContext = {
+        completedStepsBeforePlan: completedSteps,
+        batchOverallTotal,
+        planIndex: i + 1,
+        planCount: bundles.length,
+        planName,
+      };
+
+      setTrainingPlanExportProgress(
+        createPlanMyPeakExecutionProgressState(bundle, context)
+      );
+
+      try {
+        const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+          trainingPlan: bundle.trainingPlan,
+          workouts: bundle.workouts,
+          notes: bundle.notes,
+          config: {
+            ...config,
+            createFolder: true,
+            targetLibraryName: `${planName} - Workouts`,
+          },
+          onProgress: (update) => {
+            setTrainingPlanExportProgress((previous) =>
+              applyBatchTrainingPlanExportProgressUpdate(
+                previous,
+                update,
+                context
+              )
+            );
+          },
+        });
+
+        if (result.success) {
+          successCount += 1;
+          exportedWorkoutCount += result.itemsExported;
+        } else if (result.errors?.length) {
+          warnings.push({
+            field: 'trainingPlans',
+            severity: 'warning',
+            message: `Failed to export plan "${planName}": ${result.errors.join('; ')}`,
+          });
+        } else {
+          warnings.push({
+            field: 'trainingPlans',
+            severity: 'warning',
+            message: `Failed to export plan "${planName}"`,
+          });
+        }
+
+        if (result.warnings.length > 0) {
+          warnings.push(
+            ...result.warnings.map((warning) => ({
+              ...warning,
+              field: `trainingPlans:${bundle.trainingPlan.planId}:${warning.field}`,
+              message: `${planName}: ${warning.message}`,
+            }))
+          );
+        }
+      } catch (err) {
+        logErrorWithAuthDowngrade(
+          `[TrainingPlanList] Failed to export plan "${planName}" to PlanMyPeak:`,
+          err
+        );
+        warnings.push({
+          field: 'trainingPlans',
+          severity: 'warning',
+          message: `Failed to export plan "${planName}": ${
+            err instanceof Error ? err.message : 'Unknown export error'
+          }`,
+        });
+      } finally {
+        completedSteps += getPlanMyPeakPlanStepCount(bundle);
+      }
+    }
+
+    activeTrainingPlanExportIdRef.current = null;
+    activeBatchTrainingPlanProgressContextRef.current = null;
+
+    if (successCount === 0) {
+      if (warnings.length > 0) {
+        errors.push(...warnings.map((warning) => warning.message));
+      } else {
+        errors.push('No selected training plans were exported');
+      }
+
+      setExportResult({
+        success: false,
+        fileName: 'PlanMyPeak training plans',
+        format: 'api',
+        itemsExported: 0,
+        warnings: [],
+        errors,
+      });
+      return;
+    }
+
+    if (successCount < bundles.length) {
+      warnings.unshift({
+        field: 'trainingPlans',
+        severity: 'warning',
+        message: `Exported ${successCount} of ${bundles.length} training plans`,
+      });
+    }
 
     setExportResult({
       success: true,
-      fileName: `${fileBaseName}.json`,
-      format: 'json',
-      itemsExported: bundles.reduce(
-        (sum, bundle) => sum + bundle.workouts.length,
-        0
-      ),
-      warnings: [],
+      fileName: `PlanMyPeak (${successCount}/${bundles.length} plans)`,
+      format: 'api',
+      itemsExported: exportedWorkoutCount,
+      warnings,
     });
   };
 
@@ -730,7 +822,7 @@ export function TrainingPlanList({
       setExportResult({
         success: false,
         fileName: 'training_plans_export',
-        format: destination === 'intervalsicu' ? 'api' : 'json',
+        format: 'api',
         itemsExported: 0,
         warnings: [],
         errors: [

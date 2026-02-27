@@ -11,6 +11,11 @@ import type {
 } from '@/schemas/trainingPlan.schema';
 import type { RxBuilderWorkout } from '@/schemas/rxBuilder.schema';
 import type {
+  PlanMyPeakCreatePlanNoteRequest,
+  PlanMyPeakCreateTrainingPlanRequest,
+  PlanMyPeakWorkout,
+} from '@/types/planMyPeak.types';
+import type {
   IntervalsFolderResponse,
   IntervalsPlanConflictAction,
 } from '@/types/intervalsicu.types';
@@ -24,6 +29,13 @@ export interface TokenFoundMessage {
   timestamp: number;
 }
 
+export interface MyPeakAuthFoundMessage {
+  type: 'MY_PEAK_AUTH_FOUND';
+  timestamp: number;
+  token?: string | null;
+  apiKey?: string | null;
+}
+
 export interface GetTokenMessage {
   type: 'GET_TOKEN';
 }
@@ -34,6 +46,51 @@ export interface ClearTokenMessage {
 
 export interface ValidateTokenMessage {
   type: 'VALIDATE_TOKEN';
+}
+
+export interface ValidateMyPeakTokenMessage {
+  type: 'VALIDATE_MY_PEAK_TOKEN';
+}
+
+export interface GetPlanMyPeakLibrariesMessage {
+  type: 'GET_PLANMYPEAK_LIBRARIES';
+}
+
+export interface CreatePlanMyPeakLibraryMessage {
+  type: 'CREATE_PLANMYPEAK_LIBRARY';
+  name: string;
+  sourceId?: string | null;
+}
+
+export interface DeletePlanMyPeakLibraryMessage {
+  type: 'DELETE_PLANMYPEAK_LIBRARY';
+  libraryId: string;
+}
+
+/**
+ * Message to export transformed workouts to a PlanMyPeak workout library
+ */
+export interface ExportWorkoutsToPlanMyPeakLibraryMessage {
+  type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY';
+  workouts: PlanMyPeakWorkout[];
+  libraryId: string;
+}
+
+export interface GetPlanMyPeakWorkoutBySourceIdMessage {
+  type: 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID';
+  sourceId: string;
+  libraryId?: string;
+}
+
+export interface CreatePlanMyPeakTrainingPlanMessage {
+  type: 'CREATE_PLANMYPEAK_TRAINING_PLAN';
+  payload: PlanMyPeakCreateTrainingPlanRequest;
+}
+
+export interface CreatePlanMyPeakTrainingPlanNoteMessage {
+  type: 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE';
+  planId: string;
+  payload: PlanMyPeakCreatePlanNoteRequest;
 }
 
 /**
@@ -211,11 +268,27 @@ export interface HasIntervalsApiKeyMessage {
   type: 'HAS_INTERVALS_API_KEY';
 }
 
+/**
+ * Message to clear Intervals.icu API key
+ */
+export interface ClearIntervalsApiKeyMessage {
+  type: 'CLEAR_INTERVALS_API_KEY';
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
+  | MyPeakAuthFoundMessage
   | GetTokenMessage
   | ClearTokenMessage
   | ValidateTokenMessage
+  | ValidateMyPeakTokenMessage
+  | GetPlanMyPeakLibrariesMessage
+  | CreatePlanMyPeakLibraryMessage
+  | DeletePlanMyPeakLibraryMessage
+  | ExportWorkoutsToPlanMyPeakLibraryMessage
+  | GetPlanMyPeakWorkoutBySourceIdMessage
+  | CreatePlanMyPeakTrainingPlanMessage
+  | CreatePlanMyPeakTrainingPlanNoteMessage
   | GetUserMessage
   | GetLibrariesMessage
   | GetLibraryItemsMessage
@@ -233,7 +306,8 @@ export type RuntimeMessage =
   | TrainingPlanExportProgressMessage
   | SetIntervalsApiKeyMessage
   | GetIntervalsApiKeyMessage
-  | HasIntervalsApiKeyMessage;
+  | HasIntervalsApiKeyMessage
+  | ClearIntervalsApiKeyMessage;
 
 export interface FindIntervalsPlanFolderByNameResponse {
   exists: boolean;
@@ -246,6 +320,12 @@ export interface FindIntervalsPlanFolderByNameResponse {
 export interface TokenStorage {
   auth_token: string | null;
   token_timestamp: number | null;
+}
+
+export interface MyPeakTokenStorage {
+  mypeak_auth_token: string | null;
+  mypeak_token_timestamp: number | null;
+  mypeak_supabase_api_key: string | null;
 }
 
 /**
