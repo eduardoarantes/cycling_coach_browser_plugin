@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { useState } from 'react';
 import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
@@ -14,6 +15,10 @@ import {
 import { IntervalsApiKeyBanner } from './IntervalsApiKeyBanner';
 import { AuthRow } from './shared/AuthRow';
 import { ErrorBoundary } from './ErrorBoundary';
+import {
+  IntegrationHelpModal,
+  type IntegrationHelpTopic,
+} from './IntegrationHelpModal';
 
 interface SettingsPageProps {
   isPlanMyPeakEnabled: boolean;
@@ -27,6 +32,7 @@ interface OptionalConnectionCardProps {
   description: string;
   enabled: boolean;
   onToggle: (enabled: boolean) => Promise<void>;
+  onOpenHelp: () => void;
   children?: ReactElement;
 }
 
@@ -35,13 +41,25 @@ function OptionalConnectionCard({
   description,
   enabled,
   onToggle,
+  onOpenHelp,
   children,
 }: OptionalConnectionCardProps): ReactElement {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-gray-800">{title}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-800">{title}</p>
+            <button
+              type="button"
+              onClick={onOpenHelp}
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[11px] font-semibold text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700"
+              aria-label={`Open ${title} import guide`}
+              title={`Open ${title} import guide`}
+            >
+              ?
+            </button>
+          </div>
           <p className="text-xs text-gray-600">{description}</p>
         </div>
         <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-700">
@@ -75,6 +93,9 @@ function SettingsPageContent({
   onPlanMyPeakEnabledChange,
   onIntervalsEnabledChange,
 }: SettingsPageProps): ReactElement {
+  const [activeHelpTopic, setActiveHelpTopic] =
+    useState<IntegrationHelpTopic | null>(null);
+
   const {
     isAuthenticated: isTpAuthenticated,
     isLoading: isTpLoading,
@@ -157,6 +178,13 @@ function SettingsPageContent({
 
   return (
     <div className="space-y-3">
+      <IntegrationHelpModal
+        topic={activeHelpTopic}
+        onClose={() => {
+          setActiveHelpTopic(null);
+        }}
+      />
+
       <div>
         <h2 className="text-sm font-semibold text-gray-800">
           {SETTINGS_STRINGS.TITLE}
@@ -186,6 +214,9 @@ function SettingsPageContent({
         description={SETTINGS_STRINGS.PLANMYPEAK_DESCRIPTION}
         enabled={isPlanMyPeakEnabled}
         onToggle={onPlanMyPeakEnabledChange}
+        onOpenHelp={() => {
+          setActiveHelpTopic('planmypeak');
+        }}
       >
         <AuthRow
           label={myPeakLabel}
@@ -202,6 +233,9 @@ function SettingsPageContent({
         description={SETTINGS_STRINGS.INTERVALS_DESCRIPTION}
         enabled={isIntervalsEnabled}
         onToggle={onIntervalsEnabledChange}
+        onOpenHelp={() => {
+          setActiveHelpTopic('intervalsicu');
+        }}
       >
         <div className="space-y-2">
           <AuthRow

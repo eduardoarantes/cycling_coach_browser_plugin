@@ -1,5 +1,5 @@
 /**
- * Utility functions for interacting with the local PlanMyPeak tab
+ * Utility functions for interacting with the PlanMyPeak app tab
  */
 
 import { MYPEAK_APP_URL } from './constants';

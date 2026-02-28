@@ -4,7 +4,7 @@ import {
   exportWorkoutsToPlanMyPeakLibrary,
 } from '@/background/api/planMyPeak';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
-import { STORAGE_KEYS } from '@/utils/constants';
+import { PLANMYPEAK_API_BASE_URL, STORAGE_KEYS } from '@/utils/constants';
 
 function makeWorkout(
   overrides: Partial<PlanMyPeakWorkout> = {}
@@ -94,7 +94,7 @@ describe('planMyPeak API - workout export request mapping', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, init] = vi.mocked(global.fetch).mock.calls[0];
-    expect(url).toBe('http://localhost:3006/api/v1/workouts/library');
+    expect(url).toBe(`${PLANMYPEAK_API_BASE_URL}/v1/workouts/library`);
     const requestBody = JSON.parse(String((init as RequestInit).body));
 
     expect(requestBody.structure.primaryIntensityMetric).toBe('heartrate');
@@ -225,12 +225,12 @@ describe('planMyPeak API - training plan upsert behavior', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(3);
     const calls = vi.mocked(global.fetch).mock.calls;
-    expect(calls[0][0]).toBe('http://localhost:3006/api/training-plans');
+    expect(calls[0][0]).toBe(`${PLANMYPEAK_API_BASE_URL}/training-plans`);
     expect((calls[0][1] as RequestInit).method).toBe('POST');
-    expect(calls[1][0]).toBe('http://localhost:3006/api/training-plans');
+    expect(calls[1][0]).toBe(`${PLANMYPEAK_API_BASE_URL}/training-plans`);
     expect((calls[1][1] as RequestInit).method ?? 'GET').toBe('GET');
     expect(calls[2][0]).toBe(
-      'http://localhost:3006/api/training-plans/550e8400-e29b-41d4-a716-446655440000'
+      `${PLANMYPEAK_API_BASE_URL}/training-plans/550e8400-e29b-41d4-a716-446655440000`
     );
     expect((calls[2][1] as RequestInit).method).toBe('PUT');
   });

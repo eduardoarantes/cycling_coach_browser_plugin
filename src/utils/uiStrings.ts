@@ -5,6 +5,8 @@
  * This also prepares the codebase for potential i18n/localization in the future.
  */
 
+import { PLANMYPEAK_HOST_LABEL } from './constants';
+
 /**
  * Connection health summary status messages
  */
@@ -58,7 +60,7 @@ export const AUTH_STATUS_STRINGS = {
   },
   PLANMYPEAK: {
     LABEL: 'PlanMyPeak',
-    OPEN_TO_SIGN_IN: 'Open localhost:3006 and sign in',
+    OPEN_TO_SIGN_IN: `Open ${PLANMYPEAK_HOST_LABEL} and sign in`,
     SUPABASE_SUFFIX: '(Supabase)',
   },
   INTERVALS: {
