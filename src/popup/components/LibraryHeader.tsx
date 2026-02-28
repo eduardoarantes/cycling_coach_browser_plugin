@@ -4,6 +4,7 @@ export interface LibraryHeaderProps {
   libraryName: string;
   workoutCount: number;
   onBack: () => void;
+  actions?: ReactElement;
 }
 
 /**
@@ -31,6 +32,7 @@ export function LibraryHeader({
   libraryName,
   workoutCount,
   onBack,
+  actions,
 }: LibraryHeaderProps): ReactElement {
   const workoutLabel = workoutCount === 1 ? 'workout' : 'workouts';
 
@@ -55,6 +57,10 @@ export function LibraryHeader({
           {workoutCount} {workoutLabel}
         </p>
       </div>
+
+      {actions ? (
+        <div className="flex items-center gap-2">{actions}</div>
+      ) : null}
     </div>
   );
 }

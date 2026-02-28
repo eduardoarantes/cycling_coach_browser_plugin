@@ -28,6 +28,7 @@ import {
   getUserFriendlyErrorMessage,
   openTrainingPeaksTab,
 } from '@/utils/trainingPeaksTab';
+import { downloadJsonFile } from '@/utils/downloadJson';
 import type {
   PlanWorkout,
   RxBuilderWorkout,
@@ -458,10 +459,12 @@ export function PlanCalendar({
 
   // Download training plan as JSON
   const handleDownload = (customFileName?: string): void => {
+    const exportDate = new Date();
+    const exportDateIso = exportDate.toISOString();
     const planData = {
       planId,
       planName: planName || 'Training Plan',
-      exportDate: new Date().toISOString(),
+      exportDate: exportDateIso,
       classicWorkouts: classicWorkouts || [],
       rxBuilderWorkouts: rxWorkouts || [],
       notes: notes || [],
@@ -474,22 +477,16 @@ export function PlanCalendar({
       },
     };
 
-    const jsonString = JSON.stringify(planData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    const defaultFileName = `training-plan-${planId}-${new Date().toISOString().split('T')[0]}.json`;
-    link.download =
+    const defaultFileName = `training-plan-${planId}-${
+      exportDateIso.split('T')[0]
+    }.json`;
+    const fileName =
       customFileName && customFileName.trim().length > 0
         ? `${customFileName.trim()}.json`
         : defaultFileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadJsonFile(planData, fileName);
 
-    logger.info('📥 Training plan downloaded:', link.download);
+    logger.info('📥 Training plan downloaded:', fileName);
   };
 
   const openExportDialog = (): void => {
