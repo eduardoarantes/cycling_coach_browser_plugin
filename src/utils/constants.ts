@@ -10,14 +10,45 @@
 export const API_BASE_URL = 'https://tpapi.trainingpeaks.com';
 
 /**
- * MyPeak local app URL (temporary local development integration)
+ * Build mode flags exposed by Vite.
+ * Use these instead of guessing based on the current hostname.
  */
-export const MYPEAK_APP_URL = 'http://localhost:3006';
+export const IS_DEVELOPMENT = import.meta.env.DEV;
 
 /**
- * Local Supabase URL used by MyPeak during development
+ * PlanMyPeak app URL.
+ * Development uses the local app, production uses the deployed site.
  */
-export const MYPEAK_SUPABASE_URL = 'http://127.0.0.1:54361';
+export const PLANMYPEAK_APP_URL = IS_DEVELOPMENT
+  ? 'http://localhost:3006'
+  : 'https://planmypeak.com';
+
+/**
+ * Short PlanMyPeak host label for UI copy.
+ */
+export const PLANMYPEAK_HOST_LABEL = IS_DEVELOPMENT
+  ? 'localhost:3006'
+  : 'planmypeak.com';
+
+/**
+ * PlanMyPeak auth validation base URL.
+ * Development hits the local Supabase instance directly.
+ * Production validates via the deployed app host.
+ */
+export const PLANMYPEAK_AUTH_BASE_URL = IS_DEVELOPMENT
+  ? 'http://127.0.0.1:54361'
+  : PLANMYPEAK_APP_URL;
+
+/**
+ * PlanMyPeak API base URL.
+ */
+export const PLANMYPEAK_API_BASE_URL = `${PLANMYPEAK_APP_URL}/api`;
+
+/**
+ * Backward-compatible aliases used across the codebase.
+ */
+export const MYPEAK_APP_URL = PLANMYPEAK_APP_URL;
+export const MYPEAK_SUPABASE_URL = PLANMYPEAK_AUTH_BASE_URL;
 
 /**
  * TrainingPeaks RxBuilder (structured strength) API base URL

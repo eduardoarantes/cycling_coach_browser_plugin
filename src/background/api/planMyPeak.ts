@@ -4,7 +4,7 @@
  * Handles authenticated requests to PlanMyPeak workout and training-plan endpoints.
  */
 
-import { MYPEAK_APP_URL, STORAGE_KEYS } from '@/utils/constants';
+import { PLANMYPEAK_API_BASE_URL, STORAGE_KEYS } from '@/utils/constants';
 import { logger } from '@/utils/logger';
 import {
   PlanMyPeakCreateWorkoutResponseSchema,
@@ -33,7 +33,6 @@ import type {
 import type { ApiResponse } from '@/types/api.types';
 import { ZodError, z } from 'zod';
 
-const PLANMYPEAK_API_BASE_URL = `${MYPEAK_APP_URL}/api`;
 const WORKOUT_LIBRARIES_ENDPOINT = '/v1/workouts/libraries';
 const WORKOUT_LIBRARY_ITEMS_ENDPOINT = '/v1/workouts/library';
 const TRAINING_PLANS_ENDPOINT = '/training-plans';

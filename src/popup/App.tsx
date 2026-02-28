@@ -13,6 +13,7 @@ import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
 import { useConnectionSettings } from '@/hooks/useConnectionSettings';
 import { useLibraries } from '@/hooks/useLibraries';
+import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
 
 function App(): ReactElement {
   const [activeView, setActiveView] = useState<'main' | 'settings'>('main');
@@ -23,7 +24,11 @@ function App(): ReactElement {
   const [activeTab, setActiveTab] = useState<'libraries' | 'plans'>(
     'libraries'
   );
-  const { isAuthenticated: isTrainingPeaksAuthenticated } = useAuth();
+  const {
+    isAuthenticated: isTrainingPeaksAuthenticated,
+    isLoading: isTrainingPeaksAuthLoading,
+    refreshAuth: refreshTrainingPeaksAuth,
+  } = useAuth();
   const { isAuthenticated: isPlanMyPeakAuthenticated } = useMyPeakAuth();
   const { isAuthenticated: isIntervalsAuthenticated } =
     useIntervalsConnection();
@@ -63,6 +68,16 @@ function App(): ReactElement {
 
   const handleSelectPlan = (planId: number): void => {
     setSelectedPlanId(planId);
+  };
+
+  const handleRefreshTrainingPeaks = async (): Promise<void> => {
+    try {
+      await openTrainingPeaksTab();
+    } finally {
+      setTimeout(() => {
+        void refreshTrainingPeaksAuth();
+      }, 1500);
+    }
   };
 
   // Use wider layout for calendar view
@@ -115,8 +130,24 @@ function App(): ReactElement {
 
           {!canAccessTrainingPeaksData ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              TrainingPeaks authentication is required to load data. Open
-              Settings to connect accounts.
+              <div className="flex items-start justify-between gap-3">
+                <p className="pr-2">
+                  TrainingPeaks authentication is required to load data. Open
+                  Settings to connect accounts. If you are already signed in,
+                  you may need to refresh the TrainingPeaks page to detect
+                  authentication.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleRefreshTrainingPeaks();
+                  }}
+                  disabled={isTrainingPeaksAuthLoading}
+                  className="shrink-0 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isTrainingPeaksAuthLoading ? 'Checking...' : 'Refresh'}
+                </button>
+              </div>
             </div>
           ) : null}
 

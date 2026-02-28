@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "PlanMyPeak Importer",
-  "version": "1.11.49",
+  "version": "1.11.53",
   "description": "Access your workout libraries and training plans directly from your browser",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://tpapi.trainingpeaks.com/*",
     "https://api.peakswaresb.com/*",
     "https://app.trainingpeaks.com/*",
+    "https://planmypeak.com/*",
     "https://intervals.icu/*",
     "http://localhost:3006/*",
     "http://127.0.0.1:3006/*",
@@ -30,6 +31,7 @@
     {
       "matches": [
         "https://app.trainingpeaks.com/*",
+        "https://planmypeak.com/*",
         "http://localhost:3006/*",
         "http://127.0.0.1:3006/*"
       ],
@@ -40,6 +42,7 @@
     {
       "matches": [
         "https://app.trainingpeaks.com/*",
+        "https://planmypeak.com/*",
         "http://localhost:3006/*",
         "http://127.0.0.1:3006/*"
       ],

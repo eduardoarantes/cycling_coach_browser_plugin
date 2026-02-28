@@ -15,6 +15,7 @@ import {
   buildProviderStatusLabel,
   AUTH_STATUS_STRINGS,
 } from '@/utils/uiStrings';
+import { PLANMYPEAK_HOST_LABEL } from '@/utils/constants';
 import { AuthRow } from './shared/AuthRow';
 
 export function AuthStatus(): ReactElement {
@@ -85,8 +86,8 @@ export function AuthStatus(): ReactElement {
     : AUTH_STATUS_STRINGS.PLANMYPEAK.OPEN_TO_SIGN_IN;
 
   const myPeakTooltip = isMyPeakAuthenticated
-    ? `PlanMyPeak (localhost:3006) Supabase token obtained ${formatTokenAge(myPeakTokenAge)}`
-    : 'PlanMyPeak local auth not detected';
+    ? `PlanMyPeak (${PLANMYPEAK_HOST_LABEL}) Supabase token obtained ${formatTokenAge(myPeakTokenAge)}`
+    : `PlanMyPeak auth not detected on ${PLANMYPEAK_HOST_LABEL}`;
 
   return (
     <div className="mb-3 space-y-2">
