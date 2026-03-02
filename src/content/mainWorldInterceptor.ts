@@ -10,7 +10,11 @@ const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[TP Extension - MAIN World]', ...args);
 };
 
-const MYPEAK_SUPABASE_HOSTS = ['127.0.0.1:54361', 'localhost:54361'];
+const MYPEAK_SUPABASE_HOSTS = [
+  '127.0.0.1:54361',
+  'localhost:54361',
+  'yqaskiwzyhhovthbvmqq.supabase.co',
+];
 
 function isMyPeakSupabaseRequest(url: string): boolean {
   return MYPEAK_SUPABASE_HOSTS.some((host) => url.includes(host));

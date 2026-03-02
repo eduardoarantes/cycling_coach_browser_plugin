@@ -70,11 +70,11 @@ export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
 /**
  * PlanMyPeak auth validation base URL.
  * Development hits the local Supabase instance directly.
- * Production validates via the deployed app host.
+ * Production validates via the Supabase cloud instance.
  */
 export const PLANMYPEAK_AUTH_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
   ? 'http://127.0.0.1:54361'
-  : PLANMYPEAK_APP_URL;
+  : 'https://yqaskiwzyhhovthbvmqq.supabase.co';
 
 /**
  * PlanMyPeak API base URL.
