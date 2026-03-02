@@ -1,7 +1,7 @@
 # TrainingPeaks Browser Extension - Makefile
 # Common commands for development, testing, and building
 
-.PHONY: help install dev build lint test clean
+.PHONY: help install dev dev-prod build build-local lint test clean
 
 # Default target - show help
 help:
@@ -9,8 +9,10 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make install       Install dependencies"
-	@echo "  make dev          Start development server with HMR"
-	@echo "  make build        Build production bundle"
+	@echo "  make dev          Start development server (targets localhost:3006)"
+	@echo "  make dev-prod     Start development server (targets planmypeak.com)"
+	@echo "  make build        Build production bundle (targets planmypeak.com)"
+	@echo "  make build-local  Increment patch and build bundle targeting localhost:3006"
 	@echo "  make preview      Preview production build"
 	@echo ""
 	@echo "Quality:"
@@ -44,12 +46,20 @@ install:
 
 # Development
 dev:
-	@echo "Starting development server..."
+	@echo "Starting development server (PlanMyPeak target: localhost:3006)..."
 	npm run dev
 
+dev-prod:
+	@echo "Starting development server (PlanMyPeak target: planmypeak.com)..."
+	npm run dev:prod
+
 build:
-	@echo "Building production bundle..."
+	@echo "Building production bundle (PlanMyPeak target: planmypeak.com)..."
 	npm run build
+
+build-local:
+	@echo "Incrementing patch and building local-target bundle (PlanMyPeak target: localhost:3006)..."
+	npm run build:local
 
 preview:
 	@echo "Previewing production build..."

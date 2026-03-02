@@ -16,17 +16,54 @@ export const API_BASE_URL = 'https://tpapi.trainingpeaks.com';
 export const IS_DEVELOPMENT = import.meta.env.DEV;
 
 /**
- * PlanMyPeak app URL.
- * Development uses the local app, production uses the deployed site.
+ * Explicit PlanMyPeak host target.
+ * This can override the default behavior so local-target bundles can be built.
  */
-export const PLANMYPEAK_APP_URL = IS_DEVELOPMENT
+export type PlanMyPeakTarget = 'local' | 'production';
+
+function isPlanMyPeakTarget(
+  value: string | undefined
+): value is PlanMyPeakTarget {
+  return value === 'local' || value === 'production';
+}
+
+export function resolvePlanMyPeakTarget(
+  configuredTarget: string | undefined,
+  isDevelopment: boolean
+): PlanMyPeakTarget {
+  if (isPlanMyPeakTarget(configuredTarget)) {
+    return configuredTarget;
+  }
+
+  return isDevelopment ? 'local' : 'production';
+}
+
+/**
+ * Active PlanMyPeak host target.
+ * Defaults to local in Vite dev mode and production for built bundles.
+ */
+export const PLANMYPEAK_TARGET = resolvePlanMyPeakTarget(
+  import.meta.env.VITE_PLANMYPEAK_TARGET,
+  IS_DEVELOPMENT
+);
+
+/**
+ * Whether the current PlanMyPeak target is a local development host.
+ */
+export const IS_LOCAL_PLANMYPEAK_TARGET = PLANMYPEAK_TARGET === 'local';
+
+/**
+ * PlanMyPeak app URL.
+ * Local uses the local app, production uses the deployed site.
+ */
+export const PLANMYPEAK_APP_URL = IS_LOCAL_PLANMYPEAK_TARGET
   ? 'http://localhost:3006'
   : 'https://planmypeak.com';
 
 /**
  * Short PlanMyPeak host label for UI copy.
  */
-export const PLANMYPEAK_HOST_LABEL = IS_DEVELOPMENT
+export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
   ? 'localhost:3006'
   : 'planmypeak.com';
 
@@ -35,7 +72,7 @@ export const PLANMYPEAK_HOST_LABEL = IS_DEVELOPMENT
  * Development hits the local Supabase instance directly.
  * Production validates via the deployed app host.
  */
-export const PLANMYPEAK_AUTH_BASE_URL = IS_DEVELOPMENT
+export const PLANMYPEAK_AUTH_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
   ? 'http://127.0.0.1:54361'
   : PLANMYPEAK_APP_URL;
 

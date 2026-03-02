@@ -16,10 +16,13 @@ A Chrome extension that provides direct access to your TrainingPeaks workout lib
 # Install dependencies
 npm install
 
-# Run development server
+# Run development server (targets localhost:3006)
 npm run dev
 
-# Build for production
+# Build local-target bundle
+npm run build:local
+
+# Build for production (targets planmypeak.com)
 npm run build
 
 # Run tests
