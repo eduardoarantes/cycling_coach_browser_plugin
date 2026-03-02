@@ -8,12 +8,17 @@ import { TrainingPlanList } from './components/TrainingPlanList';
 import { PlanCalendar } from './components/PlanCalendar';
 import { SettingsPage } from './components/SettingsPage';
 import { ConnectionHealthSummary } from './components/ConnectionHealthSummary';
+import { PlanMyPeakEnvironmentIndicator } from './components/PlanMyPeakEnvironmentIndicator';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
 import { useConnectionSettings } from '@/hooks/useConnectionSettings';
 import { useLibraries } from '@/hooks/useLibraries';
 import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
+import {
+  IS_LOCAL_PLANMYPEAK_TARGET,
+  PLANMYPEAK_HOST_LABEL,
+} from '@/utils/constants';
 
 function App(): ReactElement {
   const [activeView, setActiveView] = useState<'main' | 'settings'>('main');
@@ -110,6 +115,11 @@ function App(): ReactElement {
           )}
         </button>
       </div>
+
+      <PlanMyPeakEnvironmentIndicator
+        isVisible={IS_LOCAL_PLANMYPEAK_TARGET}
+        hostLabel={PLANMYPEAK_HOST_LABEL}
+      />
 
       {activeView === 'settings' ? (
         <SettingsPage
