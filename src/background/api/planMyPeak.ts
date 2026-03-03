@@ -4,7 +4,8 @@
  * Handles authenticated requests to PlanMyPeak workout and training-plan endpoints.
  */
 
-import { PLANMYPEAK_API_BASE_URL, STORAGE_KEYS } from '@/utils/constants';
+import { STORAGE_KEYS } from '@/utils/constants';
+import { getPlanMyPeakApiUrl } from '@/services/portConfigService';
 import { logger } from '@/utils/logger';
 import {
   PlanMyPeakCreateWorkoutResponseSchema,
@@ -218,7 +219,10 @@ async function makeApiRequest(
     headers.set('content-type', 'application/json');
   }
 
-  const response = await fetch(`${PLANMYPEAK_API_BASE_URL}${endpoint}`, {
+  // Use dynamic API URL based on configured port (for local development)
+  const apiBaseUrl = await getPlanMyPeakApiUrl();
+
+  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
     ...init,
     headers,
   });
