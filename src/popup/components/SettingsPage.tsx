@@ -4,6 +4,7 @@ import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
+import { usePortConfig } from '@/hooks/usePortConfig';
 import { openMyPeakTab } from '@/utils/myPeakTab';
 import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
 import {
@@ -95,6 +96,11 @@ function SettingsPageContent({
 }: SettingsPageProps): ReactElement {
   const [activeHelpTopic, setActiveHelpTopic] =
     useState<IntegrationHelpTopic | null>(null);
+  const [pendingAppPort, setPendingAppPort] = useState<string | null>(null);
+  const [pendingSupabasePort, setPendingSupabasePort] = useState<string | null>(
+    null
+  );
+  const [isSaving, setIsSaving] = useState(false);
 
   const {
     isAuthenticated: isTpAuthenticated,
@@ -120,6 +126,57 @@ function SettingsPageContent({
     error: intervalsError,
     refresh: refreshIntervals,
   } = useIntervalsConnection();
+
+  const {
+    isConfigurable: isPortConfigurable,
+    appPort,
+    supabasePort,
+    setAppPort,
+    setSupabasePort,
+  } = usePortConfig();
+
+  // Track pending vs saved port values
+  const appPortDisplay = pendingAppPort ?? String(appPort);
+  const supabasePortDisplay = pendingSupabasePort ?? String(supabasePort);
+
+  // Check if there are unsaved changes
+  const hasUnsavedPortChanges =
+    pendingAppPort !== null || pendingSupabasePort !== null;
+
+  // Validate port inputs
+  const isValidPort = (value: string): boolean => {
+    const port = parseInt(value, 10);
+    return !isNaN(port) && port > 0 && port < 65536;
+  };
+
+  const canSavePorts =
+    hasUnsavedPortChanges &&
+    isValidPort(appPortDisplay) &&
+    isValidPort(supabasePortDisplay);
+
+  const handleSavePorts = async (): Promise<void> => {
+    if (!canSavePorts) return;
+
+    setIsSaving(true);
+    try {
+      const newAppPort = parseInt(appPortDisplay, 10);
+      const newSupabasePort = parseInt(supabasePortDisplay, 10);
+
+      await setAppPort(newAppPort);
+      await setSupabasePort(newSupabasePort);
+
+      // Clear pending state after successful save
+      setPendingAppPort(null);
+      setPendingSupabasePort(null);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Build dynamic host label based on saved port
+  const planMyPeakHostLabel = isPortConfigurable
+    ? `localhost:${appPort}`
+    : 'planmypeak.com';
 
   const handleTrainingPeaksRefresh = async (): Promise<void> => {
     await openTrainingPeaksTab();
@@ -163,7 +220,7 @@ function SettingsPageContent({
 
   const myPeakSubtitle = isMyPeakAuthenticated
     ? `${AUTH_STATUS_STRINGS.TOKEN_AGE_PREFIX} ${formatTokenAge(myPeakTokenAge)}`
-    : `${AUTH_STATUS_STRINGS.PLANMYPEAK.OPEN_TO_SIGN_IN}.`;
+    : `${AUTH_STATUS_STRINGS.PLANMYPEAK.openToSignIn(planMyPeakHostLabel)}.`;
 
   const intervalsLabel = buildProviderStatusLabel(
     'Intervals.icu',
@@ -218,14 +275,67 @@ function SettingsPageContent({
           setActiveHelpTopic('planmypeak');
         }}
       >
-        <AuthRow
-          label={myPeakLabel}
-          subtitle={myPeakSubtitle}
-          isAuthenticated={isMyPeakAuthenticated}
-          isLoading={isMyPeakLoading}
-          error={myPeakError}
-          onRefresh={handleMyPeakRefresh}
-        />
+        <div className="space-y-2">
+          <AuthRow
+            label={myPeakLabel}
+            subtitle={myPeakSubtitle}
+            isAuthenticated={isMyPeakAuthenticated}
+            isLoading={isMyPeakLoading}
+            error={myPeakError}
+            onRefresh={handleMyPeakRefresh}
+          />
+          {isPortConfigurable && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
+              <div className="mb-1.5 text-xs font-medium text-amber-800">
+                Local Dev Ports
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label
+                    htmlFor="app-port"
+                    className="mb-0.5 block text-[10px] text-amber-700"
+                  >
+                    App Port
+                  </label>
+                  <input
+                    id="app-port"
+                    type="number"
+                    value={appPortDisplay}
+                    onChange={(e) => setPendingAppPort(e.target.value)}
+                    className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    min={1}
+                    max={65535}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label
+                    htmlFor="supabase-port"
+                    className="mb-0.5 block text-[10px] text-amber-700"
+                  >
+                    Supabase Port
+                  </label>
+                  <input
+                    id="supabase-port"
+                    type="number"
+                    value={supabasePortDisplay}
+                    onChange={(e) => setPendingSupabasePort(e.target.value)}
+                    className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    min={1}
+                    max={65535}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleSavePorts()}
+                  disabled={!canSavePorts || isSaving}
+                  className="shrink-0 rounded border border-amber-400 bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </OptionalConnectionCard>
 
       <OptionalConnectionCard
