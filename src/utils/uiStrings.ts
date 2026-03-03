@@ -61,6 +61,8 @@ export const AUTH_STATUS_STRINGS = {
   PLANMYPEAK: {
     LABEL: 'PlanMyPeak',
     OPEN_TO_SIGN_IN: `Open ${PLANMYPEAK_HOST_LABEL} and sign in`,
+    openToSignIn: (hostLabel: string): string =>
+      `Open ${hostLabel} and sign in`,
     SUPABASE_SUFFIX: '(Supabase)',
   },
   INTERVALS: {

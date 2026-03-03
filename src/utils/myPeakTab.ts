@@ -2,13 +2,16 @@
  * Utility functions for interacting with the PlanMyPeak app tab
  */
 
-import { MYPEAK_APP_URL } from './constants';
+import { getPlanMyPeakAppUrl } from '@/services/portConfigService';
 import { logger } from './logger';
 
 export async function openMyPeakTab(): Promise<void> {
   try {
+    // Get dynamic URL based on configured port
+    const appUrl = await getPlanMyPeakAppUrl();
+
     const tabs = await chrome.tabs.query({
-      url: `${MYPEAK_APP_URL}/*`,
+      url: `${appUrl}/*`,
     });
 
     if (tabs.length > 0 && tabs[0].id) {
@@ -23,9 +26,9 @@ export async function openMyPeakTab(): Promise<void> {
       return;
     }
 
-    logger.info('Creating new PlanMyPeak tab...');
+    logger.info(`Creating new PlanMyPeak tab at ${appUrl}...`);
     await chrome.tabs.create({
-      url: MYPEAK_APP_URL,
+      url: appUrl,
       active: true,
     });
   } catch (error) {
