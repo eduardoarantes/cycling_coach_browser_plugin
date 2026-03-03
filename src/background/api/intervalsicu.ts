@@ -41,6 +41,12 @@ import {
   IntervalsFolderListResponseSchema,
 } from '@/schemas/intervalsicu.schema';
 import { getIntervalsApiKey } from '@/services/intervalsApiKeyService';
+import {
+  startExport,
+  updateExportItem,
+  completeExport,
+  updateExportNotification,
+} from '@/services/exportProgressService';
 import { logger } from '@/utils/logger';
 import type { ApiResponse } from '@/types/api.types';
 import {
@@ -1174,8 +1180,16 @@ export async function createIntervalsPlanFolder(
  */
 export async function exportWorkoutsToLibrary(
   workouts: LibraryItem[],
-  folderId?: number
+  folderId?: number,
+  options?: {
+    targetName?: string;
+    sourceName?: string;
+    trackProgress?: boolean;
+  }
 ): Promise<ApiResponse<IntervalsWorkoutResponse[]>> {
+  const trackProgress = options?.trackProgress ?? true;
+  let exportState: { exportId: string } | null = null;
+
   try {
     logger.debug(
       'Exporting workouts to Intervals.icu library:',
@@ -1202,12 +1216,24 @@ export async function exportWorkoutsToLibrary(
       };
     }
 
+    // Start progress tracking
+    if (trackProgress && workouts.length > 0) {
+      exportState = await startExport({
+        destination: 'intervalsicu',
+        sourceName: options?.sourceName ?? 'TrainingPeaks Library',
+        targetName: options?.targetName ?? 'Intervals.icu Folder',
+        totalItems: workouts.length,
+        items: workouts.map((w) => w.itemName),
+      });
+    }
+
     const results: IntervalsWorkoutResponse[] = [];
     const url = `${INTERVALS_API_BASE}/athlete/${athleteId}/workouts`;
     const auth = btoa(`API_KEY:${apiKey}`);
 
     // Process each workout individually
-    for (const workout of workouts) {
+    for (let i = 0; i < workouts.length; i++) {
+      const workout = workouts[i];
       try {
         // Build payload
         const payload = buildWorkoutPayload(workout, folderId);
@@ -1235,7 +1261,25 @@ export async function exportWorkoutsToLibrary(
         const response = await fetch(url, requestOptions);
 
         if (!response.ok) {
+          // Update progress for failed item
+          if (exportState) {
+            await updateExportItem({
+              exportId: exportState.exportId,
+              itemIndex: i,
+              itemName: workout.itemName,
+              success: false,
+              error: `HTTP ${response.status}`,
+            });
+          }
+
           if (response.status === 401) {
+            if (exportState) {
+              await completeExport({
+                exportId: exportState.exportId,
+                success: false,
+                error: 'Invalid Intervals.icu API key',
+              });
+            }
             return {
               success: false,
               error: {
@@ -1248,6 +1292,15 @@ export async function exportWorkoutsToLibrary(
 
           const errorText = await response.text();
           logger.error('Intervals.icu API error:', response.status, errorText);
+
+          if (exportState) {
+            await completeExport({
+              exportId: exportState.exportId,
+              success: false,
+              error: `Failed to export workout "${workout.itemName}": ${response.status}`,
+            });
+          }
+
           return {
             success: false,
             error: {
@@ -1263,9 +1316,38 @@ export async function exportWorkoutsToLibrary(
         const validated = IntervalsWorkoutResponseSchema.parse(json);
         results.push(validated);
 
+        // Update progress for successful item
+        if (exportState) {
+          const state = await updateExportItem({
+            exportId: exportState.exportId,
+            itemIndex: i,
+            itemName: workout.itemName,
+            success: true,
+          });
+          if (state) {
+            await updateExportNotification(state);
+          }
+        }
+
         logger.debug(`Successfully exported workout: ${workout.itemName}`);
       } catch (error) {
         logger.error(`Failed to export workout "${workout.itemName}":`, error);
+
+        if (exportState) {
+          await updateExportItem({
+            exportId: exportState.exportId,
+            itemIndex: i,
+            itemName: workout.itemName,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          await completeExport({
+            exportId: exportState.exportId,
+            success: false,
+            error: `Failed to export workout "${workout.itemName}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+          });
+        }
+
         return {
           success: false,
           error: {
@@ -1276,6 +1358,14 @@ export async function exportWorkoutsToLibrary(
       }
     }
 
+    // Complete export successfully
+    if (exportState) {
+      await completeExport({
+        exportId: exportState.exportId,
+        success: true,
+      });
+    }
+
     logger.info(
       'Successfully exported workouts to Intervals.icu library:',
       results.length
@@ -1283,6 +1373,15 @@ export async function exportWorkoutsToLibrary(
     return { success: true, data: results };
   } catch (error) {
     logger.error('Failed to export to Intervals.icu:', error);
+
+    if (exportState) {
+      await completeExport({
+        exportId: exportState.exportId,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
     return {
       success: false,
       error: {

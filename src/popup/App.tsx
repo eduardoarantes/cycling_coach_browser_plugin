@@ -9,6 +9,7 @@ import { PlanCalendar } from './components/PlanCalendar';
 import { SettingsPage } from './components/SettingsPage';
 import { ConnectionHealthSummary } from './components/ConnectionHealthSummary';
 import { PlanMyPeakEnvironmentIndicator } from './components/PlanMyPeakEnvironmentIndicator';
+import { ExportProgressBanner } from './components/ExportProgressBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
@@ -120,6 +121,8 @@ function App(): ReactElement {
         isVisible={IS_LOCAL_PLANMYPEAK_TARGET}
         hostLabel={PLANMYPEAK_HOST_LABEL}
       />
+
+      <ExportProgressBanner />
 
       {activeView === 'settings' ? (
         <SettingsPage
