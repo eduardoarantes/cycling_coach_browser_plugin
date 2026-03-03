@@ -10,14 +10,35 @@ const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[TP Extension - MAIN World]', ...args);
 };
 
+/**
+ * Known Supabase hosts for PlanMyPeak auth detection.
+ * Includes cloud Supabase and common local development ports.
+ */
 const MYPEAK_SUPABASE_HOSTS = [
   '127.0.0.1:54361',
   'localhost:54361',
+  '127.0.0.1:54341',
+  'localhost:54341',
   'yqaskiwzyhhovthbvmqq.supabase.co',
 ];
 
+/**
+ * Check if URL matches a Supabase auth request pattern.
+ * Detects both known hosts and any localhost Supabase auth endpoint.
+ */
 function isMyPeakSupabaseRequest(url: string): boolean {
-  return MYPEAK_SUPABASE_HOSTS.some((host) => url.includes(host));
+  // Check known hosts first
+  if (MYPEAK_SUPABASE_HOSTS.some((host) => url.includes(host))) {
+    return true;
+  }
+
+  // Also detect any localhost/127.0.0.1 Supabase auth endpoints
+  // This allows flexible port configuration in local development
+  const isLocalhost = url.includes('localhost:') || url.includes('127.0.0.1:');
+  const isSupabaseAuthPath =
+    url.includes('/auth/v1/') || url.includes('/rest/v1/');
+
+  return isLocalhost && isSupabaseAuthPath;
 }
 
 function maybePostMyPeakSupabaseAuth(

@@ -34,10 +34,10 @@ import type {
 import { logger } from '@/utils/logger';
 import {
   API_BASE_URL,
-  MYPEAK_SUPABASE_URL,
   STORAGE_KEYS,
   createApiHeaders,
 } from '@/utils/constants';
+import { getSupabaseUrl } from '@/services/portConfigService';
 import {
   fetchUser,
   fetchLibraries,
@@ -354,7 +354,9 @@ async function handleValidateMyPeakToken(): Promise<{
       return { valid: false };
     }
 
-    const endpoint = `${MYPEAK_SUPABASE_URL}/auth/v1/user`;
+    // Use dynamic Supabase URL based on configured port (for local development)
+    const supabaseUrl = await getSupabaseUrl();
+    const endpoint = `${supabaseUrl}/auth/v1/user`;
     logger.debug('Validating MyPeak token via Supabase endpoint:', endpoint);
 
     const response = await fetch(endpoint, {

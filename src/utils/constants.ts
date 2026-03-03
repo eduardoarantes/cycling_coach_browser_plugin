@@ -53,27 +53,35 @@ export const PLANMYPEAK_TARGET = resolvePlanMyPeakTarget(
 export const IS_LOCAL_PLANMYPEAK_TARGET = PLANMYPEAK_TARGET === 'local';
 
 /**
- * PlanMyPeak app URL.
+ * Default ports for local PlanMyPeak development.
+ * These can be overridden via chrome.storage in local builds.
+ * Supported port sets: 3006/54361 (default) and 3004/54341 (alternate)
+ */
+export const DEFAULT_PLANMYPEAK_APP_PORT = 3006;
+export const DEFAULT_PLANMYPEAK_SUPABASE_PORT = 54361;
+
+/**
+ * PlanMyPeak app URL (uses default port, actual port may be configured in local builds).
  * Local uses the local app, production uses the deployed site.
  */
 export const PLANMYPEAK_APP_URL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? 'http://localhost:3006'
+  ? `http://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
   : 'https://planmypeak.com';
 
 /**
- * Short PlanMyPeak host label for UI copy.
+ * Short PlanMyPeak host label for UI copy (uses default port).
  */
 export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? 'localhost:3006'
+  ? `localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
   : 'planmypeak.com';
 
 /**
- * PlanMyPeak auth validation base URL.
+ * PlanMyPeak auth validation base URL (uses default port, actual port may be configured in local builds).
  * Development hits the local Supabase instance directly.
  * Production validates via the Supabase cloud instance.
  */
 export const PLANMYPEAK_AUTH_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? 'http://127.0.0.1:54361'
+  ? `http://127.0.0.1:${DEFAULT_PLANMYPEAK_SUPABASE_PORT}`
   : 'https://yqaskiwzyhhovthbvmqq.supabase.co';
 
 /**
@@ -125,6 +133,8 @@ export const STORAGE_KEYS = {
   INTERVALS_API_KEY: 'intervals_api_key',
   CONNECTION_ENABLE_PLANMYPEAK: 'connection_enable_planmypeak',
   CONNECTION_ENABLE_INTERVALS: 'connection_enable_intervals',
+  PLANMYPEAK_APP_PORT: 'planmypeak_app_port',
+  PLANMYPEAK_SUPABASE_PORT: 'planmypeak_supabase_port',
 } as const;
 
 /**
