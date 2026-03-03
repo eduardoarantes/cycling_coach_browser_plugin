@@ -6,6 +6,12 @@
 
 import { STORAGE_KEYS } from '@/utils/constants';
 import { getPlanMyPeakApiUrl } from '@/services/portConfigService';
+import {
+  startExport,
+  updateExportItem,
+  completeExport,
+  updateExportNotification,
+} from '@/services/exportProgressService';
 import { logger } from '@/utils/logger';
 import {
   PlanMyPeakCreateWorkoutResponseSchema,
@@ -931,9 +937,15 @@ export async function deletePlanMyPeakLibrary(
  */
 export async function exportWorkoutsToPlanMyPeakLibrary(
   workouts: PlanMyPeakWorkout[],
-  libraryId: string
+  libraryId: string,
+  options?: {
+    targetName?: string;
+    sourceName?: string;
+    trackProgress?: boolean;
+  }
 ): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
   const trimmedLibraryId = libraryId.trim();
+  const trackProgress = options?.trackProgress ?? true;
 
   if (!trimmedLibraryId) {
     return {
@@ -945,9 +957,22 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     };
   }
 
+  // Start progress tracking
+  let exportState: { exportId: string } | null = null;
+  if (trackProgress && workouts.length > 0) {
+    exportState = await startExport({
+      destination: 'planmypeak',
+      sourceName: options?.sourceName ?? 'TrainingPeaks Library',
+      targetName: options?.targetName ?? 'PlanMyPeak Library',
+      totalItems: workouts.length,
+      items: workouts.map((w) => w.name),
+    });
+  }
+
   const uploaded: PlanMyPeakWorkoutLibraryItem[] = [];
 
-  for (const workout of workouts) {
+  for (let i = 0; i < workouts.length; i++) {
+    const workout = workouts[i];
     const requestBody = toCreateWorkoutRequest(workout, trimmedLibraryId);
 
     const result = await apiRequest(
@@ -961,6 +986,22 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     );
 
     if (!result.success) {
+      // Update progress for failed item
+      if (exportState) {
+        await updateExportItem({
+          exportId: exportState.exportId,
+          itemIndex: i,
+          itemName: workout.name,
+          success: false,
+          error: result.error.message,
+        });
+        await completeExport({
+          exportId: exportState.exportId,
+          success: false,
+          error: `Failed to upload "${workout.name}": ${result.error.message}`,
+        });
+      }
+
       return {
         success: false,
         error: {
@@ -971,6 +1012,27 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     }
 
     uploaded.push(result.data);
+
+    // Update progress for successful item
+    if (exportState) {
+      const state = await updateExportItem({
+        exportId: exportState.exportId,
+        itemIndex: i,
+        itemName: workout.name,
+        success: true,
+      });
+      if (state) {
+        await updateExportNotification(state);
+      }
+    }
+  }
+
+  // Complete export
+  if (exportState) {
+    await completeExport({
+      exportId: exportState.exportId,
+      success: true,
+    });
   }
 
   return {
