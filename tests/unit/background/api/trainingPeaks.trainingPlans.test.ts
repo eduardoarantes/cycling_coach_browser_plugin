@@ -186,7 +186,11 @@ describe('trainingPeaks Training Plans API', () => {
       // Assert
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.message).toContain('validation');
+        expect(result.error.message).toContain(
+          'Response validation failed at [0].planAccess'
+        );
+        expect(result.error.message).toContain('Input: undefined');
+        expect(result.error.code).toBe('VALIDATION_ERROR');
       }
     });
   });

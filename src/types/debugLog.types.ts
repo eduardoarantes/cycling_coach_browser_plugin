@@ -29,6 +29,12 @@ export interface ApiLogEntry {
   errorMessage?: string;
   /** Error code if applicable (NO_TOKEN, VALIDATION_ERROR, etc.) */
   errorCode?: string;
+  /** Dot/bracket path for the first schema validation issue (e.g., "0.planId") */
+  validationPath?: string;
+  /** Validation issue message from schema parser */
+  validationIssue?: string;
+  /** Short preview of invalid value that failed validation */
+  validationInput?: string;
   /** Human-readable operation name (e.g., "user profile", "libraries") */
   operationName: string;
 }

@@ -46,11 +46,16 @@ describe('ApiLogEntrySchema', () => {
       success: false,
       errorMessage: 'Not authenticated',
       errorCode: 'NO_TOKEN',
+      validationPath: '[0].planId',
+      validationIssue: 'Invalid input: expected number, received string',
+      validationInput: '"abc"',
     };
 
     const result = ApiLogEntrySchema.parse(errorEntry);
     expect(result.errorCode).toBe('NO_TOKEN');
     expect(result.errorMessage).toBe('Not authenticated');
+    expect(result.validationPath).toBe('[0].planId');
+    expect(result.validationInput).toBe('"abc"');
   });
 
   it('should reject entry missing required id', () => {

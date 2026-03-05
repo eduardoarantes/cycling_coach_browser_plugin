@@ -20,6 +20,9 @@ export const ApiLogEntrySchema = z.object({
   durationMs: z.number().nonnegative(),
   errorMessage: z.string().optional(),
   errorCode: z.string().optional(),
+  validationPath: z.string().optional(),
+  validationIssue: z.string().optional(),
+  validationInput: z.string().optional(),
   operationName: z.string().min(1),
 });
 

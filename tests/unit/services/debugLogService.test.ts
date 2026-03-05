@@ -86,6 +86,9 @@ describe('debugLogService', () => {
         status: 401,
         errorMessage: 'Unauthorized',
         errorCode: 'NO_TOKEN',
+        validationPath: 'response.userId',
+        validationIssue: 'Invalid input: expected number, received string',
+        validationInput: '"abc"',
       });
 
       const result = await debugLogService.addLog(entry);
@@ -93,6 +96,8 @@ describe('debugLogService', () => {
       expect(result.success).toBe(false);
       expect(result.errorMessage).toBe('Unauthorized');
       expect(result.errorCode).toBe('NO_TOKEN');
+      expect(result.validationPath).toBe('response.userId');
+      expect(result.validationInput).toBe('"abc"');
     });
 
     it('should handle network error entry with null status', async () => {
