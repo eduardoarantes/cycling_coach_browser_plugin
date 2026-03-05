@@ -61,6 +61,11 @@ const mockRuntime = {
     addListener: vi.fn(),
     removeListener: vi.fn(),
   },
+  getManifest: vi.fn(() => ({
+    version: '1.0.0',
+    manifest_version: 3,
+    name: 'Test Extension',
+  })),
 };
 
 // Set up global chrome object

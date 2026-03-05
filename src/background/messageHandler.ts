@@ -71,6 +71,11 @@ import {
   hasIntervalsApiKey,
   clearIntervalsApiKey,
 } from '@/services/intervalsApiKeyService';
+import {
+  getLogs as getDebugLogs,
+  clearLogs as clearDebugLogs,
+} from '@/services/debugLogService';
+import type { ApiLogEntry } from '@/types/debugLog.types';
 import type {
   IntervalsFolderResponse,
   IntervalsTrainingPlanExportResult,
@@ -84,6 +89,7 @@ type MessageResponse =
   | { valid: boolean; userId?: number | string }
   | { apiKey: string | null }
   | { hasKey: boolean }
+  | { logs: ApiLogEntry[] }
   | ApiResponse<UserProfile>
   | ApiResponse<Library[]>
   | ApiResponse<PlanMyPeakLibrary[]>
@@ -728,6 +734,24 @@ async function handleClearIntervalsApiKey(): Promise<{ success: true }> {
 }
 
 /**
+ * Handle GET_DEBUG_LOGS message from popup
+ * Retrieves TrainingPeaks API call logs from chrome.storage
+ */
+async function handleGetDebugLogs(): Promise<{ logs: ApiLogEntry[] }> {
+  const logs = await getDebugLogs();
+  return { logs };
+}
+
+/**
+ * Handle CLEAR_DEBUG_LOGS message from popup
+ * Removes all TrainingPeaks API call logs from chrome.storage
+ */
+async function handleClearDebugLogs(): Promise<{ success: true }> {
+  await clearDebugLogs();
+  return { success: true };
+}
+
+/**
  * Main message router
  */
 export async function handleMessage(
@@ -866,6 +890,12 @@ export async function handleMessage(
 
     case 'CLEAR_INTERVALS_API_KEY':
       return await handleClearIntervalsApiKey();
+
+    case 'GET_DEBUG_LOGS':
+      return await handleGetDebugLogs();
+
+    case 'CLEAR_DEBUG_LOGS':
+      return await handleClearDebugLogs();
 
     default:
       logger.warn('Unknown message type received');

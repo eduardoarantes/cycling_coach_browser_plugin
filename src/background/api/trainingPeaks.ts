@@ -12,6 +12,7 @@ import {
   createApiHeaders,
 } from '@/utils/constants';
 import { logger } from '@/utils/logger';
+import { addLog } from '@/services/debugLogService';
 import {
   UserApiResponseSchema,
   LibrariesApiResponseSchema,
@@ -111,12 +112,29 @@ async function apiRequest<T>(
   operationName: string,
   baseUrl?: string
 ): Promise<ApiResponse<T>> {
+  const startTime = performance.now();
+  const effectiveBaseUrl = baseUrl ?? API_BASE_URL;
+
   try {
     logger.debug(`Fetching ${operationName}`);
 
     const response = await makeApiRequest(endpoint, baseUrl);
+    const durationMs = Math.round(performance.now() - startTime);
 
     if (!response.ok) {
+      // Log HTTP error
+      void addLog({
+        timestamp: Date.now(),
+        endpoint,
+        method: 'GET',
+        baseUrl: effectiveBaseUrl,
+        status: response.status,
+        success: false,
+        durationMs,
+        errorMessage: `HTTP ${response.status}`,
+        operationName,
+      });
+
       return {
         success: false,
         error: {
@@ -131,10 +149,38 @@ async function apiRequest<T>(
     // Validate response with Zod schema
     const validated = schema.parse(json);
 
+    // Log success
+    void addLog({
+      timestamp: Date.now(),
+      endpoint,
+      method: 'GET',
+      baseUrl: effectiveBaseUrl,
+      status: response.status,
+      success: true,
+      durationMs,
+      operationName,
+    });
+
     logger.info(`${operationName} fetched successfully`);
     return { success: true, data: validated };
   } catch (error) {
+    const durationMs = Math.round(performance.now() - startTime);
+
     if (error instanceof Error && error.message === 'NO_TOKEN') {
+      // Log NO_TOKEN error
+      void addLog({
+        timestamp: Date.now(),
+        endpoint,
+        method: 'GET',
+        baseUrl: effectiveBaseUrl,
+        status: null,
+        success: false,
+        durationMs,
+        errorMessage: 'Not authenticated',
+        errorCode: 'NO_TOKEN',
+        operationName,
+      });
+
       return {
         success: false,
         error: {
@@ -146,6 +192,21 @@ async function apiRequest<T>(
 
     if (error instanceof ZodError) {
       logger.error(`${operationName} validation failed:`, error);
+
+      // Log validation error
+      void addLog({
+        timestamp: Date.now(),
+        endpoint,
+        method: 'GET',
+        baseUrl: effectiveBaseUrl,
+        status: null,
+        success: false,
+        durationMs,
+        errorMessage: 'Response validation failed',
+        errorCode: 'VALIDATION_ERROR',
+        operationName,
+      });
+
       return {
         success: false,
         error: {
@@ -156,6 +217,20 @@ async function apiRequest<T>(
     }
 
     logger.error(`Error fetching ${operationName}:`, error);
+
+    // Log unknown error
+    void addLog({
+      timestamp: Date.now(),
+      endpoint,
+      method: 'GET',
+      baseUrl: effectiveBaseUrl,
+      status: null,
+      success: false,
+      durationMs,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      operationName,
+    });
+
     return {
       success: false,
       error: {

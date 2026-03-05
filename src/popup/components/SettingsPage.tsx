@@ -20,6 +20,7 @@ import {
   IntegrationHelpModal,
   type IntegrationHelpTopic,
 } from './IntegrationHelpModal';
+import { DebugLogPanel } from './DebugLogPanel';
 
 interface SettingsPageProps {
   isPlanMyPeakEnabled: boolean;
@@ -359,6 +360,8 @@ function SettingsPageContent({
           <IntervalsApiKeyBanner />
         </div>
       </OptionalConnectionCard>
+
+      <DebugLogPanel />
     </div>
   );
 }
