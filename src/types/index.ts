@@ -275,6 +275,20 @@ export interface ClearIntervalsApiKeyMessage {
   type: 'CLEAR_INTERVALS_API_KEY';
 }
 
+/**
+ * Message to get debug API logs
+ */
+export interface GetDebugLogsMessage {
+  type: 'GET_DEBUG_LOGS';
+}
+
+/**
+ * Message to clear debug API logs
+ */
+export interface ClearDebugLogsMessage {
+  type: 'CLEAR_DEBUG_LOGS';
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
   | MyPeakAuthFoundMessage
@@ -307,7 +321,9 @@ export type RuntimeMessage =
   | SetIntervalsApiKeyMessage
   | GetIntervalsApiKeyMessage
   | HasIntervalsApiKeyMessage
-  | ClearIntervalsApiKeyMessage;
+  | ClearIntervalsApiKeyMessage
+  | GetDebugLogsMessage
+  | ClearDebugLogsMessage;
 
 export interface FindIntervalsPlanFolderByNameResponse {
   exists: boolean;
