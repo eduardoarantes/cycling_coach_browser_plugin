@@ -127,6 +127,7 @@ export const EXTENSION_VERSION = '1.0.0';
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'auth_token',
   TOKEN_TIMESTAMP: 'token_timestamp',
+  TRAININGPEAKS_API_LOGS: 'trainingpeaks_api_logs',
   MYPEAK_AUTH_TOKEN: 'mypeak_auth_token',
   MYPEAK_TOKEN_TIMESTAMP: 'mypeak_token_timestamp',
   MYPEAK_SUPABASE_API_KEY: 'mypeak_supabase_api_key',
