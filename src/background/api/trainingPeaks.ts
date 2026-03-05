@@ -34,7 +34,15 @@ import type {
   CalendarEvent,
   RxBuilderWorkout,
 } from '@/types/api.types';
-import { ZodError, type z } from 'zod';
+import type { z } from 'zod';
+
+const MAX_VALIDATION_INPUT_LENGTH = 300;
+
+interface ValidationErrorDetails {
+  path: string;
+  message: string;
+  inputPreview: string;
+}
 
 /**
  * Get authentication token from storage
@@ -96,6 +104,114 @@ async function makeApiRequest(
   return response;
 }
 
+function formatValidationPath(path: PropertyKey[]): string {
+  if (path.length === 0) {
+    return 'response';
+  }
+
+  return path
+    .map((segment, index) => {
+      if (typeof segment === 'number') {
+        return `[${segment}]`;
+      }
+
+      const key = String(segment);
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)) {
+        return index === 0 ? key : `.${key}`;
+      }
+
+      return `[${JSON.stringify(key)}]`;
+    })
+    .join('');
+}
+
+function getValueAtPath(input: unknown, path: PropertyKey[]): unknown {
+  let cursor: unknown = input;
+
+  for (const segment of path) {
+    if (cursor === null || cursor === undefined) {
+      return undefined;
+    }
+
+    if (typeof segment === 'number') {
+      if (!Array.isArray(cursor)) {
+        return undefined;
+      }
+
+      cursor = cursor[segment];
+      continue;
+    }
+
+    if (typeof cursor !== 'object') {
+      return undefined;
+    }
+
+    cursor = (cursor as Record<PropertyKey, unknown>)[segment];
+  }
+
+  return cursor;
+}
+
+function stringifyValidationInput(input: unknown): string {
+  if (input === undefined) {
+    return 'undefined';
+  }
+
+  if (typeof input === 'string') {
+    return input;
+  }
+
+  try {
+    const serialized = JSON.stringify(input);
+    if (serialized !== undefined) {
+      return serialized;
+    }
+  } catch {
+    // Ignore serialization errors and fall back to String().
+  }
+
+  return String(input);
+}
+
+function truncateForLog(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  if (maxLength <= 3) {
+    return value.slice(0, maxLength);
+  }
+
+  return `${value.slice(0, maxLength - 3)}...`;
+}
+
+function extractValidationErrorDetails(
+  error: z.ZodError,
+  responseJson: unknown
+): ValidationErrorDetails {
+  const firstIssue = error.issues[0];
+
+  if (!firstIssue) {
+    return {
+      path: 'response',
+      message: 'Unknown validation error',
+      inputPreview: 'undefined',
+    };
+  }
+
+  const issueInput =
+    firstIssue.input ?? getValueAtPath(responseJson, firstIssue.path);
+
+  return {
+    path: formatValidationPath(firstIssue.path),
+    message: firstIssue.message,
+    inputPreview: truncateForLog(
+      stringifyValidationInput(issueInput),
+      MAX_VALIDATION_INPUT_LENGTH
+    ),
+  };
+}
+
 /**
  * Generic API request handler with Zod validation
  *
@@ -146,8 +262,48 @@ async function apiRequest<T>(
 
     const json = await response.json();
 
-    // Validate response with Zod schema
-    const validated = schema.parse(json);
+    const validationResult = schema.safeParse(json);
+
+    if (!validationResult.success) {
+      const details = extractValidationErrorDetails(
+        validationResult.error,
+        json
+      );
+      const errorMessage = `Response validation failed at ${details.path}: ${details.message}`;
+
+      logger.error(`${operationName} validation failed:`, {
+        path: details.path,
+        message: details.message,
+        input: details.inputPreview,
+        issues: validationResult.error.issues,
+      });
+
+      void addLog({
+        timestamp: Date.now(),
+        endpoint,
+        method: 'GET',
+        baseUrl: effectiveBaseUrl,
+        status: response.status,
+        success: false,
+        durationMs,
+        errorMessage,
+        errorCode: 'VALIDATION_ERROR',
+        validationPath: details.path,
+        validationIssue: details.message,
+        validationInput: details.inputPreview,
+        operationName,
+      });
+
+      return {
+        success: false,
+        error: {
+          message: `${errorMessage}. Input: ${details.inputPreview}`,
+          code: 'VALIDATION_ERROR',
+        },
+      };
+    }
+
+    const validated = validationResult.data;
 
     // Log success
     void addLog({
@@ -186,32 +342,6 @@ async function apiRequest<T>(
         error: {
           message: 'Not authenticated',
           code: 'NO_TOKEN',
-        },
-      };
-    }
-
-    if (error instanceof ZodError) {
-      logger.error(`${operationName} validation failed:`, error);
-
-      // Log validation error
-      void addLog({
-        timestamp: Date.now(),
-        endpoint,
-        method: 'GET',
-        baseUrl: effectiveBaseUrl,
-        status: null,
-        success: false,
-        durationMs,
-        errorMessage: 'Response validation failed',
-        errorCode: 'VALIDATION_ERROR',
-        operationName,
-      });
-
-      return {
-        success: false,
-        error: {
-          message: 'Response validation failed',
-          code: 'VALIDATION_ERROR',
         },
       };
     }

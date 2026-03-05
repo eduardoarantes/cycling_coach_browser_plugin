@@ -86,6 +86,18 @@ function LogEntryRow({ log }: LogEntryRowProps): ReactElement {
           {log.errorMessage}
         </div>
       )}
+
+      {log.validationPath && !log.success && (
+        <div className="mt-1 text-[10px]">
+          Path: <span className="font-mono">{log.validationPath}</span>
+        </div>
+      )}
+
+      {log.validationInput && !log.success && (
+        <div className="mt-1 text-[10px] break-all">
+          Input: <span className="font-mono">{log.validationInput}</span>
+        </div>
+      )}
     </div>
   );
 }
