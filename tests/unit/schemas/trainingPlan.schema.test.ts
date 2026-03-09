@@ -166,6 +166,104 @@ describe('TrainingPlanSchema', () => {
     expect(result).toEqual(planWithNulls);
   });
 
+  it('should coerce null eventCount to 0', () => {
+    const planWithNullEventCount = {
+      planAccess: {
+        planAccessId: 0,
+        personId: 6240623,
+        planId: 624434,
+        accessFromPayment: false,
+        accessFromShare: false,
+        grantedFromPersonId: 6240623,
+        planAccessType: 2,
+      },
+      planId: 624434,
+      planPersonId: 6240629,
+      ownerPersonId: 6240623,
+      createdOn: '2026-02-21T01:34:00',
+      title: 'Run',
+      author: 'Eduardo ',
+      planEmail: 'eduardo@trgs.com.br',
+      planLanguage: null,
+      dayCount: 15,
+      weekCount: 3,
+      startDate: '2026-02-18T00:00:00',
+      endDate: '2026-03-04T00:00:00',
+      workoutCount: 3,
+      eventCount: null,
+      description: null,
+      planCategory: 0,
+      subcategory: null,
+      additionalCriteria: null,
+      eventPlan: false,
+      eventName: null,
+      eventDate: null,
+      forceDate: false,
+      isDynamic: false,
+      isPublic: false,
+      isSearchable: false,
+      price: null,
+      customUrl: 0,
+      hasWeeklyGoals: false,
+      sampleWeekOne: null,
+      sampleWeekTwo: null,
+    };
+
+    const result = TrainingPlanSchema.parse(planWithNullEventCount);
+    expect(result.eventCount).toBe(0);
+  });
+
+  it('should coerce null count-like fields to 0', () => {
+    const planWithNullCounts = {
+      planAccess: {
+        planAccessId: 0,
+        personId: 6240623,
+        planId: 624434,
+        accessFromPayment: false,
+        accessFromShare: false,
+        grantedFromPersonId: 6240623,
+        planAccessType: 2,
+      },
+      planId: 624434,
+      planPersonId: 6240629,
+      ownerPersonId: 6240623,
+      createdOn: '2026-02-21T01:34:00',
+      title: 'Run',
+      author: 'Eduardo ',
+      planEmail: 'eduardo@trgs.com.br',
+      planLanguage: null,
+      dayCount: null,
+      weekCount: null,
+      startDate: '2026-02-18T00:00:00',
+      endDate: '2026-03-04T00:00:00',
+      workoutCount: null,
+      eventCount: null,
+      description: null,
+      planCategory: 0,
+      subcategory: null,
+      additionalCriteria: null,
+      eventPlan: false,
+      eventName: null,
+      eventDate: null,
+      forceDate: false,
+      isDynamic: false,
+      isPublic: false,
+      isSearchable: false,
+      price: null,
+      customUrl: null,
+      hasWeeklyGoals: false,
+      sampleWeekOne: null,
+      sampleWeekTwo: null,
+    };
+
+    const result = TrainingPlanSchema.parse(planWithNullCounts);
+    expect(result.dayCount).toBe(0);
+    expect(result.weekCount).toBe(0);
+    expect(result.workoutCount).toBe(0);
+    expect(result.eventCount).toBe(0);
+    expect(result.customUrl).toBe(0);
+  });
+
   it('should reject plan missing required fields', () => {
     const invalidPlan = {
       planId: 624432,

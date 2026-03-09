@@ -37,6 +37,15 @@ export const WorkoutStructureSchema = z.object({
 export type WorkoutStructure = z.infer<typeof WorkoutStructureSchema>;
 
 /**
+ * Some TrainingPeaks count fields are intermittently null in production payloads.
+ * Normalize them to zero so one malformed row does not break the full response.
+ */
+const NullableCountSchema = z
+  .number()
+  .nullable()
+  .transform((value) => value ?? 0);
+
+/**
  * Schema for a single training plan object
  * Matches the structure from /trainingplans/v2/plansWithAccess endpoint
  */
@@ -50,12 +59,12 @@ export const TrainingPlanSchema = z.object({
   author: z.string(),
   planEmail: z.string(),
   planLanguage: z.string().nullable(),
-  dayCount: z.number(),
-  weekCount: z.number(),
+  dayCount: NullableCountSchema,
+  weekCount: NullableCountSchema,
   startDate: z.string(),
   endDate: z.string(),
-  workoutCount: z.number(),
-  eventCount: z.number(),
+  workoutCount: NullableCountSchema,
+  eventCount: NullableCountSchema,
   description: z.string().nullable(),
   planCategory: z.number(),
   subcategory: z.number().nullable(),
@@ -68,7 +77,7 @@ export const TrainingPlanSchema = z.object({
   isPublic: z.boolean(),
   isSearchable: z.boolean(),
   price: z.number().nullable(),
-  customUrl: z.number(),
+  customUrl: NullableCountSchema,
   hasWeeklyGoals: z.boolean(),
   sampleWeekOne: z.number().nullable(),
   sampleWeekTwo: z.number().nullable(),
