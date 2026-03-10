@@ -1,87 +1,77 @@
-# Privacy Policy - PlanMyPeak Importer Extension
+# Privacy Policy
 
-**Last Updated**: February 21, 2026
+Last updated: March 10, 2026
 
 ## Overview
 
-PlanMyPeak Importer is a Chrome browser extension that helps you access your TrainingPeaks workout libraries directly from your browser.
+PlanMyPeak Importer is a browser extension for reading TrainingPeaks data and
+exporting it to supported destinations. The extension runs locally in your
+browser and talks directly to third-party services that you use.
 
-## Data Collection and Storage
+This project is not affiliated with TrainingPeaks, PlanMyPeak, or Intervals.icu.
 
-### Authentication Token
+## Data Stored Locally
 
-- **What we collect**: Your TrainingPeaks authentication token (bearer token)
-- **How we collect it**: Automatically intercepted from your browser when you log into TrainingPeaks
-- **Where it's stored**: Locally in your browser using Chrome's secure storage API (`chrome.storage.local`)
-- **Who has access**: Only you. The token never leaves your device except to communicate with TrainingPeaks API
-- **How long we keep it**: 24 hours, then it's automatically considered expired
+Depending on which features you use, the extension may store the following in
+`chrome.storage.local`:
 
-### API Requests
+- TrainingPeaks bearer token and timestamp
+- PlanMyPeak auth token and timestamp
+- PlanMyPeak Supabase API key observed from browser requests
+- Intervals.icu API key that you enter manually
+- Export progress state, connection toggles, and local development port settings
+- Debug logs that you explicitly generate while troubleshooting
 
-- **What we access**: Your TrainingPeaks workout libraries and user profile
-- **Purpose**: To display your workout data in the extension popup
-- **Where data goes**: Fetched directly from TrainingPeaks API and displayed in the extension. No data is sent to third parties.
+## Network Requests
 
-## Data We DO NOT Collect
+The extension makes direct requests to the following services:
 
-- ❌ We do NOT collect personally identifiable information
-- ❌ We do NOT track your browsing history
-- ❌ We do NOT sell or share your data with third parties
-- ❌ We do NOT send data to external servers (except TrainingPeaks API)
-- ❌ We do NOT use analytics or tracking services
+- TrainingPeaks web and API endpoints to capture auth and read workout data
+- `api.peakswaresb.com` for TrainingPeaks RxBuilder structured workout data
+- PlanMyPeak APIs when PlanMyPeak features or auth validation are used
+- PlanMyPeak Supabase auth endpoint to validate PlanMyPeak auth state
+- Intervals.icu APIs when that integration is enabled and an API key is present
 
-## Permissions Explained
+This repository does not include a separate telemetry or analytics backend.
 
-### Storage Permission
+## What We Do Not Do
 
-- **Purpose**: Store your authentication token locally in your browser
-- **Scope**: Only used for extension functionality
+- We do not sell your data
+- We do not run analytics or ad trackers in the extension
+- We do not ask you to paste TrainingPeaks session tokens manually
+- We do not send your data to unrelated third-party services
 
-### Host Permissions
+## Permissions
 
-- **`https://tpapi.trainingpeaks.com/*`**: Required to fetch workout library data
-- **`https://app.trainingpeaks.com/*`**: Required to intercept authentication token when you log in
+The extension requests:
 
-## Data Security
+- `storage` to persist credentials, settings, and export progress locally
+- `tabs` to find and focus TrainingPeaks or PlanMyPeak tabs for re-auth flows
+- `notifications` to show export progress and completion state
+- Host permissions for TrainingPeaks, PlanMyPeak, Intervals.icu, Supabase, and
+  local development endpoints used by the app
 
-- All data storage uses Chrome's encrypted storage API
-- Authentication tokens are handled securely
-- No data is transmitted to third-party services
-- All communication with TrainingPeaks uses HTTPS
+See [docs/PRIVACY_AND_PERMISSIONS.md](./docs/PRIVACY_AND_PERMISSIONS.md) for a
+full permission and host breakdown.
 
 ## User Control
 
 You can:
 
-- Clear your authentication token anytime using the "Logout" button in the extension
-- Uninstall the extension to remove all stored data
-- Revoke extension permissions in Chrome settings
+- Remove stored credentials by clearing connection state in the extension UI
+- Remove all extension data by uninstalling the extension
+- Revoke provider access by rotating or revoking tokens and API keys on the
+  provider side
 
-## Third-Party Services
+## Security Notes
 
-This extension only communicates with:
-
-- **TrainingPeaks API** (`tpapi.trainingpeaks.com`) - To fetch your workout data
-- **TrainingPeaks Web App** (`app.trainingpeaks.com`) - To intercept authentication
-
-We have no affiliation with TrainingPeaks. This is an independent project.
-
-## Children's Privacy
-
-This extension does not knowingly collect information from children under 13.
-
-## Changes to This Policy
-
-We will notify users of any privacy policy changes by updating this document and the "Last Updated" date.
+- Treat auth tokens and API keys as secrets
+- Do not include raw tokens, API keys, or personal training data in public bug
+  reports
+- For sensitive disclosures, follow [SECURITY.md](./SECURITY.md)
 
 ## Contact
 
-For privacy concerns or questions:
-
-- GitHub Issues: https://github.com/eduardoarantes/cycling_coach_browser_plugin/issues
-- Email: [Your contact email]
-
-## Open Source
-
-This extension is open source. You can review the code at:
-https://github.com/eduardoarantes/cycling_coach_browser_plugin
+- General questions and bug reports:
+  `https://github.com/eduardoarantes/cycling_coach_browser_plugin/issues`
+- Sensitive security matters: follow [SECURITY.md](./SECURITY.md)

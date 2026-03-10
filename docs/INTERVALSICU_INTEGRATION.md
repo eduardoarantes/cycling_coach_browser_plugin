@@ -1,6 +1,6 @@
 # Intervals.icu Integration Guide
 
-Complete guide for the Intervals.icu export integration in the TrainingPeaks Browser Plugin.
+Complete guide for the Intervals.icu export integration in PlanMyPeak Importer.
 
 ## Table of Contents
 

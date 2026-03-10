@@ -53,7 +53,7 @@ Use these files as the main references when adding or modifying an integration:
 
 PlanMyPeak API references:
 
-- `PlanMyPeak/workouts-openapi.yaml`
+- the current PlanMyPeak API contract and backend implementation
 
 ## Export Screen Contract (What Must Stay Reused)
 
@@ -399,7 +399,7 @@ If the answer to (1) is no, do not add the control to the export dialog.
 - Local dev app URL: `http://localhost:3006`
 - Local Supabase auth URL: `http://127.0.0.1:54361`
 - PlanMyPeak API base (local): `http://localhost:3006/api/v1`
-- OpenAPI source: `PlanMyPeak/workouts-openapi.yaml`
+- API contract source: current PlanMyPeak backend contract
 
 Current implemented endpoints:
 

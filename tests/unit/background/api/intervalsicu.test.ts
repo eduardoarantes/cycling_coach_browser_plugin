@@ -401,7 +401,7 @@ describe('Intervals.icu API Client - Redesigned', () => {
         const stringAthleteId = 'i346347';
         const mockAthleteResponse = {
           id: stringAthleteId,
-          name: 'Eduardo A Rodrigues',
+          name: 'Example Athlete',
         };
 
         const mockFolderResponse = {

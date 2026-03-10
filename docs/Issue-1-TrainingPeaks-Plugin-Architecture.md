@@ -1,4 +1,4 @@
-# TrainingPeaks Browser Plugin - Technical Architecture
+# PlanMyPeak Importer - Technical Architecture
 
 **Issue**: #1
 **Version**: 1.0
@@ -43,6 +43,7 @@ This document outlines the technical architecture for a Chromium browser extensi
 ### Functional Requirements
 
 #### FR1: Authentication Detection
+
 - **Description**: Plugin must detect if user is logged into TrainingPeaks
 - **Acceptance Criteria**:
   - Detect bearer token from existing browser session
@@ -51,6 +52,7 @@ This document outlines the technical architecture for a Chromium browser extensi
   - Provide clear messaging when not logged in
 
 #### FR2: API Access
+
 - **Description**: Fetch data from TrainingPeaks API endpoints
 - **Endpoints**:
   1. `GET /users/v3/user` - User profile information
@@ -63,6 +65,7 @@ This document outlines the technical architecture for a Chromium browser extensi
   - Cache responses appropriately
 
 #### FR3: Library Display (Milestone 1)
+
 - **Description**: Display available exercise libraries to the user
 - **Acceptance Criteria**:
   - Show library names and owners
@@ -71,6 +74,7 @@ This document outlines the technical architecture for a Chromium browser extensi
   - Provide loading states during fetch
 
 #### FR4: Multi-User Distribution
+
 - **Description**: Package and distribute plugin to multiple users
 - **Acceptance Criteria**:
   - Build production-ready bundle
@@ -81,29 +85,34 @@ This document outlines the technical architecture for a Chromium browser extensi
 ### Non-Functional Requirements
 
 #### NFR1: Browser Compatibility
+
 - **Target**: Chromium-based browsers only
 - **Minimum Version**: Chrome 88+ (Manifest V3 support)
 - **Testing Browsers**: Chrome, Edge, Brave
 
 #### NFR2: Security
+
 - **Token Storage**: Secure storage using chrome.storage.local
 - **Permissions**: Minimal required permissions
 - **CSP**: Strict Content Security Policy
 - **No Token Leakage**: Never log or expose bearer tokens
 
 #### NFR3: Distribution Model
+
 - **Type**: Private/unlisted distribution
 - **Method**: Chrome Web Store (unlisted) or direct ZIP sharing
 - **Updates**: Automatic updates when using Web Store
 - **Access Control**: Link-based sharing
 
 #### NFR4: Performance
+
 - **Extension Load**: <500ms initialization time
 - **Popup Open**: <200ms to display
 - **API Calls**: <2 seconds per library fetch
 - **Bundle Size**: <2MB total
 
 #### NFR5: Testability
+
 - **Coverage**: >80% code coverage
 - **E2E Tests**: Run in authenticated browser context
 - **CI/CD**: Automated testing on commits
@@ -247,8 +256,10 @@ sequenceDiagram
 ### Core Technologies
 
 #### Vite 7.3.1
+
 **Purpose**: Build tool and development server
 **Justification**:
+
 - Lightning-fast HMR (<50ms updates)
 - Native ESM support
 - Optimized production builds with Rollup
@@ -258,13 +269,16 @@ sequenceDiagram
 **Note**: Vite 8.0 beta is available with Rolldown bundler, but v7.3.1 is recommended for production stability.
 
 **Alternatives Considered**:
+
 - Webpack: More complex configuration, slower dev server
 - Parcel: Less control over build process
 - esbuild: Minimal ecosystem for extensions
 
 #### TypeScript 5.9
+
 **Purpose**: Type-safe development
 **Justification**:
+
 - Catch errors at compile time
 - Excellent IDE support and autocomplete
 - Self-documenting code via types
@@ -274,6 +288,7 @@ sequenceDiagram
 **Note**: TypeScript 6.0 beta is available (Feb 2026), but v5.9 is the latest stable release. TypeScript 7.0 (rewritten in Go) is coming later in 2026.
 
 **Configuration**:
+
 ```json
 {
   "strict": true,
@@ -285,8 +300,10 @@ sequenceDiagram
 ```
 
 #### React 19.2.4
+
 **Purpose**: UI library
 **Justification**:
+
 - Familiar component model
 - Large ecosystem of libraries
 - Concurrent features for better UX
@@ -296,13 +313,16 @@ sequenceDiagram
 - Improved performance over React 18
 
 **Alternatives Considered**:
+
 - Svelte: Smaller bundle but less extension ecosystem
 - Vue: Good option but React more common in extensions
 - Vanilla JS: No framework overhead but higher complexity
 
 #### @crxjs/vite-plugin 2.3.0
+
 **Purpose**: Chrome extension development
 **Justification**:
+
 - Seamless Vite integration
 - Automatic manifest generation
 - HMR for extension development
@@ -314,8 +334,10 @@ sequenceDiagram
 ### State Management
 
 #### Zustand 5.0.11
+
 **Purpose**: Client state management
 **Justification**:
+
 - Minimal bundle size (1KB)
 - Simple API, low learning curve
 - No boilerplate (vs Redux)
@@ -324,14 +346,17 @@ sequenceDiagram
 - Active maintenance with recent updates
 
 **Usage**:
+
 - Authentication state
 - UI state (loading, errors)
 - User preferences
 - Token management
 
 #### TanStack Query (React Query) 5.90.21
+
 **Purpose**: Server state management
 **Justification**:
+
 - Built-in caching with smart invalidation
 - Automatic background refetching
 - Loading and error states
@@ -342,6 +367,7 @@ sequenceDiagram
 **Package**: `@tanstack/react-query`
 
 **Usage**:
+
 - API data fetching
 - Library list caching
 - Library content caching
@@ -350,8 +376,10 @@ sequenceDiagram
 ### Supporting Libraries
 
 #### Zod 4.3.6
+
 **Purpose**: Runtime validation
 **Justification**:
+
 - Type-safe schema validation
 - API response validation
 - Excellent TypeScript inference
@@ -361,18 +389,21 @@ sequenceDiagram
 - **Bundle Size**: @zod/mini available at ~1.9KB gzipped
 
 **Usage**:
+
 ```typescript
 const LibrarySchema = z.object({
   id: z.number(),
   name: z.string(),
   owner: z.string(),
-  itemCount: z.number().optional()
+  itemCount: z.number().optional(),
 });
 ```
 
 #### Tailwind CSS 4.1
+
 **Purpose**: Styling
 **Justification**:
+
 - Rapid development
 - Small bundle with purging
 - Consistent design system
@@ -385,6 +416,7 @@ const LibrarySchema = z.object({
 **Browser Support**: Safari 16.4+, Chrome 111+, Firefox 128+
 
 **Configuration**:
+
 - Custom color palette
 - Extension-specific utilities
 - Dark mode support (future)
@@ -392,8 +424,10 @@ const LibrarySchema = z.object({
 ### Development & Testing
 
 #### Playwright 1.58.2
+
 **Purpose**: E2E testing
 **Justification**:
+
 - Browser extension support
 - Authenticated session testing
 - Headless and headed modes
@@ -403,14 +437,17 @@ const LibrarySchema = z.object({
 - Uses Chrome for Testing builds for consistency
 
 **Test Scenarios**:
+
 - Login detection
 - Library fetching
 - Error handling
 - Token expiration
 
 #### Vitest 4.0.18
+
 **Purpose**: Unit and integration testing
 **Justification**:
+
 - Native Vite integration
 - Fast execution with ESM
 - Jest-compatible API
@@ -419,6 +456,7 @@ const LibrarySchema = z.object({
 - **New in v4**: Stable Browser Mode, Visual Regression testing support, Playwright Traces
 
 **Coverage Targets**:
+
 - API services: >90%
 - React components: >80%
 - Utilities: >95%
@@ -427,8 +465,10 @@ const LibrarySchema = z.object({
 **Growth**: 17M weekly downloads (Feb 2026)
 
 #### TypeScript ESLint & Prettier
+
 **Purpose**: Code quality
 **Justification**:
+
 - Consistent code style
 - Catch common errors
 - Enforce best practices
@@ -443,6 +483,7 @@ const LibrarySchema = z.object({
 ### Week 1: Project Setup & Foundation
 
 **Tasks**:
+
 1. Initialize Vite project with TypeScript template
 2. Install and configure @crxjs/vite-plugin
 3. Set up manifest.json (Manifest V3)
@@ -452,12 +493,14 @@ const LibrarySchema = z.object({
 7. Initialize package.json with all dependencies
 
 **Deliverables**:
+
 - Working Vite development server
 - Extension loads in Chrome
 - Basic popup displays "Hello World"
 - Hot reload working
 
 **Acceptance Criteria**:
+
 - ✓ `npm run dev` starts dev server
 - ✓ Extension loads without errors
 - ✓ TypeScript compilation successful
@@ -468,6 +511,7 @@ const LibrarySchema = z.object({
 ### Week 2: Authentication & Token Management
 
 **Tasks**:
+
 1. Implement content script for token interception
 2. Create authentication service
 3. Set up chrome.storage for token persistence
@@ -477,12 +521,14 @@ const LibrarySchema = z.object({
 7. Add messaging between content script and background
 
 **Deliverables**:
+
 - Content script intercepts TrainingPeaks requests
 - Bearer token extracted and stored
 - Auth state reflected in UI
 - Token refresh mechanism
 
 **Acceptance Criteria**:
+
 - ✓ Token extracted from TrainingPeaks session
 - ✓ Auth state persists across browser restarts
 - ✓ UI shows logged in/out state
@@ -493,6 +539,7 @@ const LibrarySchema = z.object({
 ### Week 3: API Integration
 
 **Tasks**:
+
 1. Create TypeScript interfaces for all API responses
 2. Implement API service layer
 3. Set up React Query configuration
@@ -503,12 +550,14 @@ const LibrarySchema = z.object({
 8. Implement error handling and retry logic
 
 **Deliverables**:
+
 - Complete API service with all 3 endpoints
 - Type-safe API responses
 - Error handling for common scenarios
 - React Query integration
 
 **Acceptance Criteria**:
+
 - ✓ All 3 API endpoints working
 - ✓ Responses validated with Zod
 - ✓ Error states handled gracefully
@@ -519,6 +568,7 @@ const LibrarySchema = z.object({
 ### Week 4: UI Development
 
 **Tasks**:
+
 1. Design library list component
 2. Implement library card UI
 3. Add loading skeletons
@@ -529,12 +579,14 @@ const LibrarySchema = z.object({
 8. Add user info display
 
 **Deliverables**:
+
 - Complete library list UI
 - Loading and error states
 - Responsive design
 - Polished user experience
 
 **Acceptance Criteria**:
+
 - ✓ Libraries display correctly
 - ✓ Loading states smooth
 - ✓ Error messages clear and actionable
@@ -545,6 +597,7 @@ const LibrarySchema = z.object({
 ### Week 5: Testing Infrastructure
 
 **Tasks**:
+
 1. Set up Vitest configuration
 2. Write unit tests for API services
 3. Write unit tests for utilities
@@ -557,12 +610,14 @@ const LibrarySchema = z.object({
 10. Set up CI/CD pipeline (GitHub Actions)
 
 **Deliverables**:
+
 - Comprehensive test suite
-- >80% code coverage
+- > 80% code coverage
 - E2E tests running in authenticated context
 - CI/CD pipeline
 
 **Acceptance Criteria**:
+
 - ✓ All tests passing
 - ✓ Coverage >80%
 - ✓ E2E tests work in authenticated browser
@@ -573,6 +628,7 @@ const LibrarySchema = z.object({
 ### Week 6: Distribution & Documentation
 
 **Tasks**:
+
 1. Create production build configuration
 2. Optimize bundle size
 3. Create ZIP distribution script
@@ -585,6 +641,7 @@ const LibrarySchema = z.object({
 10. Release v1.0
 
 **Deliverables**:
+
 - Production-ready build
 - Installation guide
 - User documentation
@@ -592,6 +649,7 @@ const LibrarySchema = z.object({
 - Release package
 
 **Acceptance Criteria**:
+
 - ✓ Bundle size <2MB
 - ✓ Extension works on fresh install
 - ✓ Documentation complete
@@ -613,6 +671,7 @@ Chrome is deprecating Manifest V2 extensions. All new extensions should use Mani
 Build the extension using Manifest V3 from the start.
 
 **Consequences**:
+
 - **Positive**:
   - Future-proof extension
   - Access to latest Chrome APIs
@@ -624,6 +683,7 @@ Build the extension using Manifest V3 from the start.
   - Service worker lifecycle management
 
 **Alternatives Considered**:
+
 - Manifest V2: Deprecated, would require migration later
 
 ---
@@ -640,6 +700,7 @@ Need to access bearer token from TrainingPeaks authenticated session without req
 Use a content script to intercept fetch/XHR requests on `app.trainingpeaks.com` and extract the bearer token from Authorization headers.
 
 **Consequences**:
+
 - **Positive**:
   - Seamless user experience
   - No manual token copying
@@ -651,20 +712,22 @@ Use a content script to intercept fetch/XHR requests on `app.trainingpeaks.com` 
   - May break if TP changes auth flow
 
 **Alternatives Considered**:
+
 - Manual token input: Poor UX
 - OAuth flow: TP doesn't provide OAuth for extensions
 - Cookies: More complex and less reliable
 
 **Implementation**:
+
 ```javascript
 // content-script.ts
 const originalFetch = window.fetch;
-window.fetch = function(...args) {
+window.fetch = function (...args) {
   const [url, options] = args;
   if (options?.headers?.authorization) {
     chrome.runtime.sendMessage({
       type: 'TOKEN_FOUND',
-      token: options.headers.authorization
+      token: options.headers.authorization,
     });
   }
   return originalFetch.apply(this, args);
@@ -685,6 +748,7 @@ Need state management for client-side state (auth, UI, preferences).
 Use Zustand for lightweight state management.
 
 **Consequences**:
+
 - **Positive**:
   - Minimal bundle size (1KB)
   - Simple API, low learning curve
@@ -696,11 +760,13 @@ Use Zustand for lightweight state management.
   - No built-in DevTools (available via middleware)
 
 **Alternatives Considered**:
+
 - Redux Toolkit: Heavy bundle, unnecessary complexity
 - Context API: Performance issues with frequent updates
 - Jotai/Recoil: Atom-based model unnecessary for simple state
 
 **Implementation**:
+
 ```typescript
 interface AuthState {
   token: string | null;
@@ -713,7 +779,7 @@ const useAuthStore = create<AuthState>((set) => ({
   token: null,
   isAuthenticated: false,
   setToken: (token) => set({ token, isAuthenticated: true }),
-  clearToken: () => set({ token: null, isAuthenticated: false })
+  clearToken: () => set({ token: null, isAuthenticated: false }),
 }));
 ```
 
@@ -731,6 +797,7 @@ Need to manage server state (API responses) with caching, loading states, and er
 Use React Query (TanStack Query) for server state management.
 
 **Consequences**:
+
 - **Positive**:
   - Built-in caching with smart invalidation
   - Automatic background refetching
@@ -743,11 +810,13 @@ Use React Query (TanStack Query) for server state management.
   - Learning curve for advanced features
 
 **Alternatives Considered**:
+
 - SWR: Similar features, less feature-complete
 - Custom hooks: Reinventing the wheel
 - Zustand only: No built-in caching or request management
 
 **Configuration**:
+
 ```typescript
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -755,9 +824,9 @@ const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000, // 5 minutes
       cacheTime: 10 * 60 * 1000, // 10 minutes
       retry: 2,
-      refetchOnWindowFocus: false
-    }
-  }
+      refetchOnWindowFocus: false,
+    },
+  },
 });
 ```
 
@@ -775,6 +844,7 @@ Need private distribution mechanism for multiple users without public listing.
 Use Chrome Web Store unlisted listing for distribution.
 
 **Consequences**:
+
 - **Positive**:
   - Automatic updates for users
   - No developer mode required
@@ -788,11 +858,13 @@ Use Chrome Web Store unlisted listing for distribution.
   - Review time (1-3 days)
 
 **Alternatives Considered**:
+
 - Direct ZIP sharing: No automatic updates, requires developer mode
 - Private server: Complex distribution, security concerns
 - GitHub Releases: Still requires developer mode
 
 **Distribution Flow**:
+
 1. Build production bundle
 2. Submit to Chrome Web Store as unlisted
 3. Wait for review (1-3 days)
@@ -813,6 +885,7 @@ Need E2E testing that can run in authenticated TrainingPeaks browser session.
 Use Playwright for E2E testing with browser extension support.
 
 **Consequences**:
+
 - **Positive**:
   - Browser extension testing support
   - Can maintain authenticated sessions
@@ -826,11 +899,13 @@ Use Playwright for E2E testing with browser extension support.
   - Longer test execution time
 
 **Alternatives Considered**:
+
 - Puppeteer: Less extension support
 - Selenium: Slower, more complex setup
 - Cypress: Poor extension support
 
 **Test Setup**:
+
 ```typescript
 import { test, chromium } from '@playwright/test';
 
@@ -840,8 +915,8 @@ test('fetch libraries when authenticated', async () => {
     headless: false,
     args: [
       `--disable-extensions-except=${pathToExtension}`,
-      `--load-extension=${pathToExtension}`
-    ]
+      `--load-extension=${pathToExtension}`,
+    ],
   });
 
   // Test authenticated flow
@@ -858,11 +933,13 @@ test('fetch libraries when authenticated', async () => {
 ### High Priority Risks
 
 #### Risk 1: Token Expiration
+
 **Probability**: High
 **Impact**: High
 **Description**: Bearer tokens expire after some period (unknown). If token expires, API calls will fail.
 
 **Mitigation**:
+
 - Implement 401 error detection
 - Prompt user to refresh TrainingPeaks session
 - Add token refresh mechanism
@@ -870,17 +947,20 @@ test('fetch libraries when authenticated', async () => {
 - Cache last working token timestamp
 
 **Contingency**:
+
 - Fall back to manual token input
 - Add "Refresh Authentication" button
 
 ---
 
 #### Risk 2: TrainingPeaks API Changes
+
 **Probability**: Medium
 **Impact**: High
 **Description**: TrainingPeaks may change API endpoints, response formats, or authentication mechanisms without notice.
 
 **Mitigation**:
+
 - Use Zod validation to catch schema changes
 - Implement version detection
 - Add API health checks
@@ -888,6 +968,7 @@ test('fetch libraries when authenticated', async () => {
 - Set up error alerting
 
 **Contingency**:
+
 - Quick patch release process
 - Graceful degradation for missing fields
 - Error reporting to developers
@@ -895,17 +976,20 @@ test('fetch libraries when authenticated', async () => {
 ---
 
 #### Risk 3: CORS and CSP Restrictions
+
 **Probability**: Medium
 **Impact**: High
 **Description**: Chrome extension CSP or TrainingPeaks CORS policies may block API requests.
 
 **Mitigation**:
+
 - Use background service worker for API calls
 - Declare proper host permissions in manifest
 - Test CORS thoroughly during development
 - Use proper request headers
 
 **Manifest Configuration**:
+
 ```json
 {
   "host_permissions": [
@@ -923,11 +1007,13 @@ test('fetch libraries when authenticated', async () => {
 ### Medium Priority Risks
 
 #### Risk 4: Chrome Extension Policy Violations
+
 **Probability**: Low
 **Impact**: High
 **Description**: Extension may violate Chrome Web Store policies, leading to rejection or removal.
 
 **Mitigation**:
+
 - Review Chrome extension policies thoroughly
 - Minimal permissions requested
 - Clear privacy policy
@@ -935,6 +1021,7 @@ test('fetch libraries when authenticated', async () => {
 - Transparent about functionality
 
 **Policy Compliance Checklist**:
+
 - ✓ Single purpose extension
 - ✓ Minimal permissions
 - ✓ Privacy policy provided
@@ -944,11 +1031,13 @@ test('fetch libraries when authenticated', async () => {
 ---
 
 #### Risk 5: Large Library Performance
+
 **Probability**: Medium
 **Impact**: Medium
 **Description**: Libraries with thousands of workouts may cause performance issues or slow loading.
 
 **Mitigation**:
+
 - Implement pagination for large libraries
 - Virtual scrolling for long lists
 - Lazy loading of library content
@@ -956,6 +1045,7 @@ test('fetch libraries when authenticated', async () => {
 - Performance monitoring
 
 **Performance Targets**:
+
 - Libraries list: <2 seconds
 - Large library (1000+ items): <5 seconds
 - UI interaction: <100ms response
@@ -963,11 +1053,13 @@ test('fetch libraries when authenticated', async () => {
 ---
 
 #### Risk 6: Race Conditions in Token Extraction
+
 **Probability**: Medium
 **Impact**: Medium
 **Description**: Content script may not capture token before user opens popup.
 
 **Mitigation**:
+
 - Implement retry mechanism
 - Show loading state while waiting for token
 - Add manual "Retry Authentication" button
@@ -975,6 +1067,7 @@ test('fetch libraries when authenticated', async () => {
 - Background token refresh
 
 **User Experience**:
+
 1. User opens popup
 2. If no token: Show "Authenticating..." spinner
 3. If token found: Proceed with API calls
@@ -985,17 +1078,20 @@ test('fetch libraries when authenticated', async () => {
 ### Low Priority Risks
 
 #### Risk 7: Browser Compatibility Issues
+
 **Probability**: Low
 **Impact**: Low
 **Description**: Extension may have issues on different Chromium browsers (Edge, Brave, etc.).
 
 **Mitigation**:
+
 - Test on Chrome, Edge, Brave
 - Use standard Chrome APIs only
 - Follow Manifest V3 best practices
 - Document browser requirements
 
 **Supported Browsers**:
+
 - Chrome 88+
 - Edge 88+
 - Brave (latest)
@@ -1003,11 +1099,13 @@ test('fetch libraries when authenticated', async () => {
 ---
 
 #### Risk 8: Bundle Size Bloat
+
 **Probability**: Low
 **Impact**: Low
 **Description**: Dependencies may cause bundle size to exceed reasonable limits.
 
 **Mitigation**:
+
 - Monitor bundle size in CI
 - Use tree-shaking
 - Lazy load components
@@ -1015,6 +1113,7 @@ test('fetch libraries when authenticated', async () => {
 - Regular bundle analysis
 
 **Bundle Budget**:
+
 - Total: <2MB
 - Main chunk: <500KB
 - Vendor chunk: <1MB
@@ -1126,6 +1225,7 @@ cycling_coach_browser_plugin/
 **Requirement**: Store bearer tokens securely without exposure risk.
 
 **Implementation**:
+
 ```typescript
 // services/storageService.ts
 import { storage } from 'webextension-polyfill';
@@ -1134,7 +1234,7 @@ export const storageService = {
   async setToken(token: string): Promise<void> {
     await storage.local.set({
       auth_token: token,
-      token_timestamp: Date.now()
+      token_timestamp: Date.now(),
     });
   },
 
@@ -1145,11 +1245,12 @@ export const storageService = {
 
   async clearToken(): Promise<void> {
     await storage.local.remove('auth_token');
-  }
+  },
 };
 ```
 
 **Security Measures**:
+
 - Use `chrome.storage.local` (not `localStorage` or `sessionStorage`)
 - Never log tokens to console
 - Clear tokens on logout
@@ -1161,11 +1262,10 @@ export const storageService = {
 ### Minimal Permissions
 
 **Manifest Permissions**:
+
 ```json
 {
-  "permissions": [
-    "storage"
-  ],
+  "permissions": ["storage"],
   "host_permissions": [
     "https://tpapi.trainingpeaks.com/*",
     "https://app.trainingpeaks.com/*"
@@ -1174,6 +1274,7 @@ export const storageService = {
 ```
 
 **Justification**:
+
 - `storage`: Required for token persistence
 - Host permissions: Only TrainingPeaks domains
 - No unnecessary permissions requested
@@ -1183,6 +1284,7 @@ export const storageService = {
 ### Content Security Policy
 
 **CSP Configuration**:
+
 ```json
 {
   "content_security_policy": {
@@ -1192,6 +1294,7 @@ export const storageService = {
 ```
 
 **Protection Against**:
+
 - XSS attacks
 - Code injection
 - Remote code execution
@@ -1202,6 +1305,7 @@ export const storageService = {
 ### Data Privacy
 
 **Privacy Policy**:
+
 - No user data collection
 - No analytics or tracking
 - No data transmission to third parties
@@ -1209,6 +1313,7 @@ export const storageService = {
 - User can clear data anytime
 
 **User Controls**:
+
 - Clear authentication data
 - Uninstall removes all data
 - No persistent tracking
@@ -1223,6 +1328,7 @@ export const storageService = {
 **Coverage Goal**: >90%
 
 **Test Files**:
+
 ```typescript
 // tests/unit/services/authService.test.ts
 describe('authService', () => {
@@ -1241,6 +1347,7 @@ describe('authService', () => {
 ```
 
 **What to Test**:
+
 - API service methods
 - Storage operations
 - Validation functions
@@ -1255,6 +1362,7 @@ describe('authService', () => {
 **Coverage Goal**: >80%
 
 **Test Files**:
+
 ```typescript
 // tests/components/LibraryList.test.tsx
 describe('LibraryList', () => {
@@ -1274,6 +1382,7 @@ describe('LibraryList', () => {
 ```
 
 **What to Test**:
+
 - Component rendering
 - User interactions
 - Loading states
@@ -1288,6 +1397,7 @@ describe('LibraryList', () => {
 **Coverage Goal**: Critical paths
 
 **Test Scenarios**:
+
 ```typescript
 // tests/integration/api.test.ts
 describe('API Integration', () => {
@@ -1300,13 +1410,13 @@ describe('API Integration', () => {
 
   test('handles 401 unauthorized', async () => {
     const token = 'invalid-token';
-    await expect(apiService.getUserInfo(token))
-      .rejects.toThrow('Unauthorized');
+    await expect(apiService.getUserInfo(token)).rejects.toThrow('Unauthorized');
   });
 });
 ```
 
 **What to Test**:
+
 - API request/response cycle
 - Error handling
 - Token refresh flow
@@ -1320,6 +1430,7 @@ describe('API Integration', () => {
 **Coverage Goal**: All critical paths
 
 **Test Scenarios**:
+
 ```typescript
 // tests/e2e/authenticated.spec.ts
 test('complete authenticated workflow', async ({ page, context }) => {
@@ -1333,8 +1444,9 @@ test('complete authenticated workflow', async ({ page, context }) => {
   const popup = await openExtensionPopup(context);
 
   // 4. Verify auth status
-  await expect(popup.locator('[data-testid="auth-status"]'))
-    .toContainText('Authenticated');
+  await expect(popup.locator('[data-testid="auth-status"]')).toContainText(
+    'Authenticated'
+  );
 
   // 5. Wait for libraries to load
   await popup.waitForSelector('[data-testid="library-list"]');
@@ -1346,6 +1458,7 @@ test('complete authenticated workflow', async ({ page, context }) => {
 ```
 
 **Test Coverage**:
+
 - Authenticated user flow
 - Unauthenticated user flow
 - Token expiration handling
@@ -1357,6 +1470,7 @@ test('complete authenticated workflow', async ({ page, context }) => {
 ### CI/CD Pipeline
 
 **GitHub Actions Workflow**:
+
 ```yaml
 name: CI
 
@@ -1395,12 +1509,14 @@ jobs:
 
 **Method**: Direct ZIP sharing
 **Process**:
+
 1. Build production bundle: `npm run build`
 2. Package extension: `npm run package` (creates `dist.zip`)
 3. Share ZIP file with users
 4. Users load unpacked extension in Chrome
 
 **Installation Steps for Users**:
+
 1. Download `dist.zip`
 2. Extract to local folder
 3. Open `chrome://extensions`
@@ -1409,11 +1525,13 @@ jobs:
 6. Select extracted folder
 
 **Pros**:
+
 - Quick distribution
 - No review process
 - Full control
 
 **Cons**:
+
 - Requires developer mode
 - No automatic updates
 - Less professional
@@ -1426,6 +1544,7 @@ jobs:
 **Process**:
 
 #### 1. Prepare Release
+
 ```bash
 npm run build
 npm run package
@@ -1433,12 +1552,14 @@ npm run package
 ```
 
 #### 2. Chrome Web Store Setup
+
 - Create Chrome Web Store developer account ($5 one-time fee)
 - Create new extension listing
 - Upload ZIP file
 - Set visibility to "Unlisted"
 
 #### 3. Listing Details
+
 - **Title**: TrainingPeaks Library Access
 - **Description**: Access your TrainingPeaks workout libraries directly from your browser
 - **Category**: Productivity
@@ -1446,32 +1567,38 @@ npm run package
 - **Privacy Policy**: Include privacy policy URL
 
 #### 4. Store Assets
+
 - Icon: 128x128px PNG
 - Screenshots: 1280x800px (at least 1)
 - Promotional tile: 440x280px (optional)
 
 #### 5. Privacy Practices
+
 - Single purpose: Access TrainingPeaks libraries
 - Permissions justification: Document why each permission is needed
 - Data usage: No data collection or transmission
 
 #### 6. Submit for Review
+
 - Review time: 1-3 business days
 - Address any review feedback
 - Publish once approved
 
 #### 7. Share with Users
+
 - Get unlisted listing URL
 - Share URL via email/docs
 - Users install with one click
 
 **Pros**:
+
 - Automatic updates
 - No developer mode needed
 - Professional distribution
 - Chrome security review
 
 **Cons**:
+
 - Review process (1-3 days)
 - Must comply with policies
 - $5 registration fee
@@ -1481,18 +1608,21 @@ npm run package
 ### Update Process
 
 **For ZIP Distribution**:
+
 1. Build new version
 2. Update version in `manifest.json`
 3. Create new ZIP
 4. Notify users to reinstall
 
 **For Web Store Distribution**:
+
 1. Update version in `manifest.json`
 2. Build and package
 3. Upload to Web Store
 4. Users receive automatic update
 
 **Version Numbering**:
+
 - Follow Semantic Versioning (semver)
 - Format: `MAJOR.MINOR.PATCH`
 - Example: `1.0.0` → `1.1.0` (new features) → `1.1.1` (bug fixes)
@@ -1507,6 +1637,7 @@ npm run package
 **Timeline**: 2-4 weeks after v1.0
 
 **Features**:
+
 1. **Library Search/Filter**
    - Search workouts by name
    - Filter by workout type
@@ -1535,6 +1666,7 @@ npm run package
 **Timeline**: 3-6 months after v1.0
 
 **Features**:
+
 1. **Workout Export**
    - Export workouts to various formats (TCX, ZWO, MRC)
    - Bulk export capabilities
@@ -1568,6 +1700,7 @@ npm run package
 **Timeline**: 6-12 months after v1.0
 
 **Features**:
+
 1. **AI Workout Recommendations**
    - Suggest similar workouts
    - Workout difficulty assessment
@@ -1595,6 +1728,7 @@ npm run package
 ### API Response Examples
 
 #### User Response
+
 ```json
 {
   "id": 12345,
@@ -1606,6 +1740,7 @@ npm run package
 ```
 
 #### Libraries Response
+
 ```json
 [
   {
@@ -1620,6 +1755,7 @@ npm run package
 ```
 
 #### Library Items Response
+
 ```json
 {
   "items": [
@@ -1629,7 +1765,9 @@ npm run package
       "description": "2x10min @ 88-93% FTP",
       "type": "bike",
       "duration": 3600,
-      "structure": { /* workout structure */ }
+      "structure": {
+        /* workout structure */
+      }
     }
   ]
 }

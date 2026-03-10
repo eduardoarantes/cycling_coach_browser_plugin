@@ -1,169 +1,90 @@
 # Testing Guide
 
-## Automated Testing
+This project has unit, component, and Playwright-based extension tests, plus a
+small set of manual smoke checks that are important for auth and export flows.
 
-### Unit Tests
+## Automated Checks
 
-**Status**: ✅ **22 tests passing** with **100% coverage** on services layer
+Run the standard validation commands before opening a pull request:
 
 ```bash
-# Run all unit tests
+npm run lint
+npm run type-check
 npm run test:unit
-
-# Run tests in watch mode
-npm test
-
-# Run with coverage report
-npm run coverage
 ```
 
-**Current Coverage**:
-
-- `authService.ts`: 100% (13 tests)
-- `storageService.ts`: 100% (9 tests)
-- `storage.schema.ts`: 100% (Zod validation tested)
-- `constants.ts`: 100%
-
-### Test Files
-
-- `tests/unit/services/authService.test.ts` - Authentication logic tests
-- `tests/unit/services/storageService.test.ts` - Storage operations tests
-- `tests/setup.ts` - Chrome API mocks for testing
-
-### What's Tested
-
-**Authentication Service**:
-
-- ✅ Token storage and retrieval
-- ✅ Token validation (empty, whitespace)
-- ✅ Token age calculation
-- ✅ Token expiration detection (24-hour threshold)
-- ✅ Authentication state checking
-- ✅ Token clearing
-
-**Storage Service**:
-
-- ✅ Token storage with timestamp
-- ✅ Token retrieval with Zod validation
-- ✅ Null handling when no token exists
-- ✅ Token clearing
-- ✅ Token existence checking
-
-## Manual Testing in Chrome
-
-### Load Extension in Developer Mode
-
-1. **Build the extension**:
-
-   ```bash
-   npm run build
-   ```
-
-2. **Open Chrome Extensions page**:
-   - Navigate to `chrome://extensions/`
-   - Enable "Developer mode" (top right toggle)
-
-3. **Load unpacked extension**:
-   - Click "Load unpacked"
-   - Select the `dist/` directory
-   - Extension should appear in your toolbar
-
-### Test Scenarios
-
-#### Scenario 1: Unauthenticated State
-
-1. Load the extension (without visiting TrainingPeaks)
-2. Click extension icon
-3. **Expected**: Yellow banner showing "Not Authenticated"
-4. **Expected**: Message to log in to TrainingPeaks
-
-#### Scenario 2: Token Interception
-
-1. Visit https://app.trainingpeaks.com
-2. Log in to TrainingPeaks
-3. Open browser DevTools → Network tab
-4. Filter for requests to `tpapi.trainingpeaks.com`
-5. Click around TrainingPeaks to trigger API requests
-6. Open extension popup
-7. **Expected**: Green banner showing "Authenticated"
-8. **Expected**: Token age displayed (e.g., "0m ago")
-
-#### Scenario 3: Token Persistence
-
-1. After authenticating (Scenario 2)
-2. Close and reopen Chrome
-3. Open extension popup (without visiting TrainingPeaks again)
-4. **Expected**: Still shows "Authenticated" (token persisted)
-
-#### Scenario 4: Token Refresh
-
-1. While authenticated, click "Refresh" button
-2. **Expected**: Loading spinner appears briefly
-3. **Expected**: Returns to "Authenticated" state
-4. **Expected**: Token age updates
-
-#### Scenario 5: Authentication Error
-
-1. Manually corrupt storage (optional):
-   ```javascript
-   // In DevTools console on extension popup
-   chrome.storage.local.set({ auth_token: null });
-   ```
-2. Click "Refresh"
-3. **Expected**: Shows appropriate error state
-
-### Debug Console Output
-
-With `DEV` mode (during `npm run dev`), check browser console for:
-
-- `[TrainingPeaks Library Access] Token stored successfully`
-- `[TrainingPeaks Library Access] Background received message: TOKEN_FOUND`
-
-**Production mode** (`npm run build`): No console output (security)
-
-## End-to-End Testing (Future)
-
-### Playwright Setup (Planned)
+Additional commands:
 
 ```bash
-# Install Playwright browsers
-npx playwright install
-
-# Run E2E tests (when implemented)
+npm test
+npm run test:components
+npm run coverage
 npm run test:e2e
 ```
 
-**Planned E2E Scenarios**:
+## Build Notes
 
-- Full authentication flow in real Chrome with TrainingPeaks
-- Library fetching after authentication
-- Token expiration handling
-- Multi-tab sync behavior
+For local validation, prefer:
 
-## Testing Checklist
+```bash
+npm run build:bundle
+```
 
-### Before Committing Code
+`npm run build` and `npm run build:local` increment the patch version in
+`package.json` and `public/manifest.json`. That is useful for release packaging
+but noisy during normal development.
 
-- [ ] `npm run lint` passes (0 errors, 0 warnings)
-- [ ] `npm run type-check` passes (no TypeScript errors)
-- [ ] `npm run test:unit` passes (all tests green)
-- [ ] `npm run build` succeeds (no build errors)
+## Manual Smoke Tests
 
-### Before Releasing
+### 1. TrainingPeaks Auth Capture
 
-- [ ] Unit test coverage >80% overall
-- [ ] Manual testing completed for all scenarios
-- [ ] Extension loads without errors in Chrome
-- [ ] Token interception works on app.trainingpeaks.com
-- [ ] Authentication state persists across browser restarts
+1. Load the extension in Chrome.
+2. Sign in to `https://app.trainingpeaks.com`.
+3. Refresh the page or navigate inside the app.
+4. Open the popup.
+5. Confirm that TrainingPeaks shows as connected.
 
-## Continuous Integration
+### 2. Library and Plan Browsing
 
-Tests run automatically on every commit via Husky pre-commit hook:
+1. Open a connected popup.
+2. Load workout libraries and at least one library detail view.
+3. Load training plans if your account has them.
+4. Confirm that notes, events, and structured workout details render without
+   obvious errors.
 
-- ✅ Code formatting (Prettier)
-- ✅ Linting (ESLint)
-- ✅ Type checking (TypeScript)
-- ✅ Commit message validation (Commitlint)
+### 3. PlanMyPeak Connection
 
-**Future**: GitHub Actions will run full test suite on PRs.
+1. Enable the PlanMyPeak integration in Settings.
+2. Sign in to `planmypeak.com` or the configured local PlanMyPeak target.
+3. Refresh the tab.
+4. Confirm that the extension marks PlanMyPeak as connected.
+
+### 4. Intervals.icu Connection
+
+1. Enable the Intervals.icu integration in Settings.
+2. Save an Intervals.icu API key.
+3. Re-open the popup.
+4. Confirm that the integration shows as connected.
+
+### 5. Export Flow
+
+1. Export a small workout library to the target you changed.
+2. Confirm badge and notification behavior.
+3. Confirm the expected result on the destination service.
+
+## Playwright E2E Notes
+
+- Extension tests must run in headed Chromium
+- Build the extension before running E2E tests
+- Use `npx playwright install chromium` if the browser is not installed yet
+
+See [tests/e2e/README.md](./tests/e2e/README.md) for Playwright-specific
+details.
+
+## Suggested Pre-PR Checklist
+
+- `npm run lint`
+- `npm run type-check`
+- `npm run test:unit`
+- `npm run build:bundle`
+- Relevant manual smoke tests for the feature you changed

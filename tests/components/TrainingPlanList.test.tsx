@@ -36,7 +36,7 @@ const mockPlans: TrainingPlan[] = [
     ownerPersonId: 789,
     createdOn: '2025-01-01T00:00:00Z',
     title: 'Cycling Custom Training Plan',
-    author: 'Eduardo',
+    author: 'Coach Example',
     planEmail: 'test@example.com',
     planLanguage: 'en',
     dayCount: 21,
@@ -163,7 +163,9 @@ describe('TrainingPlanList', () => {
       );
 
       expect(screen.getByText('Failed to Load Data')).toBeInTheDocument();
-      expect(screen.getByText('Network error')).toBeInTheDocument();
+      expect(
+        screen.getByText('Network error - check your internet connection')
+      ).toBeInTheDocument();
     });
 
     it('should call refetch when retry button clicked', async () => {
@@ -269,9 +271,9 @@ describe('TrainingPlanList', () => {
         <TrainingPlanList onSelectPlan={mockOnSelectPlan} />
       );
 
-      const planCards = screen.getAllByRole('button');
-      expect(planCards[0]).toHaveTextContent('Cycling Custom Training Plan');
-      expect(planCards[1]).toHaveTextContent('Running Base Building Plan');
+      const planTitles = screen.getAllByRole('heading', { level: 3 });
+      expect(planTitles[0]).toHaveTextContent('Cycling Custom Training Plan');
+      expect(planTitles[1]).toHaveTextContent('Running Base Building Plan');
     });
   });
 

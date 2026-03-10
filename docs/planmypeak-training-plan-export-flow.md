@@ -1,6 +1,6 @@
 # PlanMyPeak Training Plan Export Flow (Issue #93)
 
-Source of truth: `PlanMyPeak/workouts-openapi.yaml`
+Source of truth: the current PlanMyPeak API contract and plugin types
 
 Scope for this flow:
 

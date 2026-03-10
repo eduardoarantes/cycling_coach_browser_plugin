@@ -13,12 +13,11 @@ import {
 describe('LibrarySchema', () => {
   it('should validate a complete library object', () => {
     const validLibrary = {
-      exerciseLibraryId: 2550514,
-      libraryName: 'My Library',
-      ownerId: 4830660,
-      ownerName: 'Eduardo Rodrigues',
-      imageUrl:
-        'https://userdata.trainingpeaks.com/0660384/profile/person-photo-images/638420560120926980-300x300.jpeg',
+      exerciseLibraryId: 1001,
+      libraryName: 'Example Library',
+      ownerId: 2001,
+      ownerName: 'Coach Example',
+      imageUrl: 'https://example.com/profile.png',
       isDefaultContent: false,
     };
 
@@ -97,10 +96,10 @@ describe('LibrariesApiResponseSchema', () => {
   it('should validate array of libraries', () => {
     const validResponse = [
       {
-        exerciseLibraryId: 2550514,
-        libraryName: 'My Library',
-        ownerId: 4830660,
-        ownerName: 'Eduardo Rodrigues',
+        exerciseLibraryId: 1001,
+        libraryName: 'Example Library',
+        ownerId: 2001,
+        ownerName: 'Coach Example',
         imageUrl: 'https://example.com/image.jpg',
         isDefaultContent: false,
       },

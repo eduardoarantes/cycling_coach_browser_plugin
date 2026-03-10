@@ -8,7 +8,7 @@ PlanMyPeak workout examples were derived from:
 
 Schema compatibility was additionally extended based on:
 
-- `PlanMyPeak/workouts-openapi.yaml` (local API doc in this plugin repo)
+- the PlanMyPeak API contract used during implementation
 - `athlete_ai_analysis` PR `#337` (multi-sport workout schema/type support)
 
 The migration contains a long set of SQL inserts for public PlanMyPeak workouts. The key field used here is `structure` (`jsonb`).
@@ -184,7 +184,7 @@ This is better for correctness while PlanMyPeak multi-sport export support is ro
 
 ## OpenAPI Alignment Update (Issue #326)
 
-After the PlanMyPeak OpenAPI update (`PlanMyPeak/workouts-openapi.yaml`) and backend multi-sport work in PR `#337`, the plugin exporter aligns with:
+After the PlanMyPeak API contract update and backend multi-sport work in PR `#337`, the plugin exporter aligns with:
 
 - `WorkoutStructure.primaryIntensityMetric`: `heartRate`
 - `StepTarget.type`: backend PR uses `heartrate` (plugin internal transformer uses `heartRate` and normalizes on API upload)
@@ -195,9 +195,9 @@ This enables TP cycling HR workouts and TP run/swim pace workouts to be exported
 
 ## Current Coverage Snapshot (Sample TP Files)
 
-Using the TP sample files in `TP_API_Responses/`, expected exporter coverage is now approximately:
+Using representative TrainingPeaks sample payloads during development, expected exporter coverage is approximately:
 
 - Cycling samples: fully supported except `rpe`
 - Running samples: mostly supported except `rpe`
 - Swimming samples: mostly supported except `rpe` and malformed/missing structures
-- Mixed training-plan sample `training_plans_workouts_624432.json`: all but the `rpe` workout
+- Mixed training-plan workout coverage: all but the `rpe` workout

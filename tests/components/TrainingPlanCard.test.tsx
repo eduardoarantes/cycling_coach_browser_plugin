@@ -26,7 +26,7 @@ const mockPlan: TrainingPlan = {
   ownerPersonId: 789,
   createdOn: '2025-01-01T00:00:00Z',
   title: 'Cycling Custom Training Plan',
-  author: 'Eduardo',
+  author: 'Coach Example',
   planEmail: 'test@example.com',
   planLanguage: 'en',
   dayCount: 21,
@@ -68,7 +68,7 @@ describe('TrainingPlanCard', () => {
       const mockOnClick = vi.fn();
       render(<TrainingPlanCard plan={mockPlan} onClick={mockOnClick} />);
 
-      expect(screen.getByText('by Eduardo')).toBeInTheDocument();
+      expect(screen.getByText('by Coach Example')).toBeInTheDocument();
     });
 
     it('should render week count and workout count', () => {
@@ -177,7 +177,7 @@ describe('TrainingPlanCard', () => {
       render(<TrainingPlanCard plan={mockPlan} onClick={mockOnClick} />);
 
       const card = screen.getByRole('button', {
-        name: /View Cycling Custom Training Plan by Eduardo/,
+        name: /View Cycling Custom Training Plan by Coach Example/,
       });
       expect(card).toBeInTheDocument();
     });
@@ -197,7 +197,7 @@ describe('TrainingPlanCard', () => {
       render(<TrainingPlanCard plan={mockPlan} onClick={mockOnClick} />);
 
       // Should have author info
-      expect(screen.getByText(/by Eduardo/)).toBeInTheDocument();
+      expect(screen.getByText(/by Coach Example/)).toBeInTheDocument();
 
       // Should have metadata
       expect(screen.getByText(/3 weeks/)).toBeInTheDocument();

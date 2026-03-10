@@ -11,10 +11,10 @@ import {
 describe('UserProfileSchema', () => {
   it('should validate a valid user profile', () => {
     const validProfile = {
-      userId: 4830660,
-      email: 'user@example.com',
-      firstName: 'Eduardo',
-      lastName: 'Rodrigues',
+      userId: 1001,
+      email: 'alex@example.com',
+      firstName: 'Alex',
+      lastName: 'Example',
       timeZone: 'Australia/Sydney',
     };
 
@@ -86,10 +86,10 @@ describe('UserApiResponseSchema', () => {
   it('should validate a complete user API response', () => {
     const validResponse = {
       user: {
-        userId: 4830660,
-        email: 'r.eduardo.arantes@gmail.com',
-        firstName: 'Eduardo',
-        lastName: 'Rodrigues',
+        userId: 1001,
+        email: 'alex@example.com',
+        firstName: 'Alex',
+        lastName: 'Example',
         timeZone: 'Australia/Sydney',
       },
     };
@@ -115,32 +115,32 @@ describe('UserApiResponseSchema', () => {
     expect(() => UserApiResponseSchema.parse(invalidResponse)).toThrow();
   });
 
-  it('should validate user response from actual API data', () => {
+  it('should validate user response from representative API data', () => {
     const actualResponse = {
       user: {
-        userId: 4830660,
-        email: 'r.eduardo.arantes@gmail.com',
-        firstName: 'Eduardo',
-        lastName: 'Rodrigues',
+        userId: 1001,
+        email: 'alex@example.com',
+        firstName: 'Alex',
+        lastName: 'Example',
         timeZone: 'Australia/Sydney',
       },
     };
 
     const result = UserApiResponseSchema.parse(actualResponse);
-    expect(result.user.userId).toBe(4830660);
-    expect(result.user.email).toBe('r.eduardo.arantes@gmail.com');
-    expect(result.user.firstName).toBe('Eduardo');
-    expect(result.user.lastName).toBe('Rodrigues');
+    expect(result.user.userId).toBe(1001);
+    expect(result.user.email).toBe('alex@example.com');
+    expect(result.user.firstName).toBe('Alex');
+    expect(result.user.lastName).toBe('Example');
     expect(result.user.timeZone).toBe('Australia/Sydney');
   });
 
   it('should handle additional fields in user object gracefully', () => {
     const responseWithExtra = {
       user: {
-        userId: 4830660,
+        userId: 1001,
         email: 'user@example.com',
-        firstName: 'Eduardo',
-        lastName: 'Rodrigues',
+        firstName: 'Alex',
+        lastName: 'Example',
         timeZone: 'Australia/Sydney',
         extraField: 'should be ignored',
         settings: { some: 'data' },
@@ -149,7 +149,7 @@ describe('UserApiResponseSchema', () => {
 
     // Zod will strip unknown keys by default
     const result = UserApiResponseSchema.parse(responseWithExtra);
-    expect(result.user.userId).toBe(4830660);
+    expect(result.user.userId).toBe(1001);
     expect(result.user.email).toBe('user@example.com');
   });
 });
