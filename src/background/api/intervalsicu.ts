@@ -76,6 +76,10 @@ type PlanSectionItemProgressCallback = (progress: {
   itemName: string;
 }) => void | Promise<void>;
 
+type CurlRequestOptions = NonNullable<
+  Parameters<typeof generateCurlCommand>[1]
+>;
+
 async function notifyTrainingPlanExportProgress(
   callback: TrainingPlanExportProgressCallback | undefined,
   progress: TrainingPlanExportProgressPayload
@@ -84,6 +88,14 @@ async function notifyTrainingPlanExportProgress(
     return;
   }
   await callback(progress);
+}
+
+function logDebugCurlCommand(
+  url: string,
+  requestOptions: CurlRequestOptions
+): void {
+  const curlCommand = generateCurlCommand(url, requestOptions);
+  logger.debug(formatCurlForConsole(curlCommand));
 }
 
 /**
@@ -616,9 +628,7 @@ export async function getCurrentAthlete(): Promise<
     };
 
     // Generate and log cURL command for debugging
-    const curlCommand = generateCurlCommand(url, requestOptions);
-    console.log(formatCurlForConsole(curlCommand));
-    logger.debug('Generated cURL command:', curlCommand);
+    logDebugCurlCommand(url, requestOptions);
 
     // Make API request
     const response = await fetch(url, requestOptions);
@@ -732,9 +742,7 @@ export async function listIntervalsFolders(): Promise<
       },
     };
 
-    const curlCommand = generateCurlCommand(url, requestOptions);
-    console.log(formatCurlForConsole(curlCommand));
-    logger.debug('Generated cURL command:', curlCommand);
+    logDebugCurlCommand(url, requestOptions);
 
     const response = await fetch(url, requestOptions);
     if (!response.ok) {
@@ -885,9 +893,7 @@ export async function deleteIntervalsFolder(
       },
     };
 
-    const curlCommand = generateCurlCommand(url, requestOptions);
-    console.log(formatCurlForConsole(curlCommand));
-    logger.debug('Generated cURL command:', curlCommand);
+    logDebugCurlCommand(url, requestOptions);
 
     const response = await fetch(url, requestOptions);
     if (!response.ok) {
@@ -990,9 +996,7 @@ export async function createIntervalsFolder(
     };
 
     // Generate and log cURL command for debugging
-    const curlCommand = generateCurlCommand(url, requestOptions);
-    console.log(formatCurlForConsole(curlCommand));
-    logger.debug('Generated cURL command:', curlCommand);
+    logDebugCurlCommand(url, requestOptions);
 
     // Make API request
     const response = await fetch(url, requestOptions);
@@ -1107,9 +1111,7 @@ export async function createIntervalsPlanFolder(
       body: JSON.stringify(payload, null, 2),
     };
 
-    const curlCommand = generateCurlCommand(url, requestOptions);
-    console.log(formatCurlForConsole(curlCommand));
-    logger.debug('Generated cURL command:', curlCommand);
+    logDebugCurlCommand(url, requestOptions);
 
     const response = await fetch(url, requestOptions);
 
@@ -1253,9 +1255,7 @@ export async function exportWorkoutsToLibrary(
         };
 
         // Generate and log cURL command for debugging
-        const curlCommand = generateCurlCommand(url, requestOptions);
-        console.log(formatCurlForConsole(curlCommand));
-        logger.debug('Generated cURL command:', curlCommand);
+        logDebugCurlCommand(url, requestOptions);
 
         // Make API request
         const response = await fetch(url, requestOptions);
@@ -1471,9 +1471,7 @@ export async function exportPlanWorkoutsToIntervalsPlan(
           body: JSON.stringify(payload, null, 2),
         };
 
-        const curlCommand = generateCurlCommand(url, requestOptions);
-        console.log(formatCurlForConsole(curlCommand));
-        logger.debug('Generated cURL command:', curlCommand);
+        logDebugCurlCommand(url, requestOptions);
 
         const response = await fetch(url, requestOptions);
         if (!response.ok) {
@@ -1619,9 +1617,7 @@ export async function exportRxBuilderWorkoutsToIntervalsPlan(
           body: JSON.stringify(payload, null, 2),
         };
 
-        const curlCommand = generateCurlCommand(url, requestOptions);
-        console.log(formatCurlForConsole(curlCommand));
-        logger.debug('Generated cURL command:', curlCommand);
+        logDebugCurlCommand(url, requestOptions);
 
         const response = await fetch(url, requestOptions);
         if (!response.ok) {
@@ -1768,9 +1764,7 @@ export async function exportPlanNotesToIntervalsPlan(
           body: JSON.stringify(payload, null, 2),
         };
 
-        const curlCommand = generateCurlCommand(url, requestOptions);
-        console.log(formatCurlForConsole(curlCommand));
-        logger.debug('Generated cURL command:', curlCommand);
+        logDebugCurlCommand(url, requestOptions);
 
         const response = await fetch(url, requestOptions);
         if (!response.ok) {
@@ -1910,9 +1904,7 @@ export async function exportPlanEventsToIntervalsPlan(
           body: JSON.stringify(payload, null, 2),
         };
 
-        const curlCommand = generateCurlCommand(url, requestOptions);
-        console.log(formatCurlForConsole(curlCommand));
-        logger.debug('Generated cURL command:', curlCommand);
+        logDebugCurlCommand(url, requestOptions);
 
         const response = await fetch(url, requestOptions);
         if (!response.ok) {

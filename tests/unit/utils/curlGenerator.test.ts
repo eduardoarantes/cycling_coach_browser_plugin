@@ -37,7 +37,7 @@ describe('curlGenerator', () => {
       const curl = generateCurlCommand(url, options);
 
       expect(curl).toContain('-H "Content-Type: application/json"');
-      expect(curl).toContain('-H "Authorization: Bearer token123"');
+      expect(curl).toContain('-H "Authorization: [REDACTED]"');
     });
 
     it('should include JSON body in the curl command', () => {
@@ -109,7 +109,7 @@ describe('curlGenerator', () => {
 
       // Verify all components are present
       expect(curl).toContain('-X POST');
-      expect(curl).toContain('-H "Authorization: Basic');
+      expect(curl).toContain('-H "Authorization: [REDACTED]"');
       expect(curl).toContain('-H "Content-Type: application/json"');
       expect(curl).toContain("-d '");
       expect(curl).toContain('"category": "WORKOUT"');
@@ -117,6 +117,20 @@ describe('curlGenerator', () => {
       expect(curl).toContain(
         '"https://intervals.icu/api/v1/athlete/0/events/bulk?upsert=true"'
       );
+    });
+
+    it('should allow explicit opt-out from header redaction', () => {
+      const curl = generateCurlCommand(
+        'https://api.example.com/data',
+        {
+          headers: {
+            Authorization: 'Bearer token123',
+          },
+        },
+        { redactSensitiveHeaders: false }
+      );
+
+      expect(curl).toContain('-H "Authorization: Bearer token123"');
     });
   });
 

@@ -4,7 +4,7 @@
  * Displays the result of an export operation with success/error messages
  */
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { ExportResult as ExportResultType } from '@/export/adapters/base';
 
 interface ExportResultProps {
@@ -20,11 +20,6 @@ export function ExportResult({
 }: ExportResultProps): ReactElement {
   const [showAllWarnings, setShowAllWarnings] = useState(false);
   const [showAllErrors, setShowAllErrors] = useState(false);
-
-  useEffect(() => {
-    setShowAllWarnings(false);
-    setShowAllErrors(false);
-  }, [result]);
 
   const displayedWarnings = showAllWarnings
     ? result.warnings

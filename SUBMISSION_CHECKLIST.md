@@ -134,7 +134,7 @@ Browse your TrainingPeaks workout libraries without leaving your browser.
 
 ## Privacy & Security
 
-- Your authentication token is stored securely in your browser
+- Your authentication token is stored locally in your browser profile for the extension
 - No data is sent to third parties
 - All communication is directly with TrainingPeaks API
 - Open source code available for review
@@ -172,7 +172,7 @@ Access and display TrainingPeaks workout library data for athletes and coaches
 **Storage Permission**:
 
 ```
-Store authentication token securely in the user's browser using Chrome's encrypted storage API. Token is needed to authenticate API requests to TrainingPeaks.
+Store the authentication token locally in the extension's browser storage so the extension can authenticate direct API requests to TrainingPeaks for the signed-in user.
 ```
 
 **Host Permission: https://tpapi.trainingpeaks.com/***:

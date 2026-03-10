@@ -10,7 +10,7 @@ import { TrainingPlanCard } from './TrainingPlanCard';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
-import { ExportDialog, ExportResult } from './export';
+import { ExportDialog, ExportResult, getExportResultKey } from './export';
 import {
   is401Error,
   is403Error,
@@ -1045,7 +1045,11 @@ export function TrainingPlanList({
       />
 
       {exportResult && (
-        <ExportResult result={exportResult} onClose={closeExportResult} />
+        <ExportResult
+          key={getExportResultKey(exportResult)}
+          result={exportResult}
+          onClose={closeExportResult}
+        />
       )}
     </div>
   );

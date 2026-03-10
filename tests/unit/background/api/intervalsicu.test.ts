@@ -1640,7 +1640,7 @@ describe('Intervals.icu API Client - Redesigned', () => {
 
     it('should append to an existing Intervals PLAN folder when append strategy is selected', async () => {
       let callCount = 0;
-      global.fetch = vi.fn().mockImplementation((url?: string) => {
+      global.fetch = vi.fn().mockImplementation((_url?: string) => {
         callCount++;
 
         if (callCount === 1) {

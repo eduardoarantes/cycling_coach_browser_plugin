@@ -1,0 +1,10 @@
+# Default owner for everything
+* @eduardoarantes
+
+# Security-sensitive paths require explicit review
+src/background/ @eduardoarantes
+src/content/ @eduardoarantes
+src/services/authService.ts @eduardoarantes
+src/services/storageService.ts @eduardoarantes
+public/manifest.json @eduardoarantes
+.github/workflows/ @eduardoarantes

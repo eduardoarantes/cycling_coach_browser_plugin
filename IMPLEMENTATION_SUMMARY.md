@@ -52,15 +52,14 @@
 - Comprehensive validation with business rules
 - JSON file generation and download
 
-### 3. Mock API Service
+### 3. Background API Integration
 
-**PlanMyPeak API Service** (`src/services/planMyPeakApiService.ts`)
+**PlanMyPeak Background Client** (`src/background/api/planMyPeak.ts`)
 
-- Simulates API calls for testing
-- Configurable delay and success rate
-- Batch upload support
-- File download helpers
-- Ready for real API integration
+- Handles authenticated PlanMyPeak requests in the extension background worker
+- Supports workout library export and training plan upsert flows
+- Reuses captured browser auth state instead of a mock transport layer
+- Covered by unit tests in `tests/unit/background/api/planMyPeak.test.ts`
 
 ### 4. UI Components
 
@@ -142,11 +141,11 @@
 - Error handling
 - Tips & best practices
 
-✅ **Example Code** (`src/export/adapters/planMyPeak/example.ts`)
+✅ **API Tests** (`tests/unit/background/api/planMyPeak.test.ts`)
 
-- 5 usage examples
-- Different scenarios
-- API integration examples
+- Covers request mapping for workout export
+- Covers training plan duplicate-handling behavior
+- Exercises the active background API integration
 
 ---
 
@@ -233,8 +232,9 @@ src/
 │   └── index.ts
 ├── hooks/
 │   └── useExport.ts
-├── services/
-│   └── planMyPeakApiService.ts
+├── background/
+│   └── api/
+│       └── planMyPeak.ts
 ├── types/
 │   ├── planMyPeak.types.ts
 │   └── index.ts (updated)
@@ -388,9 +388,9 @@ const {
 
 When PlanMyPeak provides real API endpoints:
 
-### 1. Update API Service
+### 1. Extend the Background API Client
 
-**File**: `src/services/planMyPeakApiService.ts`
+**File**: `src/background/api/planMyPeak.ts`
 
 ```typescript
 // Replace mock implementation

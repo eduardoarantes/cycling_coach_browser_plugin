@@ -15,7 +15,12 @@ import { useRxBuilderWorkouts } from '@/hooks/useRxBuilderWorkouts';
 import { useTrainingPlans } from '@/hooks/useTrainingPlans';
 import { LoadingSpinner } from './LoadingSpinner';
 import { CalendarWeekRow } from './CalendarWeekRow';
-import { ExportButton, ExportDialog, ExportResult } from './export';
+import {
+  ExportButton,
+  ExportDialog,
+  ExportResult,
+  getExportResultKey,
+} from './export';
 import {
   findEarliestDate,
   normalizeToMonday,
@@ -1080,6 +1085,7 @@ export function PlanCalendar({
 
       {exportResult && (
         <ExportResult
+          key={getExportResultKey(exportResult)}
           result={exportResult}
           onClose={() => setExportResult(null)}
         />

@@ -68,12 +68,25 @@ const mockRuntime = {
   })),
 };
 
+const mockAction = {
+  setBadgeText: vi.fn(() => Promise.resolve()),
+  setBadgeBackgroundColor: vi.fn(() => Promise.resolve()),
+};
+
+const mockNotifications = {
+  create: vi.fn(() => Promise.resolve('notification-id')),
+  update: vi.fn(() => Promise.resolve(true)),
+  clear: vi.fn(() => Promise.resolve(true)),
+};
+
 // Set up global chrome object
 global.chrome = {
   storage: {
     local: mockStorage,
     onChanged: mockStorageOnChanged,
   },
+  action: mockAction,
+  notifications: mockNotifications,
   runtime: mockRuntime,
 } as never;
 

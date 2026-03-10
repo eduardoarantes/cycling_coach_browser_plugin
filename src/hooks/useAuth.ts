@@ -6,6 +6,7 @@
 
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { logger } from '@/utils/logger';
 
 export function useAuth(): {
   isAuthenticated: boolean;
@@ -31,15 +32,15 @@ export function useAuth(): {
 
   // Check auth on mount
   useEffect(() => {
-    console.log('[useAuth] Component mounted, checking auth...');
-    refreshAuth();
+    logger.debug('Auth hook mounted, refreshing auth state');
+    void refreshAuth();
   }, [refreshAuth]);
 
   // Listen for token changes in storage (additions and removals)
   // This keeps UI state synchronized with background service worker
   // Uses debouncing to prevent rapid-fire refreshAuth calls
   useEffect(() => {
-    console.log('[useAuth] Setting up storage listener for token changes...');
+    logger.debug('Registering auth storage listener');
 
     // Debounce timer for refreshAuth calls (prevents rapid-fire updates)
     let debounceTimer: number | null = null;
@@ -56,7 +57,7 @@ export function useAuth(): {
         const newValue = changes.auth_token.newValue;
         const oldValue = changes.auth_token.oldValue;
 
-        console.log('[useAuth] Storage change detected:', {
+        logger.debug('Auth storage change detected', {
           hadOldValue: !!oldValue,
           hasNewValue: !!newValue,
           newValueLength: typeof newValue === 'string' ? newValue.length : 0,
@@ -66,31 +67,27 @@ export function useAuth(): {
         if (newValue && typeof newValue === 'string' && newValue.length > 0) {
           // Ignore if this is just the same token being re-stored
           if (newValue === oldValue) {
-            console.log('[useAuth] ℹ️ Same token re-stored, ignoring');
+            logger.debug('Ignoring duplicate auth token storage event');
             return;
           }
 
           // Clear any pending debounced refresh
           if (debounceTimer) {
-            console.log('[useAuth] ⏱️ Clearing previous debounce timer...');
+            logger.debug('Clearing pending auth refresh timer');
             clearTimeout(debounceTimer);
           }
 
           // Debounce refreshAuth to prevent rapid-fire calls
-          console.log(
-            '[useAuth] ✅ New token detected, scheduling debounced refresh (150ms)...'
-          );
+          logger.debug('Scheduling debounced auth refresh after token update');
           debounceTimer = setTimeout(() => {
-            console.log('[useAuth] 🔄 Executing debounced refreshAuth...');
-            refreshAuth();
+            logger.debug('Running debounced auth refresh');
+            void refreshAuth();
             debounceTimer = null;
           }, 150);
         } else if (oldValue && !newValue) {
           // Token was REMOVED (401 response cleared it by background service)
           // Immediately update UI state to reflect removal - don't try to clear storage again!
-          console.log(
-            '[useAuth] 🚨 Token removed from storage (by background), updating UI state...'
-          );
+          logger.debug('Auth token removed from storage, updating UI state');
 
           // Cancel any pending refresh since token is gone
           if (debounceTimer) {
@@ -104,10 +101,10 @@ export function useAuth(): {
     };
 
     chrome.storage.onChanged.addListener(handleStorageChange);
-    console.log('[useAuth] ✅ Storage listener registered');
+    logger.debug('Auth storage listener registered');
 
     return () => {
-      console.log('[useAuth] Removing storage listener and clearing timers');
+      logger.debug('Removing auth storage listener');
 
       // Clean up debounce timer on unmount
       if (debounceTimer) {

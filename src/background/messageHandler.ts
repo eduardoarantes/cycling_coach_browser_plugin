@@ -117,8 +117,8 @@ async function handleTokenFound(
   timestamp: number
 ): Promise<void> {
   try {
-    logger.info('🎫 Storing bearer token, length:', token.length);
-    logger.info('📅 Token timestamp:', new Date(timestamp).toISOString());
+    logger.info('Storing TrainingPeaks authentication token');
+    logger.debug('Token timestamp:', new Date(timestamp).toISOString());
 
     // Store token in chrome.storage.local
     await chrome.storage.local.set({
@@ -126,18 +126,17 @@ async function handleTokenFound(
       token_timestamp: timestamp,
     });
 
-    logger.info('✅ Token stored successfully in chrome.storage.local');
+    logger.info('TrainingPeaks authentication token stored successfully');
 
     // Verify storage (debug)
     const stored = await chrome.storage.local.get([
       'auth_token',
       'token_timestamp',
     ]);
-    logger.info('🔍 Verification - Token exists:', !!stored.auth_token);
-    logger.info(
-      '🔍 Verification - Timestamp exists:',
-      !!stored.token_timestamp
-    );
+    logger.debug('Stored token verification:', {
+      hasToken: !!stored.auth_token,
+      hasTimestamp: !!stored.token_timestamp,
+    });
   } catch (error) {
     logger.error('❌ Failed to store token:', error);
     throw error;
@@ -161,18 +160,15 @@ async function handleMyPeakAuthFound(
 
     if (typeof apiKey === 'string' && apiKey.length > 0) {
       payload[STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY] = apiKey;
-      logger.info(
-        '🔐 Stored MyPeak Supabase API key from browser request, length:',
-        apiKey.length
-      );
+      logger.info('Stored MyPeak Supabase API key from browser request');
     }
 
     if (typeof token === 'string' && token.length > 0) {
       payload[STORAGE_KEYS.MYPEAK_AUTH_TOKEN] = token;
       payload[STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP] = timestamp;
-      logger.info('🎫 Stored MyPeak auth token, length:', token.length);
-      logger.info(
-        '📅 MyPeak token timestamp:',
+      logger.info('Stored MyPeak authentication token from browser request');
+      logger.debug(
+        'MyPeak token timestamp:',
         new Date(timestamp).toISOString()
       );
     }
@@ -234,28 +230,21 @@ async function handleValidateToken(): Promise<{
   userId?: number;
 }> {
   try {
-    console.log('[TP Extension - Background] 🔍 Starting token validation...');
     logger.debug('Starting token validation...');
 
     // Get token from storage
     const data = await chrome.storage.local.get(['auth_token']);
     const token = data.auth_token as string | undefined;
 
-    console.log('[TP Extension - Background] Has token:', !!token);
     logger.debug('Has token:', !!token);
 
     if (!token) {
-      console.log('[TP Extension - Background] ❌ No token to validate');
       logger.debug('No token to validate');
       return { valid: false };
     }
 
-    console.log('[TP Extension - Background] Token length:', token.length);
-    logger.debug('Token length:', token.length);
-
     // Call TrainingPeaks API from background context (has host_permissions)
     const endpoint = `${API_BASE_URL}/users/v3/user`;
-    console.log('[TP Extension - Background] 🌐 Calling API:', endpoint);
     logger.debug('Calling API:', endpoint);
 
     const response = await fetch(endpoint, {
@@ -263,45 +252,20 @@ async function handleValidateToken(): Promise<{
       headers: createApiHeaders(token),
     });
 
-    console.log(
-      '[TP Extension - Background] 📡 Response status:',
-      response.status
-    );
-    console.log('[TP Extension - Background] Response ok:', response.ok);
     logger.debug('Response status:', response.status);
     logger.debug('Response ok:', response.ok);
 
     if (response.ok) {
       const data = await response.json();
-      console.log(
-        '[TP Extension - Background] ✅ Token is valid! User ID:',
-        data.user?.userId
-      );
       logger.info('Token is valid, User ID:', data.user?.userId);
       return { valid: true, userId: data.user?.userId };
     }
 
     // Token validation failed
-    const errorText = await response.text();
     if (response.status === 401) {
-      console.warn(
-        '[TP Extension - Background] ⚠️ Token validation returned 401 (expected when token expires) - Response:',
-        errorText
-      );
       logger.warn('Token validation returned 401 (token expired)');
     } else {
-      console.error(
-        '[TP Extension - Background] ❌ Token validation failed - Status:',
-        response.status,
-        'Response:',
-        errorText
-      );
-      logger.error(
-        'Token validation failed - Status:',
-        response.status,
-        'Response:',
-        errorText
-      );
+      logger.error('Token validation failed - Status:', response.status);
     }
 
     if (response.status === 401) {
@@ -312,15 +276,10 @@ async function handleValidateToken(): Promise<{
       logger.warn('Cleared TrainingPeaks auth token after VALIDATE_TOKEN 401');
     }
 
-    console.log('[TP Extension - Background] ⚠️ Token validation failed');
     logger.warn('Token validation failed');
 
     return { valid: false };
   } catch (error) {
-    console.error(
-      '[TP Extension - Background] ❌ ERROR validating token:',
-      error
-    );
     logger.error('Error validating token:', error);
     // On network error, don't clear token (might be temporary)
     return { valid: false };

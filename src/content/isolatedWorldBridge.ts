@@ -6,7 +6,20 @@
  * and forwards them to the background worker via chrome.runtime.
  */
 
-console.log('[TP Extension - ISOLATED World] 🚀 Bridge initializing...');
+const DEBUG = import.meta.env.DEV;
+const log = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.log('[TP Extension - ISOLATED World]', ...args);
+  }
+};
+
+const logError = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.error('[TP Extension - ISOLATED World]', ...args);
+  }
+};
+
+log('🚀 Bridge initializing...');
 
 /**
  * Listen for messages from the main world interceptor
@@ -23,9 +36,7 @@ window.addEventListener('message', (event) => {
     return;
 
   if (event.data.type === 'MY_PEAK_AUTH_FOUND') {
-    console.log(
-      '[TP Extension - ISOLATED World] 📨 Received MyPeak auth details from MAIN world'
-    );
+    log('📨 Received MyPeak auth details from MAIN world');
 
     chrome.runtime
       .sendMessage({
@@ -35,32 +46,19 @@ window.addEventListener('message', (event) => {
         timestamp: event.data.timestamp,
       })
       .then(() => {
-        console.log(
-          '[TP Extension - ISOLATED World] ✅ MyPeak auth details sent to background successfully'
-        );
+        log('✅ MyPeak auth details sent to background successfully');
       })
       .catch((error) => {
-        console.error(
-          '[TP Extension - ISOLATED World] ❌ Failed to send MyPeak auth details to background:',
-          error
-        );
+        logError('❌ Failed to send MyPeak auth details to background:', error);
       });
 
     return;
   }
 
-  console.log(
-    '[TP Extension - ISOLATED World] 📨 Received token from MAIN world'
-  );
-  console.log(
-    '[TP Extension - ISOLATED World] 🎫 Token length:',
-    event.data.token.length
-  );
+  log('📨 Received TrainingPeaks token from MAIN world');
 
   // Forward to background worker
-  console.log(
-    '[TP Extension - ISOLATED World] 📤 Forwarding to background worker...'
-  );
+  log('📤 Forwarding token to background worker');
 
   chrome.runtime
     .sendMessage({
@@ -69,35 +67,13 @@ window.addEventListener('message', (event) => {
       timestamp: event.data.timestamp,
     })
     .then(() => {
-      console.log(
-        '[TP Extension - ISOLATED World] ✅ Token sent to background successfully'
-      );
+      log('✅ Token sent to background successfully');
     })
     .catch((error) => {
-      console.error(
-        '[TP Extension - ISOLATED World] ❌ Failed to send to background:',
-        error
-      );
+      logError('❌ Failed to send token to background:', error);
     });
 });
 
-// Log environment info
-console.log('[TP Extension - ISOLATED World] 🔍 Environment check:');
-console.log('[TP Extension - ISOLATED World]   - URL:', window.location.href);
-console.log(
-  '[TP Extension - ISOLATED World]   - chrome.runtime available:',
-  typeof chrome?.runtime !== 'undefined'
-);
-console.log(
-  '[TP Extension - ISOLATED World]   - Extension ID:',
-  chrome?.runtime?.id || 'UNKNOWN'
-);
-console.log(
-  '[TP Extension - ISOLATED World]   - Can send messages:',
-  typeof chrome?.runtime?.sendMessage === 'function'
-);
-console.log(
-  '[TP Extension - ISOLATED World] ✅ Bridge fully loaded, listening for tokens'
-);
+log('✅ Bridge loaded');
 
 export {};

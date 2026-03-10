@@ -12,6 +12,79 @@ import type { ApiLogEntry, ApiLogsExport } from '@/types/debugLog.types';
 
 /** Maximum number of log entries to keep in storage */
 const MAX_LOG_ENTRIES = 100;
+const REDACTED_VALUE = '[REDACTED]';
+
+const AUTH_SCHEME_PATTERN =
+  /((?:"|')?(?:authorization|proxy-authorization)(?:"|')?\s*[:=]\s*)(?:"|')?(Bearer|Basic)\s+[^"'\s,}\]]+(?:"|')?/gi;
+
+const KEY_VALUE_SECRET_PATTERN =
+  /((?:"|')?(?:apikey|apiKey|api_key|x-api-key|access_token|refresh_token|id_token|auth_token|intervals_api_key|mypeak_auth_token|mypeak_supabase_api_key|client_secret|password|secret|token)(?:"|')?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^,\s}\]]+)/gi;
+
+const COOKIE_PATTERN =
+  /((?:"|')?(?:cookie|set-cookie)(?:"|')?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\r\n]+)/gi;
+
+const QUERY_PARAM_SECRET_PATTERN =
+  /([?&](?:access_token|refresh_token|id_token|token|apikey|api_key|x-api-key|client_secret|password)=)([^&#]+)/gi;
+
+const TRAININGPEAKS_TOKEN_PATTERN = /\bgAAAA[0-9A-Za-z._=-]{20,}\b/g;
+const JWT_PATTERN =
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]{8,})?\b/g;
+
+function sanitizeText(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return value
+    .replace(
+      AUTH_SCHEME_PATTERN,
+      (_match, prefix: string, scheme: string) =>
+        `${prefix}${scheme} ${REDACTED_VALUE}`
+    )
+    .replace(
+      KEY_VALUE_SECRET_PATTERN,
+      (_match, prefix: string) => `${prefix}${REDACTED_VALUE}`
+    )
+    .replace(
+      COOKIE_PATTERN,
+      (_match, prefix: string) => `${prefix}${REDACTED_VALUE}`
+    )
+    .replace(
+      QUERY_PARAM_SECRET_PATTERN,
+      (_match, prefix: string) => `${prefix}${REDACTED_VALUE}`
+    )
+    .replace(TRAININGPEAKS_TOKEN_PATTERN, REDACTED_VALUE)
+    .replace(JWT_PATTERN, REDACTED_VALUE)
+    .replace(/\[REDACTED\]\]+/g, REDACTED_VALUE);
+}
+
+function sanitizeLogEntry(entry: ApiLogEntry): ApiLogEntry {
+  return {
+    ...entry,
+    endpoint: sanitizeText(entry.endpoint) ?? entry.endpoint,
+    baseUrl: sanitizeText(entry.baseUrl) ?? entry.baseUrl,
+    errorMessage: sanitizeText(entry.errorMessage),
+    validationIssue: sanitizeText(entry.validationIssue),
+    validationInput: sanitizeText(entry.validationInput),
+  };
+}
+
+function sanitizeLogEntries(entries: ApiLogEntry[]): {
+  logs: ApiLogEntry[];
+  changed: boolean;
+} {
+  let changed = false;
+
+  const logs = entries.map((entry) => {
+    const sanitized = sanitizeLogEntry(entry);
+    if (JSON.stringify(sanitized) !== JSON.stringify(entry)) {
+      changed = true;
+    }
+    return sanitized;
+  });
+
+  return { logs, changed };
+}
 
 /**
  * Generate a unique ID for a log entry
@@ -35,10 +108,10 @@ function generateLogId(): string {
 export async function addLog(
   entry: Omit<ApiLogEntry, 'id'>
 ): Promise<ApiLogEntry> {
-  const newEntry: ApiLogEntry = {
+  const newEntry = sanitizeLogEntry({
     ...entry,
     id: generateLogId(),
-  };
+  });
 
   try {
     const existingLogs = await getLogs();
@@ -88,7 +161,15 @@ export async function getLogs(): Promise<ApiLogEntry[]> {
       return [];
     }
 
-    return validated.data;
+    const sanitized = sanitizeLogEntries(validated.data);
+
+    if (sanitized.changed) {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.TRAININGPEAKS_API_LOGS]: sanitized.logs,
+      });
+    }
+
+    return sanitized.logs;
   } catch (error) {
     logger.error('Failed to retrieve API logs:', error);
     return [];

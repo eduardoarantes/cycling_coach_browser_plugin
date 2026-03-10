@@ -10,6 +10,8 @@ import {
   DEFAULT_PLANMYPEAK_APP_PORT,
   DEFAULT_PLANMYPEAK_SUPABASE_PORT,
   IS_LOCAL_PLANMYPEAK_TARGET,
+  isSupportedPlanMyPeakAppPort,
+  isSupportedPlanMyPeakSupabasePort,
 } from '@/utils/constants';
 
 export interface PortConfig {
@@ -29,7 +31,7 @@ export async function getAppPort(): Promise<number> {
   const data = await chrome.storage.local.get(STORAGE_KEYS.PLANMYPEAK_APP_PORT);
   const port = data[STORAGE_KEYS.PLANMYPEAK_APP_PORT];
 
-  if (typeof port === 'number' && port > 0 && port < 65536) {
+  if (typeof port === 'number' && isSupportedPlanMyPeakAppPort(port)) {
     return port;
   }
 
@@ -50,7 +52,7 @@ export async function getSupabasePort(): Promise<number> {
   );
   const port = data[STORAGE_KEYS.PLANMYPEAK_SUPABASE_PORT];
 
-  if (typeof port === 'number' && port > 0 && port < 65536) {
+  if (typeof port === 'number' && isSupportedPlanMyPeakSupabasePort(port)) {
     return port;
   }
 
@@ -78,8 +80,8 @@ export async function setAppPort(port: number): Promise<void> {
     return;
   }
 
-  if (typeof port !== 'number' || port <= 0 || port >= 65536) {
-    throw new Error('Invalid port number');
+  if (!isSupportedPlanMyPeakAppPort(port)) {
+    throw new Error('Unsupported PlanMyPeak app port');
   }
 
   await chrome.storage.local.set({
@@ -96,8 +98,8 @@ export async function setSupabasePort(port: number): Promise<void> {
     return;
   }
 
-  if (typeof port !== 'number' || port <= 0 || port >= 65536) {
-    throw new Error('Invalid port number');
+  if (!isSupportedPlanMyPeakSupabasePort(port)) {
+    throw new Error('Unsupported PlanMyPeak Supabase port');
   }
 
   await chrome.storage.local.set({

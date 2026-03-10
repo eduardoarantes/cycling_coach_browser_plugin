@@ -14,6 +14,7 @@
     "build:prod": "npm run build:bundle",
     "build:local": "VITE_PLANMYPEAK_TARGET=local npm run build:bundle",
     "package": "npm run build && ./scripts/package-for-distribution.sh",
+    "package:release": "npm run build:bundle && ./scripts/package-release-artifact.sh",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 20",
     "type-check": "tsc --noEmit",
@@ -37,6 +38,9 @@
   ],
   "author": "Eduardo Arantes",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "bugs": {
     "url": "https://github.com/eduardoarantes/cycling_coach_browser_plugin/issues"
   },

@@ -36,7 +36,8 @@ help:
 	@echo ""
 	@echo "Extension:"
 	@echo "  make load         Build and show Chrome extension load instructions"
-	@echo "  make package      Create distributable ZIP file"
+	@echo "  make package      Create manual distribution ZIP file"
+	@echo "  make package-release  Create canonical Chrome Web Store ZIP file"
 	@echo ""
 
 # Installation
@@ -140,11 +141,13 @@ load: build
 	@echo "4. Select the 'dist' folder: $(PWD)/dist"
 	@echo ""
 
-package: build
-	@echo "Creating distribution package..."
-	cd dist && zip -r ../trainingpeaks-extension.zip .
-	@echo "✅ Package created: trainingpeaks-extension.zip"
-	@echo "Size: $$(du -h trainingpeaks-extension.zip | cut -f1)"
+package:
+	@echo "Creating manual distribution package..."
+	npm run package
+
+package-release:
+	@echo "Creating canonical Chrome Web Store artifact..."
+	npm run package:release
 
 # Pre-commit checks (useful for manual verification)
 pre-commit: check test-unit

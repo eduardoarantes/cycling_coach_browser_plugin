@@ -54,7 +54,7 @@ Reload in `chrome://extensions`.
 5. Confirm that TrainingPeaks shows as connected.
 
 The extension captures the TrainingPeaks bearer token from browser requests and
-stores it locally in `chrome.storage.local`.
+stores it in the extension's local browser storage (`chrome.storage.local`).
 
 ### Optional: Connect PlanMyPeak
 

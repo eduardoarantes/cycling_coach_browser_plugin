@@ -86,11 +86,22 @@ Useful commands:
 - `npm run build:bundle`: production-target bundle without a version bump
 - `npm run build`: production-target bundle and patch-version increment
 - `npm run build:local`: local-target bundle and patch-version increment
+- `npm run package:release`: build and create the canonical Chrome Web Store ZIP
 - `npm run test:e2e`: Playwright extension tests in headed Chromium
 
 Important: `npm run build` and `npm run build:local` update the patch version in
 `package.json` and `public/manifest.json` via `scripts/increment-version.cjs`.
 For routine local validation, prefer `npm run build:bundle`.
+
+## CI And Releases
+
+- Pull requests and pushes to `main` run GitHub Actions lint, type-check, unit
+  tests, and `npm run build:bundle`.
+- Tagged releases use `.github/workflows/release.yml` and expect a tag in the
+  form `vX.Y.Z` that matches `package.json` and `public/manifest.json`.
+- The release workflow publishes a canonical store artifact named
+  `planmypeak-importer-webstore-vX.Y.Z.zip` to the GitHub release and as a
+  workflow artifact.
 
 ## Project Layout
 

@@ -5,7 +5,7 @@
  * It intercepts fetch/XHR and uses postMessage to send tokens to the isolated world.
  */
 
-const DEBUG = true;
+const DEBUG = import.meta.env.DEV;
 const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[TP Extension - MAIN World]', ...args);
 };
@@ -116,12 +116,11 @@ window.fetch = async function (...args) {
       const isEncryptedToken = token.startsWith('gAAAA');
       const isApiCall = urlStr.includes('tpapi.trainingpeaks.com');
 
-      log('  🎫 BEARER TOKEN FOUND! Length:', token.length);
-      log(
-        '  🔍 Token type:',
-        isEncryptedToken ? 'Encrypted (gAAAA)' : 'JWT (eyJ)'
-      );
-      log('  🌐 API call:', isApiCall ? 'YES' : 'NO');
+      log('  🎫 Bearer token detected', {
+        length: token.length,
+        tokenType: isEncryptedToken ? 'encrypted' : 'jwt',
+        isApiCall,
+      });
 
       if (isEncryptedToken && isApiCall) {
         log('  ✅ Valid TrainingPeaks API token! Posting to isolated world...');
@@ -139,10 +138,7 @@ window.fetch = async function (...args) {
 
         log('  ✅ Token posted');
       } else {
-        log(
-          '  ⏭️ Skipping token (not encrypted API token):',
-          token.substring(0, 20) + '...'
-        );
+        log('  ⏭️ Skipping non-TrainingPeaks token candidate');
       }
     }
 
@@ -226,10 +222,7 @@ XMLHttpRequest.prototype.open = function (
 
           log('  ✅ Token posted (XHR)');
         } else {
-          log(
-            '  ⏭️ Skipping token (not encrypted API token):',
-            token.substring(0, 20) + '...'
-          );
+          log('  ⏭️ Skipping non-TrainingPeaks token candidate');
         }
       }
     }
@@ -246,6 +239,5 @@ XMLHttpRequest.prototype.open = function (
 };
 
 log('✅ Interceptors installed in MAIN world (bypassed CSP)');
-console.log('TrainingPeaks Extension: Token interceptor loaded in MAIN world');
 
 export {};

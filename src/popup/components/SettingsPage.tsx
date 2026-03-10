@@ -13,6 +13,10 @@ import {
   SETTINGS_STRINGS,
   AUTH_STATUS_STRINGS,
 } from '@/utils/uiStrings';
+import {
+  SUPPORTED_PLANMYPEAK_APP_PORTS,
+  SUPPORTED_PLANMYPEAK_SUPABASE_PORTS,
+} from '@/utils/constants';
 import { IntervalsApiKeyBanner } from './IntervalsApiKeyBanner';
 import { AuthRow } from './shared/AuthRow';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -145,15 +149,18 @@ function SettingsPageContent({
     pendingAppPort !== null || pendingSupabasePort !== null;
 
   // Validate port inputs
-  const isValidPort = (value: string): boolean => {
+  const isSupportedPort = (
+    value: string,
+    supportedPorts: readonly number[]
+  ): boolean => {
     const port = parseInt(value, 10);
-    return !isNaN(port) && port > 0 && port < 65536;
+    return !isNaN(port) && supportedPorts.includes(port);
   };
 
   const canSavePorts =
     hasUnsavedPortChanges &&
-    isValidPort(appPortDisplay) &&
-    isValidPort(supabasePortDisplay);
+    isSupportedPort(appPortDisplay, SUPPORTED_PLANMYPEAK_APP_PORTS) &&
+    isSupportedPort(supabasePortDisplay, SUPPORTED_PLANMYPEAK_SUPABASE_PORTS);
 
   const handleSavePorts = async (): Promise<void> => {
     if (!canSavePorts) return;
@@ -290,6 +297,10 @@ function SettingsPageContent({
               <div className="mb-1.5 text-xs font-medium text-amber-800">
                 Local Dev Ports
               </div>
+              <p className="mb-2 text-[10px] text-amber-700">
+                Local builds only support the manifest-approved port pairs
+                `3004/54341` and `3006/54361`.
+              </p>
               <div className="flex items-end gap-2">
                 <div className="flex-1">
                   <label
@@ -298,15 +309,18 @@ function SettingsPageContent({
                   >
                     App Port
                   </label>
-                  <input
+                  <select
                     id="app-port"
-                    type="number"
                     value={appPortDisplay}
                     onChange={(e) => setPendingAppPort(e.target.value)}
                     className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    min={1}
-                    max={65535}
-                  />
+                  >
+                    {SUPPORTED_PLANMYPEAK_APP_PORTS.map((port) => (
+                      <option key={port} value={String(port)}>
+                        {port}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex-1">
                   <label
@@ -315,15 +329,18 @@ function SettingsPageContent({
                   >
                     Supabase Port
                   </label>
-                  <input
+                  <select
                     id="supabase-port"
-                    type="number"
                     value={supabasePortDisplay}
                     onChange={(e) => setPendingSupabasePort(e.target.value)}
                     className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    min={1}
-                    max={65535}
-                  />
+                  >
+                    {SUPPORTED_PLANMYPEAK_SUPABASE_PORTS.map((port) => (
+                      <option key={port} value={String(port)}>
+                        {port}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <button
                   type="button"

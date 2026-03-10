@@ -22,6 +22,10 @@ Depending on which features you use, the extension may store the following in
 - Export progress state, connection toggles, and local development port settings
 - Debug logs that you explicitly generate while troubleshooting
 
+This data is stored in the extension's local browser storage within your Chrome
+profile. The extension does not add a separate application-level encryption
+layer on top of `chrome.storage.local`.
+
 ## Network Requests
 
 The extension makes direct requests to the following services:

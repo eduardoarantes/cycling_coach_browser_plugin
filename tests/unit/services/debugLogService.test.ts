@@ -112,6 +112,24 @@ describe('debugLogService', () => {
       expect(result.status).toBeNull();
       expect(result.success).toBe(false);
     });
+
+    it('should redact credential values before storing logs', async () => {
+      const entry = createValidEntry({
+        success: false,
+        errorMessage:
+          'Authorization: Bearer gAAAAABkExampleTokenValue1234567890',
+        validationInput:
+          '{"apikey":"secret-key-123","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"}',
+      });
+
+      const result = await debugLogService.addLog(entry);
+
+      expect(result.errorMessage).toContain('Authorization: Bearer [REDACTED]');
+      expect(result.errorMessage).not.toContain('gAAAAABkExampleTokenValue');
+      expect(result.validationInput).toContain('"apikey":[REDACTED]');
+      expect(result.validationInput).toContain('"token":[REDACTED]');
+      expect(result.validationInput).not.toContain('secret-key-123');
+    });
   });
 
   describe('getLogs', () => {
@@ -146,6 +164,40 @@ describe('debugLogService', () => {
 
       const logs = await debugLogService.getLogs();
       expect(logs).toEqual([]);
+    });
+
+    it('should redact sensitive values already present in stored logs', async () => {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.TRAININGPEAKS_API_LOGS]: [
+          {
+            id: '1-test',
+            timestamp: Date.now(),
+            endpoint:
+              '/users/v3/user?access_token=gAAAAABkExampleTokenValue1234567890',
+            method: 'GET',
+            baseUrl: 'https://tpapi.trainingpeaks.com',
+            status: 401,
+            success: false,
+            durationMs: 45,
+            errorMessage: 'apikey=secret-key-123',
+            validationInput:
+              '{"authorization":"Bearer gAAAAABkExampleTokenValue1234567890"}',
+            operationName: 'user profile',
+          },
+        ],
+      });
+
+      const logs = await debugLogService.getLogs();
+
+      expect(logs).toHaveLength(1);
+      expect(logs[0].endpoint).toContain('access_token=[REDACTED]');
+      expect(logs[0].errorMessage).toBe('apikey=[REDACTED]');
+      expect(logs[0].validationInput).toContain(
+        '"authorization":Bearer [REDACTED]'
+      );
+      expect(logs[0].validationInput).not.toContain(
+        'gAAAAABkExampleTokenValue'
+      );
     });
   });
 
@@ -202,6 +254,19 @@ describe('debugLogService', () => {
 
       expect(exportData.logCount).toBe(3);
       expect(exportData.logs).toHaveLength(3);
+    });
+
+    it('should export redacted logs only', async () => {
+      await debugLogService.addLog(
+        createValidEntry({
+          success: false,
+          errorMessage: 'token=eyJhbGciOiJIUzI1NiJ9.payload.signature',
+        })
+      );
+
+      const exportData = await debugLogService.exportLogsAsJson();
+
+      expect(exportData.logs[0].errorMessage).toBe('token=[REDACTED]');
     });
 
     it('should handle missing manifest gracefully', async () => {

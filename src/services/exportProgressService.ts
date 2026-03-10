@@ -62,6 +62,21 @@ export interface ExportProgressState {
  */
 const EXPORT_PROGRESS_KEY = 'export_progress';
 
+function hasActionApi(): boolean {
+  return (
+    typeof chrome !== 'undefined' &&
+    typeof chrome.action?.setBadgeText === 'function' &&
+    typeof chrome.action?.setBadgeBackgroundColor === 'function'
+  );
+}
+
+function hasNotificationsApi(): boolean {
+  return (
+    typeof chrome !== 'undefined' &&
+    typeof chrome.notifications?.create === 'function'
+  );
+}
+
 /**
  * Generate a unique export ID
  */
@@ -193,6 +208,10 @@ export async function completeExport(params: {
 export async function updateBadge(
   state: ExportProgressState | null
 ): Promise<void> {
+  if (!hasActionApi()) {
+    return;
+  }
+
   if (!state || state.status === 'idle') {
     // Clear badge
     await chrome.action.setBadgeText({ text: '' });
@@ -230,7 +249,11 @@ export async function clearBadgeAfterDelay(
 ): Promise<void> {
   setTimeout(async () => {
     const state = await getExportProgress();
-    if (state && (state.status === 'completed' || state.status === 'failed')) {
+    if (
+      hasActionApi() &&
+      state &&
+      (state.status === 'completed' || state.status === 'failed')
+    ) {
       await chrome.action.setBadgeText({ text: '' });
     }
   }, delayMs);
@@ -242,6 +265,10 @@ export async function clearBadgeAfterDelay(
 export async function showExportStartNotification(
   state: ExportProgressState
 ): Promise<void> {
+  if (!hasNotificationsApi()) {
+    return;
+  }
+
   const destinationLabel =
     state.destination === 'planmypeak' ? 'PlanMyPeak' : 'Intervals.icu';
 
@@ -260,6 +287,10 @@ export async function showExportStartNotification(
 export async function updateExportNotification(
   state: ExportProgressState
 ): Promise<void> {
+  if (typeof chrome.notifications?.update !== 'function') {
+    return;
+  }
+
   const progress = Math.round((state.completedItems / state.totalItems) * 100);
 
   try {
@@ -277,6 +308,11 @@ export async function updateExportNotification(
 export async function showExportCompleteNotification(
   state: ExportProgressState
 ): Promise<void> {
+  if (!hasNotificationsApi()) {
+    await clearBadgeAfterDelay();
+    return;
+  }
+
   const destinationLabel =
     state.destination === 'planmypeak' ? 'PlanMyPeak' : 'Intervals.icu';
 

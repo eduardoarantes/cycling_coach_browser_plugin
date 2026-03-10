@@ -125,11 +125,20 @@ isAuthenticated: false
 2. **Manifest not configured correctly**
    - Check: Open `dist/manifest.json`, verify:
      ```json
-     "content_scripts": [{
-       "matches": ["https://app.trainingpeaks.com/*"],
-       "js": ["src/content/tokenInterceptor.ts"],
-       "run_at": "document_start"
-     }]
+     "content_scripts": [
+       {
+         "matches": ["https://app.trainingpeaks.com/*", "https://planmypeak.com/*"],
+         "js": ["src/content/mainWorldInterceptor.ts"],
+         "run_at": "document_start",
+         "world": "MAIN"
+       },
+       {
+         "matches": ["https://app.trainingpeaks.com/*", "https://planmypeak.com/*"],
+         "js": ["src/content/isolatedWorldBridge.ts"],
+         "run_at": "document_start",
+         "world": "ISOLATED"
+       }
+     ]
      ```
 
 3. **Brave shields blocking content script**
@@ -395,7 +404,8 @@ ls -la dist/
 Should include:
 
 - `manifest.json`
-- `src/content/tokenInterceptor.ts` (or .js)
+- `src/content/mainWorldInterceptor.ts` (or .js)
+- `src/content/isolatedWorldBridge.ts` (or .js)
 - `src/background/index.ts` (or .js)
 - `src/popup/index.html`
 
@@ -427,7 +437,7 @@ chrome.storage.local.clear(() => {
 
 Debug mode is already enabled. To disable it:
 
-Edit `src/content/tokenInterceptor.ts`:
+Edit `src/content/mainWorldInterceptor.ts` and `src/content/isolatedWorldBridge.ts`:
 
 ```typescript
 const DEBUG = false; // Change to false
