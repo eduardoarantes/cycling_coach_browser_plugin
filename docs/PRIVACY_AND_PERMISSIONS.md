@@ -80,6 +80,10 @@ integration and saves an API key.
 
 ## Data Stored Locally
 
+All of the data below is stored in the extension's local browser storage within
+the user's Chrome profile. The extension does not add its own encryption layer
+on top of `chrome.storage.local`.
+
 | Data                  | How it gets there                                  | Why it is stored                                |
 | --------------------- | -------------------------------------------------- | ----------------------------------------------- |
 | TrainingPeaks token   | Observed from authenticated TrainingPeaks requests | Reuse the active TrainingPeaks session          |

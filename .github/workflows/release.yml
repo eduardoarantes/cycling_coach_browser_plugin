@@ -1,0 +1,91 @@
+name: Release Artifact
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      HUSKY: 0
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Derive release version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag matches source versions
+        run: |
+          PACKAGE_VERSION=$(node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync('package.json', 'utf8')).version);")
+          MANIFEST_VERSION=$(node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync('public/manifest.json', 'utf8')).version);")
+          TAG_VERSION="${{ steps.version.outputs.value }}"
+
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "package.json version $PACKAGE_VERSION does not match tag $TAG_VERSION" >&2
+            exit 1
+          fi
+
+          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "public/manifest.json version $MANIFEST_VERSION does not match tag $TAG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Build production bundle
+        run: npm run build:bundle
+
+      - name: Package canonical release artifact
+        id: package
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          ARTIFACT="planmypeak-importer-webstore-v${VERSION}.zip"
+          ./scripts/package-release-artifact.sh "$VERSION" "$ARTIFACT"
+          sha256sum "$ARTIFACT" > "${ARTIFACT}.sha256"
+          echo "artifact_name=$ARTIFACT" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=$ARTIFACT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-web-store-package-${{ steps.version.outputs.value }}
+          path: |
+            ${{ steps.package.outputs.artifact_path }}
+            ${{ steps.package.outputs.artifact_path }}.sha256
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.package.outputs.artifact_path }}
+            ${{ steps.package.outputs.artifact_path }}.sha256
+          generate_release_notes: true

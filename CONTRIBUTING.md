@@ -4,6 +4,18 @@ Contributions are welcome, but this extension touches authentication, browser
 permissions, and third-party APIs. Please keep changes focused and document user
 visible behavior carefully.
 
+## How to Contribute
+
+1. Fork the repository on GitHub
+2. Clone your fork locally
+3. Create a feature branch from `main`
+4. Make your changes following the guidelines below
+5. Push to your fork
+6. Open a pull request against this repository's `main` branch
+
+CI runs automatically on pull requests from forks (lint, type-check, tests,
+build).
+
 ## Before You Start
 
 - Open an issue before making large changes or new integrations
@@ -11,6 +23,10 @@ visible behavior carefully.
   [TESTING.md](./TESTING.md)
 - If your change affects data flow, auth handling, permissions, or exports,
   update the relevant documentation in the same pull request
+
+## Prerequisites
+
+- Node.js 20 or later (enforced via `engines` in `package.json`)
 
 ## Local Setup
 

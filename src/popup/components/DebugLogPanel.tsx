@@ -244,8 +244,8 @@ export function DebugLogPanel(): ReactElement {
 
           {/* Help text */}
           <p className="mt-2 text-[10px] text-gray-500">
-            Logs show TrainingPeaks API calls. Export logs to share for
-            troubleshooting.
+            Logs show TrainingPeaks API calls. Exported logs automatically
+            redact detected credentials and tokens before sharing.
           </p>
         </div>
       )}
