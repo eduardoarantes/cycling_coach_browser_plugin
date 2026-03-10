@@ -30,6 +30,7 @@ import {
   Trophy,
   Waves,
   type LucideIcon,
+  type LucideProps,
 } from 'lucide-react';
 import type { CalendarNote, CalendarEvent } from '@/types/api.types';
 import type { UnifiedWorkout } from './PlanCalendar';
@@ -65,6 +66,14 @@ function getWorkoutIcon(workoutTypeId: number): LucideIcon {
   };
 
   return iconMap[workoutTypeId] || Activity;
+}
+
+function renderWorkoutIcon(
+  workoutTypeId: number,
+  props: LucideProps
+): ReactElement {
+  const Icon = getWorkoutIcon(workoutTypeId);
+  return <Icon {...props} />;
 }
 
 /**
@@ -117,7 +126,6 @@ function ClassicWorkoutBadge({
   workout: UnifiedWorkout & { workoutSource: 'classic' };
 }): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
-  const WorkoutIcon = getWorkoutIcon(workout.workoutTypeValueId);
 
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
@@ -139,7 +147,10 @@ function ClassicWorkoutBadge({
         {...getReferenceProps()}
         className="flex items-center justify-center w-8 h-8 rounded bg-blue-100 hover:bg-blue-200 cursor-pointer text-blue-700"
       >
-        <WorkoutIcon className="w-4 h-4" strokeWidth={2.25} />
+        {renderWorkoutIcon(workout.workoutTypeValueId, {
+          className: 'w-4 h-4',
+          strokeWidth: 2.25,
+        })}
       </div>
 
       {isOpen && (
@@ -153,10 +164,10 @@ function ClassicWorkoutBadge({
             <div className="bg-white border-2 border-blue-400 rounded-lg shadow-xl p-3">
               {/* Workout Title */}
               <div className="flex items-center gap-1.5 mb-2">
-                <WorkoutIcon
-                  className="w-4 h-4 text-blue-600 flex-shrink-0"
-                  strokeWidth={2.25}
-                />
+                {renderWorkoutIcon(workout.workoutTypeValueId, {
+                  className: 'w-4 h-4 text-blue-600 flex-shrink-0',
+                  strokeWidth: 2.25,
+                })}
                 <h4 className="font-bold text-sm text-gray-900">
                   {workout.title}
                 </h4>

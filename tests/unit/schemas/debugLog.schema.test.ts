@@ -60,7 +60,6 @@ describe('ApiLogEntrySchema', () => {
 
   it('should reject entry missing required id', () => {
     const invalidEntry = { ...validEntry };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (invalidEntry as any).id;
 
     expect(() => ApiLogEntrySchema.parse(invalidEntry)).toThrow();

@@ -5,6 +5,19 @@
  * and testing API calls in Postman or command line
  */
 
+const REDACTED_VALUE = '[REDACTED]';
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'apikey',
+  'x-api-key',
+  'cookie',
+  'set-cookie',
+]);
+
+export interface CurlCommandOptions {
+  redactSensitiveHeaders?: boolean;
+}
+
 /**
  * Generate a cURL command from fetch request parameters
  *
@@ -18,9 +31,11 @@ export function generateCurlCommand(
     method?: string;
     headers?: Record<string, string>;
     body?: string;
-  } = {}
+  } = {},
+  curlOptions: CurlCommandOptions = {}
 ): string {
   const { method = 'GET', headers = {}, body } = options;
+  const { redactSensitiveHeaders = true } = curlOptions;
 
   // Start with base curl command
   const curlParts: string[] = ['curl'];
@@ -37,7 +52,12 @@ export function generateCurlCommand(
       : (headers as Record<string, string>);
 
   Object.entries(headersObj).forEach(([key, value]) => {
-    curlParts.push(`-H "${key}: ${value}"`);
+    const normalizedKey = key.toLowerCase();
+    const headerValue =
+      redactSensitiveHeaders && SENSITIVE_HEADERS.has(normalizedKey)
+        ? REDACTED_VALUE
+        : value;
+    curlParts.push(`-H "${key}: ${headerValue}"`);
   });
 
   // Add body

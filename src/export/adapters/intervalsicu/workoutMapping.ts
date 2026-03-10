@@ -902,7 +902,7 @@ function isRedundantName(name: string, intensityClass: string | null): boolean {
     return false;
   }
 
-  const normalize = (value: string) =>
+  const normalize = (value: string): string =>
     value.toLowerCase().replace(/[^a-z]/g, '');
   return normalize(name) === normalize(intensityClass);
 }

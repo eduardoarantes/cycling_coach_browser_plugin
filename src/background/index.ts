@@ -8,7 +8,7 @@
 
 import { handleMessage } from './messageHandler';
 
-const DEBUG = true;
+const DEBUG = import.meta.env.DEV;
 const logDebug = (...args: unknown[]): void => {
   if (DEBUG) {
     console.log('[TP Extension - Background]', ...args);
@@ -16,12 +16,10 @@ const logDebug = (...args: unknown[]): void => {
 };
 
 logDebug('🚀 Background service worker loaded');
-console.log('TrainingPeaks Extension: Background service worker loaded');
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener((details) => {
   logDebug('📦 Extension installed/updated, reason:', details.reason);
-  console.log('TrainingPeaks Extension installed');
 });
 
 // Listen for messages from content scripts and popup

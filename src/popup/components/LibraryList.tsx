@@ -10,7 +10,12 @@ import { LibraryGrid } from './LibraryGrid';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
-import { ExportDialog, ExportResult, MultiExportResult } from './export';
+import {
+  ExportDialog,
+  ExportResult,
+  MultiExportResult,
+  getExportResultKey,
+} from './export';
 import type { LibraryBatchExportStrategy } from './export/ExportDialog';
 import {
   is401Error,
@@ -369,7 +374,11 @@ export function LibraryList({
         />
       )}
       {exportResults.length === 1 && exportResults[0] && (
-        <ExportResult result={exportResults[0]} onClose={closeResults} />
+        <ExportResult
+          key={getExportResultKey(exportResults[0])}
+          result={exportResults[0]}
+          onClose={closeResults}
+        />
       )}
     </div>
   );

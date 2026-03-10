@@ -72,7 +72,8 @@ cycling_coach_browser_plugin/
 │   │   ├── index.ts        # Service worker entry
 │   │   └── messageHandler.ts
 │   ├── content/            # Content scripts
-│   │   └── tokenInterceptor.ts
+│   │   ├── mainWorldInterceptor.ts
+│   │   └── isolatedWorldBridge.ts
 │   ├── popup/              # Extension popup UI
 │   │   ├── components/
 │   │   ├── App.tsx

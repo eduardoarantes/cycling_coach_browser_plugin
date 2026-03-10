@@ -213,54 +213,20 @@ if (validation.warnings.length > 0) {
 
 ---
 
-## Mock API Service
+## Current Integration Surface
 
-For testing purposes, a mock PlanMyPeak API service is provided:
+The active PlanMyPeak integration now lives in the background API client:
 
-```typescript
-import {
-  uploadWorkout,
-  uploadWorkoutBatch,
-  checkApiHealth,
-} from '@/services/planMyPeakApiService';
+- `src/background/api/planMyPeak.ts`
+- `tests/unit/background/api/planMyPeak.test.ts`
 
-// Upload single workout
-const result = await uploadWorkout(pmpWorkout, {
-  delay: 500, // Simulate network delay (ms)
-  successRate: 1.0, // 100% success rate
-  verbose: true, // Detailed logging
-});
-
-// Batch upload
-const batchResult = await uploadWorkoutBatch(pmpWorkouts, {
-  delay: 100,
-  successRate: 0.95, // 95% success rate
-});
-
-console.log(`Uploaded: ${batchResult.uploaded}`);
-console.log(`Failed: ${batchResult.failed}`);
-```
-
-### Mock Configuration
-
-```typescript
-interface MockConfig {
-  /** Simulate network delay (ms) */
-  delay?: number;
-
-  /** Simulate success rate (0-1) */
-  successRate?: number;
-
-  /** Enable detailed logging */
-  verbose?: boolean;
-}
-```
+That code path is what the popup and export flows actually use.
 
 ---
 
 ## Real API Integration (Future)
 
-When PlanMyPeak provides real API endpoints, replace the mock service in `src/services/planMyPeakApiService.ts`:
+When PlanMyPeak expands its API surface, extend `src/background/api/planMyPeak.ts`:
 
 ```typescript
 // TODO: Replace with real API implementation
@@ -390,4 +356,4 @@ src/export/adapters/planMyPeak/
 
 ---
 
-**Questions?** See the example usage in `src/export/adapters/planMyPeak/example.ts`
+**Questions?** See `tests/unit/background/api/planMyPeak.test.ts`

@@ -44,8 +44,18 @@ export function useExportProgress(): UseExportProgressReturn {
 
   // Load initial state
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let isMounted = true;
+
+    void getExportProgress().then((state) => {
+      if (isMounted) {
+        setProgress(state);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Subscribe to storage changes for real-time updates
   useEffect(() => {

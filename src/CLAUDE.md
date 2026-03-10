@@ -109,16 +109,26 @@ export async function handleMessage(
 
 **Files**:
 
-- `tokenInterceptor.ts` - Intercepts TrainingPeaks API requests to extract bearer tokens
+- `mainWorldInterceptor.ts` - Runs in the page context to observe auth-bearing requests
+- `isolatedWorldBridge.ts` - Receives `postMessage` events and forwards them to the background worker
 
 **Injection Config** (in manifest.json):
 
 ```json
-{
-  "matches": ["https://app.trainingpeaks.com/*"],
-  "run_at": "document_start",
-  "js": ["src/content/tokenInterceptor.ts"]
-}
+[
+  {
+    "matches": ["https://app.trainingpeaks.com/*", "https://planmypeak.com/*"],
+    "run_at": "document_start",
+    "world": "MAIN",
+    "js": ["src/content/mainWorldInterceptor.ts"]
+  },
+  {
+    "matches": ["https://app.trainingpeaks.com/*", "https://planmypeak.com/*"],
+    "run_at": "document_start",
+    "world": "ISOLATED",
+    "js": ["src/content/isolatedWorldBridge.ts"]
+  }
+]
 ```
 
 **Key Patterns**:

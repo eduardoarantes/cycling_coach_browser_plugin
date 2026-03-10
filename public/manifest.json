@@ -10,15 +10,7 @@
     "https://app.trainingpeaks.com/*",
     "https://planmypeak.com/*",
     "https://intervals.icu/*",
-    "https://yqaskiwzyhhovthbvmqq.supabase.co/*",
-    "http://localhost:3004/*",
-    "http://127.0.0.1:3004/*",
-    "http://localhost:3006/*",
-    "http://127.0.0.1:3006/*",
-    "http://127.0.0.1:54341/*",
-    "http://localhost:54341/*",
-    "http://127.0.0.1:54361/*",
-    "http://localhost:54361/*"
+    "https://yqaskiwzyhhovthbvmqq.supabase.co/*"
   ],
   "background": {
     "service_worker": "src/background/index.ts",
@@ -36,11 +28,7 @@
     {
       "matches": [
         "https://app.trainingpeaks.com/*",
-        "https://planmypeak.com/*",
-        "http://localhost:3004/*",
-        "http://127.0.0.1:3004/*",
-        "http://localhost:3006/*",
-        "http://127.0.0.1:3006/*"
+        "https://planmypeak.com/*"
       ],
       "js": ["src/content/mainWorldInterceptor.ts"],
       "run_at": "document_start",
@@ -49,11 +37,7 @@
     {
       "matches": [
         "https://app.trainingpeaks.com/*",
-        "https://planmypeak.com/*",
-        "http://localhost:3004/*",
-        "http://127.0.0.1:3004/*",
-        "http://localhost:3006/*",
-        "http://127.0.0.1:3006/*"
+        "https://planmypeak.com/*"
       ],
       "js": ["src/content/isolatedWorldBridge.ts"],
       "run_at": "document_start",

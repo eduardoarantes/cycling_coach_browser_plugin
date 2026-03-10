@@ -1,12 +1,19 @@
 import type { ReactElement } from 'react';
+import { useState } from 'react';
 import { useLibraryItems } from '@/hooks/useLibraryItems';
 import { useExport } from '@/hooks/useExport';
+import type { LibraryItem } from '@/types/api.types';
 import { LibraryHeader } from './LibraryHeader';
 import { WorkoutCard } from './WorkoutCard';
 import { WorkoutGrid } from './WorkoutGrid';
 import { LoadingSpinner } from './LoadingSpinner';
 import { EmptyState } from './EmptyState';
-import { ExportButton, ExportDialog, ExportResult } from './export';
+import {
+  ExportButton,
+  ExportDialog,
+  ExportResult,
+  getExportResultKey,
+} from './export';
 import { logger } from '@/utils/logger';
 import { downloadJsonFile } from '@/utils/downloadJson';
 
@@ -14,6 +21,152 @@ export interface LibraryDetailsProps {
   libraryId: number;
   libraryName: string;
   onBack: () => void;
+}
+
+function formatDuration(hours: number | null): string {
+  if (hours === null) return 'N/A';
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+
+  if (wholeHours === 0) {
+    return `${minutes}m`;
+  }
+
+  return `${wholeHours}h ${minutes}m`;
+}
+
+function formatDistance(meters: number | null): string {
+  if (meters === null) return 'N/A';
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+interface WorkoutDetailsModalProps {
+  workout: LibraryItem;
+  onClose: () => void;
+}
+
+function WorkoutDetailsModal({
+  workout,
+  onClose,
+}: WorkoutDetailsModalProps): ReactElement {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl">
+        <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {workout.itemName}
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Workout details from TrainingPeaks library
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Close workout details"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Duration
+              </p>
+              <p className="mt-1 font-semibold text-gray-900">
+                {formatDuration(workout.totalTimePlanned)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Distance
+              </p>
+              <p className="mt-1 font-semibold text-gray-900">
+                {formatDistance(workout.distancePlanned)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                TSS
+              </p>
+              <p className="mt-1 font-semibold text-gray-900">
+                {workout.tssPlanned ?? 'N/A'}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                IF
+              </p>
+              <p className="mt-1 font-semibold text-gray-900">
+                {workout.ifPlanned !== null
+                  ? workout.ifPlanned.toFixed(2)
+                  : 'N/A'}
+              </p>
+            </div>
+          </div>
+
+          {workout.description && workout.description.trim() && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                Description
+              </h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                {workout.description}
+              </p>
+            </div>
+          )}
+
+          {workout.coachComments && workout.coachComments.trim() && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                Coach Comments
+              </h3>
+              <p className="mt-2 whitespace-pre-wrap rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-900">
+                {workout.coachComments}
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Elevation
+              </p>
+              <p className="mt-1 text-gray-800">
+                {workout.elevationGainPlanned !== null
+                  ? `${workout.elevationGainPlanned} m`
+                  : 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Calories
+              </p>
+              <p className="mt-1 text-gray-800">
+                {workout.caloriesPlanned ?? 'N/A'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -46,6 +199,9 @@ export function LibraryDetails({
   libraryName,
   onBack,
 }: LibraryDetailsProps): ReactElement {
+  const [selectedWorkout, setSelectedWorkout] = useState<LibraryItem | null>(
+    null
+  );
   const {
     data: workouts = [],
     isLoading,
@@ -69,10 +225,14 @@ export function LibraryDetails({
   const workoutCount = workouts.length;
   const hasWorkouts = !isLoading && !error && workoutCount > 0;
 
-  // Workout click handler (placeholder for future implementation)
   const handleWorkoutClick = (workoutId: number): void => {
-    // TODO: Navigate to workout details (Phase 4.4 or later)
-    console.log('Workout clicked:', workoutId);
+    const workout = workouts.find(
+      (candidate) => candidate.exerciseLibraryItemId === workoutId
+    );
+
+    if (workout) {
+      setSelectedWorkout(workout);
+    }
   };
 
   const handleDownload = (): void => {
@@ -204,7 +364,18 @@ export function LibraryDetails({
 
       {/* Export Result */}
       {exportResult && (
-        <ExportResult result={exportResult} onClose={closeResult} />
+        <ExportResult
+          key={getExportResultKey(exportResult)}
+          result={exportResult}
+          onClose={closeResult}
+        />
+      )}
+
+      {selectedWorkout && (
+        <WorkoutDetailsModal
+          workout={selectedWorkout}
+          onClose={() => setSelectedWorkout(null)}
+        />
       )}
     </div>
   );

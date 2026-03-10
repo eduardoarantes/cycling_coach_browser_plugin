@@ -59,6 +59,18 @@ export const IS_LOCAL_PLANMYPEAK_TARGET = PLANMYPEAK_TARGET === 'local';
  */
 export const DEFAULT_PLANMYPEAK_APP_PORT = 3006;
 export const DEFAULT_PLANMYPEAK_SUPABASE_PORT = 54361;
+export const SUPPORTED_PLANMYPEAK_APP_PORTS = [3004, 3006] as const;
+export const SUPPORTED_PLANMYPEAK_SUPABASE_PORTS = [54341, 54361] as const;
+
+export function isSupportedPlanMyPeakAppPort(port: number): boolean {
+  return (SUPPORTED_PLANMYPEAK_APP_PORTS as readonly number[]).includes(port);
+}
+
+export function isSupportedPlanMyPeakSupabasePort(port: number): boolean {
+  return (SUPPORTED_PLANMYPEAK_SUPABASE_PORTS as readonly number[]).includes(
+    port
+  );
+}
 
 /**
  * PlanMyPeak app URL (uses default port, actual port may be configured in local builds).
@@ -115,11 +127,6 @@ export const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000;
  * Extension display name
  */
 export const EXTENSION_NAME = 'PlanMyPeak Importer';
-
-/**
- * Extension version (should match manifest.json)
- */
-export const EXTENSION_VERSION = '1.0.0';
 
 /**
  * Storage keys

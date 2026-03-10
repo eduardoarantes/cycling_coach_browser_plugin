@@ -1133,8 +1133,8 @@ cycling_coach_browser_plugin/
 │   │       ├── trainingPeaks.ts  # API client
 │   │       └── types.ts          # API type definitions
 │   ├── content/
-│   │   ├── tokenInterceptor.ts   # Token extraction script
-│   │   └── injected.ts           # Injected script for XHR interception
+│   │   ├── mainWorldInterceptor.ts   # Main-world request interception
+│   │   └── isolatedWorldBridge.ts    # Bridge back to extension runtime
 │   ├── popup/
 │   │   ├── App.tsx               # Main popup component
 │   │   ├── main.tsx              # Popup entry point

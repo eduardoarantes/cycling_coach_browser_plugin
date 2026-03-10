@@ -68,7 +68,7 @@ export async function isTokenExpired(): Promise<boolean> {
  * Returns true if token is valid, false if invalid
  */
 export async function validateToken(): Promise<boolean> {
-  console.log('[Auth Service] Requesting token validation from background...');
+  logger.debug('Requesting token validation from background worker');
 
   try {
     // Send validation request to background worker
@@ -76,20 +76,14 @@ export async function validateToken(): Promise<boolean> {
       type: 'VALIDATE_TOKEN',
     })) as { valid: boolean; userId?: number };
 
-    console.log('[Auth Service] Validation response:', response);
-
     if (response.valid) {
-      console.log('[Auth Service] ✅ Token is valid');
-      if (response.userId) {
-        console.log('[Auth Service] User ID:', response.userId);
-      }
+      logger.debug('TrainingPeaks token validated successfully');
       return true;
     } else {
-      console.log('[Auth Service] ❌ Token is invalid (cleared by background)');
+      logger.debug('TrainingPeaks token is invalid');
       return false;
     }
   } catch (error) {
-    console.error('[Auth Service] Error during validation:', error);
     logger.error('Error validating token:', error);
     return false;
   }

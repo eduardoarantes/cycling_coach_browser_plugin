@@ -14,7 +14,8 @@ function makeTrainingPlan(overrides: Partial<TrainingPlan> = {}): TrainingPlan {
     weekCount: 4,
     workoutCount: 2,
     description: 'Plan description',
-  } as unknown as TrainingPlan & typeof overrides;
+    ...overrides,
+  } as TrainingPlan;
 }
 
 function makeStructuredWorkout(

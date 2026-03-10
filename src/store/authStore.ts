@@ -6,6 +6,7 @@
 
 import { create } from 'zustand';
 import * as authService from '@/services/authService';
+import { logger } from '@/utils/logger';
 
 interface AuthState {
   // State
@@ -72,30 +73,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshAuth: async () => {
     // Prevent concurrent calls - if already refreshing, skip
     if (get().isRefreshing) {
-      console.log(
-        '[authStore] ⏭️ refreshAuth() already in progress, skipping...'
-      );
+      logger.debug('refreshAuth already in progress, skipping duplicate call');
       return;
     }
 
-    console.log('[authStore] refreshAuth() called');
+    logger.debug('Refreshing authentication state from storage');
     set({ isLoading: true, error: null, isRefreshing: true });
 
     try {
       // Check if token exists and get its age
       const token = await authService.getAuthToken();
-      console.log(
-        '[authStore] Token from storage:',
-        token
-          ? `${token.substring(0, 20)}... (length: ${token.length})`
-          : 'NULL'
-      );
 
       if (!token) {
-        // No token, set as not authenticated
-        console.log(
-          '[authStore] No token found, setting isAuthenticated=false'
-        );
         set({
           isAuthenticated: false,
           token: null,
@@ -109,15 +98,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Token exists, check if expired by age
       const tokenAge = await authService.getTokenAge();
       const isExpired = await authService.isTokenExpired();
-      console.log('[authStore] Token age:', tokenAge, 'ms');
-      console.log('[authStore] Token expired:', isExpired);
+      logger.debug('Auth token age check complete', { tokenAge, isExpired });
 
       if (isExpired) {
-        // Token is too old, clear it
-        console.warn(
-          `[authStore] ⏰ Token expired by age (${tokenAge}ms > 24h), clearing from storage...`
-        );
-        console.trace('[authStore] Token expiration clear stack trace:');
+        logger.warn('Stored TrainingPeaks token expired by age, clearing');
         await authService.clearAuth();
         set({
           isAuthenticated: false,
@@ -127,11 +111,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isRefreshing: false,
         });
       } else {
-        // Token exists and is not expired - optimistically trust it
-        // API validation will happen when user actually tries to fetch data
-        console.log(
-          '[authStore] ✅ Token exists and not expired, setting isAuthenticated=true (optimistic)'
-        );
         set({
           isAuthenticated: true,
           token: token,
@@ -142,7 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
       }
     } catch (error) {
-      console.error('[authStore] Error in refreshAuth:', error);
+      logger.error('Error refreshing auth state:', error);
       set({
         isLoading: false,
         isRefreshing: false,
@@ -188,9 +167,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     token: string | null,
     tokenAge: number | null
   ) => {
-    console.log(
-      '[authStore] setAuthState() - direct state update from storage listener'
-    );
+    logger.debug('Syncing auth state from storage listener');
     set({ isAuthenticated, token, tokenAge, error: null });
   },
 }));
