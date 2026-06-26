@@ -167,6 +167,7 @@ export const CACHE_DURATIONS = {
   PLAN_NOTES: 3 * 60 * 1000, // 3 minutes - notes may be edited
   PLAN_EVENTS: 3 * 60 * 1000, // 3 minutes - events may change
   RX_BUILDER_WORKOUTS: 3 * 60 * 1000, // 3 minutes - strength workouts may be modified
+  ATHLETE_GROUPS: 5 * 60 * 1000, // 5 minutes - athlete groups change infrequently
 } as const;
 
 /**

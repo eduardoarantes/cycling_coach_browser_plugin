@@ -6,7 +6,7 @@
 
 import type { ReactElement } from 'react';
 
-export type TabType = 'libraries' | 'plans';
+export type TabType = 'libraries' | 'plans' | 'groups';
 
 export interface TabNavigationProps {
   activeTab: TabType;
@@ -54,6 +54,15 @@ export function TabNavigation({
         onClick={() => handleTabClick('plans')}
       >
         Training Plans
+      </button>
+
+      <button
+        role="button"
+        aria-selected={activeTab === 'groups'}
+        className={getTabClassName('groups')}
+        onClick={() => handleTabClick('groups')}
+      >
+        Athlete Groups
       </button>
     </div>
   );
