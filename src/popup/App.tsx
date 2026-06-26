@@ -98,11 +98,18 @@ function App(): ReactElement {
   return (
     <div className={`${containerWidth} min-h-96 p-4 bg-gray-50`}>
       <div className="mb-3 flex items-start justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-gray-800">
-            PlanMyPeak Importer
-          </h1>
-          <p className="text-xs text-gray-600">Workout Library Access</p>
+        <div className="flex items-center gap-2.5">
+          <img
+            src={chrome.runtime.getURL('icons/icon128.png')}
+            alt="PlanMyPeak Importer logo"
+            className="h-9 w-9 shrink-0 rounded-md"
+          />
+          <div>
+            <h1 className="text-lg font-bold text-gray-800">
+              PlanMyPeak Importer
+            </h1>
+            <p className="text-xs text-gray-600">Workout Library Access</p>
+          </div>
         </div>
         <button
           type="button"
