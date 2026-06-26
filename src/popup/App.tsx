@@ -93,7 +93,7 @@ function App(): ReactElement {
   // Use wider layout for calendar view
   const isCalendarView =
     activeView === 'main' && activeTab === 'plans' && selectedPlanId !== null;
-  const containerWidth = isCalendarView ? 'w-[750px]' : 'w-96';
+  const containerWidth = isCalendarView ? 'w-[750px]' : 'w-[480px]';
 
   return (
     <div className={`${containerWidth} min-h-96 p-4 bg-gray-50`}>

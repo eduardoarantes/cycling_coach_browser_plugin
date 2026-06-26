@@ -121,7 +121,11 @@ export function AthleteGroupList(): ReactElement {
   // Success state with groups
   return (
     <div className="mt-4">
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search groups..."
+      />
 
       <p className="mt-3 text-xs text-gray-500">
         {groups.length} {groups.length === 1 ? 'group' : 'groups'} ·{' '}
