@@ -25,7 +25,7 @@ export function PlanMyPeakEnvironmentIndicator({
             Local PlanMyPeak Target
           </p>
           <p className="text-xs text-amber-800">
-            This build targets {hostLabel} instead of planmypeak.com.
+            This build targets {hostLabel} instead of portal.planmypeak.com.
           </p>
         </div>
       </div>

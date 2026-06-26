@@ -37,6 +37,7 @@ import {
   API_BASE_URL,
   STORAGE_KEYS,
   createApiHeaders,
+  PLANMYPEAK_SUPABASE_ANON_KEY,
 } from '@/utils/constants';
 import { getSupabaseUrl } from '@/services/portConfigService';
 import {
@@ -308,9 +309,16 @@ async function handleValidateMyPeakToken(): Promise<{
     ]);
 
     const token = data[STORAGE_KEYS.MYPEAK_AUTH_TOKEN] as string | undefined;
-    const apiKey = data[STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY] as
+    const capturedApiKey = data[STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY] as
       | string
       | undefined;
+
+    // The rewritten portal restores its session from localStorage and routes
+    // data through its own /api/backend, so the anon `apikey` header is rarely
+    // emitted on intercepted traffic. Fall back to the known public anon key so
+    // validation does not depend on capturing it. (Empty for local builds,
+    // which still rely on the captured key.)
+    const apiKey = capturedApiKey || PLANMYPEAK_SUPABASE_ANON_KEY;
 
     if (!token) {
       logger.debug('No MyPeak auth token to validate');
@@ -318,7 +326,7 @@ async function handleValidateMyPeakToken(): Promise<{
     }
 
     if (!apiKey) {
-      logger.debug('No MyPeak Supabase API key captured yet');
+      logger.debug('No MyPeak Supabase API key available');
       return { valid: false };
     }
 
