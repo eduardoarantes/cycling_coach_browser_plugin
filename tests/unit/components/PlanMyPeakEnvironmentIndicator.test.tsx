@@ -14,7 +14,7 @@ describe('PlanMyPeakEnvironmentIndicator', () => {
     expect(screen.getByText('Local PlanMyPeak Target')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This build targets localhost:3006 instead of planmypeak.com.'
+        'This build targets localhost:3006 instead of portal.planmypeak.com.'
       )
     ).toBeInTheDocument();
   });
@@ -23,7 +23,7 @@ describe('PlanMyPeakEnvironmentIndicator', () => {
     const { container } = render(
       <PlanMyPeakEnvironmentIndicator
         isVisible={false}
-        hostLabel="planmypeak.com"
+        hostLabel="portal.planmypeak.com"
       />
     );
 

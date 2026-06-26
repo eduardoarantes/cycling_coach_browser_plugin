@@ -5,41 +5,13 @@
  * It intercepts fetch/XHR and uses postMessage to send tokens to the isolated world.
  */
 
+import { isMyPeakSupabaseRequest } from './mypeakAuthDetection';
+import { extractRequestInfo, toAbsoluteUrl } from './requestInfo';
+
 const DEBUG = import.meta.env.DEV;
 const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[TP Extension - MAIN World]', ...args);
 };
-
-/**
- * Known Supabase hosts for PlanMyPeak auth detection.
- * Includes cloud Supabase and common local development ports.
- */
-const MYPEAK_SUPABASE_HOSTS = [
-  '127.0.0.1:54361',
-  'localhost:54361',
-  '127.0.0.1:54341',
-  'localhost:54341',
-  'yqaskiwzyhhovthbvmqq.supabase.co',
-];
-
-/**
- * Check if URL matches a Supabase auth request pattern.
- * Detects both known hosts and any localhost Supabase auth endpoint.
- */
-function isMyPeakSupabaseRequest(url: string): boolean {
-  // Check known hosts first
-  if (MYPEAK_SUPABASE_HOSTS.some((host) => url.includes(host))) {
-    return true;
-  }
-
-  // Also detect any localhost/127.0.0.1 Supabase auth endpoints
-  // This allows flexible port configuration in local development
-  const isLocalhost = url.includes('localhost:') || url.includes('127.0.0.1:');
-  const isSupabaseAuthPath =
-    url.includes('/auth/v1/') || url.includes('/rest/v1/');
-
-  return isLocalhost && isSupabaseAuthPath;
-}
 
 function maybePostMyPeakSupabaseAuth(
   url: string,
@@ -96,56 +68,52 @@ let fetchCount = 0;
 // Intercept fetch
 window.fetch = async function (...args) {
   fetchCount++;
-  const [url, options] = args;
-  const urlStr = typeof url === 'string' ? url : url.toString();
+  const { urlStr: rawUrl, headers } = extractRequestInfo(args[0], args[1]);
+  // Resolve relative URLs (e.g. fetch('/api/backend/...')) against the page
+  // origin so host-based detection can match them.
+  const urlStr = toAbsoluteUrl(rawUrl, document.baseURI);
 
   log('📡 Fetch request #' + fetchCount + ':', urlStr);
 
-  // Check for Authorization header
-  if (options && options.headers) {
-    const headers = new Headers(options.headers);
-    const authHeader = headers.get('authorization');
+  const authHeader = headers.get('authorization');
 
-    log('  ✓ Has headers, Authorization:', authHeader ? 'present' : 'none');
+  log('  ✓ Authorization:', authHeader ? 'present' : 'none');
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
 
-      // Only capture TrainingPeaks encrypted tokens (start with "gAAAA")
-      // NOT JWT tokens (start with "eyJ")
-      const isEncryptedToken = token.startsWith('gAAAA');
-      const isApiCall = urlStr.includes('tpapi.trainingpeaks.com');
+    // Only capture TrainingPeaks encrypted tokens (start with "gAAAA")
+    // NOT JWT tokens (start with "eyJ")
+    const isEncryptedToken = token.startsWith('gAAAA');
+    const isApiCall = urlStr.includes('tpapi.trainingpeaks.com');
 
-      log('  🎫 Bearer token detected', {
-        length: token.length,
-        tokenType: isEncryptedToken ? 'encrypted' : 'jwt',
-        isApiCall,
-      });
+    log('  🎫 Bearer token detected', {
+      length: token.length,
+      tokenType: isEncryptedToken ? 'encrypted' : 'jwt',
+      isApiCall,
+    });
 
-      if (isEncryptedToken && isApiCall) {
-        log('  ✅ Valid TrainingPeaks API token! Posting to isolated world...');
+    if (isEncryptedToken && isApiCall) {
+      log('  ✅ Valid TrainingPeaks API token! Posting to isolated world...');
 
-        // Send token to isolated world content script via postMessage
-        window.postMessage(
-          {
-            type: 'TP_TOKEN_FOUND',
-            token: token,
-            timestamp: Date.now(),
-            source: 'trainingpeaks-extension-main',
-          },
-          '*'
-        );
+      // Send token to isolated world content script via postMessage
+      window.postMessage(
+        {
+          type: 'TP_TOKEN_FOUND',
+          token: token,
+          timestamp: Date.now(),
+          source: 'trainingpeaks-extension-main',
+        },
+        '*'
+      );
 
-        log('  ✅ Token posted');
-      } else {
-        log('  ⏭️ Skipping non-TrainingPeaks token candidate');
-      }
+      log('  ✅ Token posted');
+    } else {
+      log('  ⏭️ Skipping non-TrainingPeaks token candidate');
     }
-
-    maybePostMyPeakSupabaseAuth(urlStr, headers, 'fetch');
-  } else {
-    log('  ℹ️  No headers');
   }
+
+  maybePostMyPeakSupabaseAuth(urlStr, headers, 'fetch');
 
   return originalFetch.apply(this, args);
 };
@@ -180,13 +148,14 @@ XMLHttpRequest.prototype.open = function (
   password?: string | null
 ) {
   xhrCount++;
-  log('📡 XHR request #' + xhrCount + ':', method, url.toString());
+  const xhrUrlAbs = toAbsoluteUrl(url.toString(), document.baseURI);
+  log('📡 XHR request #' + xhrCount + ':', method, xhrUrlAbs);
 
   this.addEventListener('loadstart', function () {
     const headers = xhrHeaders.get(this);
     if (headers) {
       maybePostMyPeakSupabaseAuth(
-        url.toString(),
+        xhrUrlAbs,
         new Headers(Array.from(headers.entries())),
         'xhr'
       );

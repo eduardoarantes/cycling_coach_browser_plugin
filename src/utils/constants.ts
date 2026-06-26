@@ -78,23 +78,38 @@ export function isSupportedPlanMyPeakSupabasePort(port: number): boolean {
  */
 export const PLANMYPEAK_APP_URL = IS_LOCAL_PLANMYPEAK_TARGET
   ? `http://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
-  : 'https://planmypeak.com';
+  : 'https://portal.planmypeak.com';
 
 /**
  * Short PlanMyPeak host label for UI copy (uses default port).
  */
 export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
   ? `localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
-  : 'planmypeak.com';
+  : 'portal.planmypeak.com';
 
 /**
  * PlanMyPeak auth validation base URL (uses default port, actual port may be configured in local builds).
  * Development hits the local Supabase instance directly.
- * Production validates via the Supabase cloud instance.
+ * Production validates via the Supabase cloud instance the rewritten portal authenticates against.
  */
 export const PLANMYPEAK_AUTH_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
   ? `http://127.0.0.1:${DEFAULT_PLANMYPEAK_SUPABASE_PORT}`
-  : 'https://yqaskiwzyhhovthbvmqq.supabase.co';
+  : 'https://nwvtltfibnkdogdeeluh.supabase.co';
+
+/**
+ * PlanMyPeak Supabase anon (publishable) key, used as the `apikey` header when
+ * validating a captured user token against Supabase `/auth/v1/user`.
+ *
+ * The rewritten portal restores its session from localStorage and routes data
+ * through its own `/api/backend`, so the anon key is (almost) never emitted on
+ * intercepted traffic. This is the public, static publishable key baked into
+ * the production portal browser build, so embedding it here is equivalent to
+ * what the web app already ships. Local builds fall back to the anon key
+ * captured from intercepted local Supabase traffic.
+ */
+export const PLANMYPEAK_SUPABASE_ANON_KEY = IS_LOCAL_PLANMYPEAK_TARGET
+  ? ''
+  : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53dnRsdGZpYm5rZG9nZGVlbHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMTE3ODgsImV4cCI6MjA5NzY4Nzc4OH0.WqJxwP_OTwbFjo_n1yJWENpy3Xq5xOVzqQ9YcACRr54';
 
 /**
  * PlanMyPeak API base URL.

@@ -12,6 +12,9 @@ import {
   IS_LOCAL_PLANMYPEAK_TARGET,
   isSupportedPlanMyPeakAppPort,
   isSupportedPlanMyPeakSupabasePort,
+  PLANMYPEAK_APP_URL,
+  PLANMYPEAK_AUTH_BASE_URL,
+  PLANMYPEAK_HOST_LABEL,
 } from '@/utils/constants';
 
 export interface PortConfig {
@@ -138,7 +141,7 @@ export async function resetPortConfig(): Promise<void> {
  */
 export async function getPlanMyPeakAppUrl(): Promise<string> {
   if (!IS_LOCAL_PLANMYPEAK_TARGET) {
-    return 'https://planmypeak.com';
+    return PLANMYPEAK_APP_URL;
   }
 
   const port = await getAppPort();
@@ -160,7 +163,7 @@ export async function getPlanMyPeakApiUrl(): Promise<string> {
  */
 export async function getSupabaseUrl(): Promise<string> {
   if (!IS_LOCAL_PLANMYPEAK_TARGET) {
-    return 'https://yqaskiwzyhhovthbvmqq.supabase.co';
+    return PLANMYPEAK_AUTH_BASE_URL;
   }
 
   const port = await getSupabasePort();
@@ -172,7 +175,7 @@ export async function getSupabaseUrl(): Promise<string> {
  */
 export async function getHostLabel(): Promise<string> {
   if (!IS_LOCAL_PLANMYPEAK_TARGET) {
-    return 'planmypeak.com';
+    return PLANMYPEAK_HOST_LABEL;
   }
 
   const port = await getAppPort();
