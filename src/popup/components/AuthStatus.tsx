@@ -104,7 +104,7 @@ export function AuthStatus(): ReactElement {
 
   const myPeakSubtitle = isMyPeakAuthenticated
     ? `${AUTH_STATUS_STRINGS.TOKEN_AGE_PREFIX} ${formatTokenAge(myPeakTokenAge)} ${AUTH_STATUS_STRINGS.PLANMYPEAK.SUPABASE_SUFFIX}`
-    : AUTH_STATUS_STRINGS.PLANMYPEAK.OPEN_TO_SIGN_IN;
+    : AUTH_STATUS_STRINGS.PLANMYPEAK.openToSignIn(planMyPeakHostLabel);
 
   const myPeakTooltip = isMyPeakAuthenticated
     ? `PlanMyPeak (${planMyPeakHostLabel}) Supabase token obtained ${formatTokenAge(myPeakTokenAge)}`

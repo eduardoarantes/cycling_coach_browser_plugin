@@ -131,6 +131,7 @@ docs/
 - [SECURITY.md](./SECURITY.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/PRIVACY_AND_PERMISSIONS.md](./docs/PRIVACY_AND_PERMISSIONS.md)
+- [docs/RELEASING.md](./docs/RELEASING.md)
 
 ## Current Limitations
 
