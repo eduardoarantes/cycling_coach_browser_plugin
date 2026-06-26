@@ -50,7 +50,8 @@ describe('TabNavigation', () => {
       );
 
       const plansTab = screen.getByRole('button', { name: 'Training Plans' });
-      expect(plansTab).toHaveClass('border-transparent');
+      expect(plansTab).toHaveClass('border-gray-300');
+      expect(plansTab).toHaveClass('bg-gray-100');
       expect(plansTab).toHaveClass('text-gray-600');
     });
   });

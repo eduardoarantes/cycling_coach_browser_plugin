@@ -909,7 +909,11 @@ export function TrainingPlanList({
   if (filteredPlans.length === 0) {
     return (
       <div className="mt-4">
-        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search plans..."
+        />
         <div className="mt-4">
           <EmptyState
             title="No Training Plans Found"
@@ -923,7 +927,11 @@ export function TrainingPlanList({
   // Success state with plans
   return (
     <div className="mt-4">
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search plans..."
+      />
 
       {/* Selection Mode Toolbar */}
       {selectionMode ? (

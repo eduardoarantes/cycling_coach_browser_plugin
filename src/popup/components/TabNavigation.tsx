@@ -6,7 +6,7 @@
 
 import type { ReactElement } from 'react';
 
-export type TabType = 'libraries' | 'plans';
+export type TabType = 'libraries' | 'plans' | 'groups';
 
 export interface TabNavigationProps {
   activeTab: TabType;
@@ -27,17 +27,17 @@ export function TabNavigation({
 
   const getTabClassName = (tab: TabType): string => {
     const baseClasses =
-      'px-4 py-2 text-sm font-medium border-b-2 transition-colors rounded-t-md';
+      'px-4 py-2 text-sm font-medium border-b-2 transition-colors rounded-t-md whitespace-nowrap';
     const activeClasses =
       tab === activeTab
         ? 'border-blue-500 text-blue-600 bg-blue-100'
-        : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300 hover:bg-gray-50';
+        : 'border-gray-300 text-gray-600 bg-gray-100 hover:text-gray-900 hover:bg-gray-200';
 
     return `${baseClasses} ${activeClasses}`;
   };
 
   return (
-    <div className="flex border-b border-gray-200" role="tablist">
+    <div className="flex gap-1 border-b border-gray-200" role="tablist">
       <button
         role="button"
         aria-selected={activeTab === 'libraries'}
@@ -54,6 +54,15 @@ export function TabNavigation({
         onClick={() => handleTabClick('plans')}
       >
         Training Plans
+      </button>
+
+      <button
+        role="button"
+        aria-selected={activeTab === 'groups'}
+        className={getTabClassName('groups')}
+        onClick={() => handleTabClick('groups')}
+      >
+        Athlete Groups
       </button>
     </div>
   );

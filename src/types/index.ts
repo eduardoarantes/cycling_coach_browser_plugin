@@ -123,6 +123,14 @@ export interface GetTrainingPlansMessage {
 }
 
 /**
+ * Message to request athlete groups (coach tags) from API
+ */
+export interface GetAthleteGroupsMessage {
+  type: 'GET_ATHLETE_GROUPS';
+  coachId: number;
+}
+
+/**
  * Message to request plan workouts from API
  */
 export interface GetPlanWorkoutsMessage {
@@ -307,6 +315,7 @@ export type RuntimeMessage =
   | GetLibrariesMessage
   | GetLibraryItemsMessage
   | GetTrainingPlansMessage
+  | GetAthleteGroupsMessage
   | GetPlanWorkoutsMessage
   | GetPlanNotesMessage
   | GetPlanEventsMessage

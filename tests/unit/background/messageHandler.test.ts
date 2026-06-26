@@ -11,8 +11,14 @@ import type {
   GetUserMessage,
   GetLibrariesMessage,
   GetLibraryItemsMessage,
+  GetAthleteGroupsMessage,
 } from '@/types';
-import type { UserProfile, Library, LibraryItem } from '@/types/api.types';
+import type {
+  UserProfile,
+  Library,
+  LibraryItem,
+  AthleteGroup,
+} from '@/types/api.types';
 
 // Mock the TrainingPeaks API module
 vi.mock('@/background/api/trainingPeaks');
@@ -130,6 +136,68 @@ describe('messageHandler', () => {
         error: { message: 'HTTP 401', status: 401 },
       });
       expect(trainingPeaksApi.fetchLibraries).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('GET_ATHLETE_GROUPS message', () => {
+    it('should return athlete groups when API call succeeds', async () => {
+      // Arrange
+      const message: GetAthleteGroupsMessage = {
+        type: 'GET_ATHLETE_GROUPS',
+        coachId: 6469888,
+      };
+      const mockGroups: AthleteGroup[] = [
+        {
+          id: 340276,
+          coachId: 6469888,
+          name: 'My Athletes',
+          athleteIds: [],
+          isDefault: true,
+        },
+        {
+          id: 340617,
+          coachId: 6469888,
+          name: 'Group1',
+          athleteIds: [6469889],
+          isDefault: false,
+        },
+      ];
+
+      vi.spyOn(trainingPeaksApi, 'fetchAthleteGroups').mockResolvedValue({
+        success: true,
+        data: mockGroups,
+      });
+
+      // Act
+      const result = await handleMessage(message, mockSender);
+
+      // Assert
+      expect(result).toEqual({ success: true, data: mockGroups });
+      expect(trainingPeaksApi.fetchAthleteGroups).toHaveBeenCalledWith(6469888);
+      expect(trainingPeaksApi.fetchAthleteGroups).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return error when API call fails', async () => {
+      // Arrange
+      const message: GetAthleteGroupsMessage = {
+        type: 'GET_ATHLETE_GROUPS',
+        coachId: 6469888,
+      };
+
+      vi.spyOn(trainingPeaksApi, 'fetchAthleteGroups').mockResolvedValue({
+        success: false,
+        error: { message: 'HTTP 401', status: 401 },
+      });
+
+      // Act
+      const result = await handleMessage(message, mockSender);
+
+      // Assert
+      expect(result).toEqual({
+        success: false,
+        error: { message: 'HTTP 401', status: 401 },
+      });
+      expect(trainingPeaksApi.fetchAthleteGroups).toHaveBeenCalledTimes(1);
     });
   });
 

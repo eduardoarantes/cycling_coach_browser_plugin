@@ -21,6 +21,7 @@ import {
   PlanWorkoutsApiResponseSchema,
   CalendarNotesApiResponseSchema,
   CalendarEventsApiResponseSchema,
+  AthleteGroupsApiResponseSchema,
 } from '@/schemas';
 import { RxBuilderWorkoutsApiResponseSchema } from '@/schemas/rxBuilder.schema';
 import type {
@@ -33,6 +34,7 @@ import type {
   CalendarNote,
   CalendarEvent,
   RxBuilderWorkout,
+  AthleteGroup,
 } from '@/types/api.types';
 import type { z } from 'zod';
 
@@ -431,6 +433,25 @@ export async function fetchTrainingPlans(): Promise<
     '/plans/v1/plansWithAccess',
     TrainingPlansApiResponseSchema,
     'training plans'
+  );
+}
+
+/**
+ * Fetch athlete groups (coach tags) from TrainingPeaks API
+ *
+ * Coach tags group athletes together. Each group exposes the list of athlete
+ * IDs it contains, from which the athlete count is derived.
+ *
+ * @param coachId - ID of the authenticated coach (the user's `userId`)
+ * @returns Array of athlete groups or error
+ */
+export async function fetchAthleteGroups(
+  coachId: number
+): Promise<ApiResponse<AthleteGroup[]>> {
+  return apiRequest(
+    `/coaches/v2/coaches/${coachId}/tags`,
+    AthleteGroupsApiResponseSchema,
+    `coach ${coachId} athlete groups`
   );
 }
 

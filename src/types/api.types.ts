@@ -34,6 +34,11 @@ export type {
   RxSequenceSummary,
 } from '@/schemas/rxBuilder.schema';
 
+export type {
+  AthleteGroup,
+  AthleteGroupsApiResponse,
+} from '@/schemas/athleteGroup.schema';
+
 export type { ApiError } from '@/schemas/api.schema';
 
 /**

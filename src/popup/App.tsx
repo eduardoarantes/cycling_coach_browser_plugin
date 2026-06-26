@@ -4,7 +4,9 @@ import { ArrowLeft as BackIcon, Settings as SettingsIcon } from 'lucide-react';
 import { LibraryList } from './components/LibraryList';
 import { LibraryDetails } from './components/LibraryDetails';
 import { TabNavigation } from './components/TabNavigation';
+import type { TabType } from './components/TabNavigation';
 import { TrainingPlanList } from './components/TrainingPlanList';
+import { AthleteGroupList } from './components/AthleteGroupList';
 import { PlanCalendar } from './components/PlanCalendar';
 import { SettingsPage } from './components/SettingsPage';
 import { ConnectionHealthSummary } from './components/ConnectionHealthSummary';
@@ -25,9 +27,7 @@ function App(): ReactElement {
     null
   );
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'libraries' | 'plans'>(
-    'libraries'
-  );
+  const [activeTab, setActiveTab] = useState<TabType>('libraries');
   const {
     isAuthenticated: isTrainingPeaksAuthenticated,
     isLoading: isTrainingPeaksAuthLoading,
@@ -69,7 +69,7 @@ function App(): ReactElement {
     setSelectedPlanId(null);
   };
 
-  const handleTabChange = (tab: 'libraries' | 'plans'): void => {
+  const handleTabChange = (tab: TabType): void => {
     setActiveTab(tab);
     // Reset selections when switching tabs
     setSelectedLibraryId(null);
@@ -93,16 +93,23 @@ function App(): ReactElement {
   // Use wider layout for calendar view
   const isCalendarView =
     activeView === 'main' && activeTab === 'plans' && selectedPlanId !== null;
-  const containerWidth = isCalendarView ? 'w-[750px]' : 'w-96';
+  const containerWidth = isCalendarView ? 'w-[750px]' : 'w-[480px]';
 
   return (
     <div className={`${containerWidth} min-h-96 p-4 bg-gray-50`}>
       <div className="mb-3 flex items-start justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-gray-800">
-            PlanMyPeak Importer
-          </h1>
-          <p className="text-xs text-gray-600">Workout Library Access</p>
+        <div className="flex items-center gap-2.5">
+          <img
+            src={chrome.runtime.getURL('icons/icon128.png')}
+            alt="PlanMyPeak Importer logo"
+            className="h-9 w-9 shrink-0 rounded-md"
+          />
+          <div>
+            <h1 className="text-lg font-bold text-gray-800">
+              PlanMyPeak Importer
+            </h1>
+            <p className="text-xs text-gray-600">Workout Library Access</p>
+          </div>
         </div>
         <button
           type="button"
@@ -185,6 +192,8 @@ function App(): ReactElement {
                 ) : (
                   <LibraryList onSelectLibrary={setSelectedLibraryId} />
                 )
+              ) : activeTab === 'groups' ? (
+                <AthleteGroupList />
               ) : selectedPlanId !== null ? (
                 <PlanCalendar
                   planId={selectedPlanId}

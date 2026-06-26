@@ -18,6 +18,7 @@ import type {
   CalendarNote,
   CalendarEvent,
   RxBuilderWorkout,
+  AthleteGroup,
   ApiResponse,
 } from '@/types/api.types';
 import type {
@@ -47,6 +48,7 @@ import {
   fetchPlanNotes,
   fetchPlanEvents,
   fetchRxBuilderWorkouts,
+  fetchAthleteGroups,
 } from './api/trainingPeaks';
 import {
   fetchPlanMyPeakLibraries,
@@ -97,6 +99,7 @@ type MessageResponse =
   | ApiResponse<PlanMyPeakWorkoutLibraryItem | null>
   | ApiResponse<LibraryItem[]>
   | ApiResponse<TrainingPlan[]>
+  | ApiResponse<AthleteGroup[]>
   | ApiResponse<PlanWorkout[]>
   | ApiResponse<CalendarNote[]>
   | ApiResponse<CalendarEvent[]>
@@ -500,6 +503,17 @@ async function handleGetTrainingPlans(): Promise<ApiResponse<TrainingPlan[]>> {
 }
 
 /**
+ * Handle GET_ATHLETE_GROUPS message from popup
+ * Fetches athlete groups (coach tags) from TrainingPeaks API
+ */
+async function handleGetAthleteGroups(
+  coachId: number
+): Promise<ApiResponse<AthleteGroup[]>> {
+  logger.debug('Handling GET_ATHLETE_GROUPS message for coach:', coachId);
+  return await fetchAthleteGroups(coachId);
+}
+
+/**
  * Handle GET_PLAN_WORKOUTS message from popup
  * Fetches plan workouts from TrainingPeaks API
  */
@@ -789,6 +803,9 @@ export async function handleMessage(
 
     case 'GET_TRAINING_PLANS':
       return await handleGetTrainingPlans();
+
+    case 'GET_ATHLETE_GROUPS':
+      return await handleGetAthleteGroups(message.coachId);
 
     case 'GET_PLAN_WORKOUTS':
       return await handleGetPlanWorkouts(message.planId);
