@@ -25,6 +25,7 @@ import type {
   PlanMyPeakLibrary,
   PlanMyPeakWorkoutLibraryItem,
   PlanMyPeakIngestAthleteGroupsResponse,
+  PlanMyPeakCoach,
 } from '@/schemas/planMyPeakApi.schema';
 import type {
   PlanMyPeakCreatePlanNoteRequest,
@@ -60,6 +61,7 @@ import {
   createPlanMyPeakTrainingPlanNote,
   exportWorkoutsToPlanMyPeakLibrary,
   ingestTrainingPeaksAthleteGroups,
+  fetchPlanMyPeakCoach,
 } from './api/planMyPeak';
 import {
   createIntervalsFolder,
@@ -113,6 +115,7 @@ type MessageResponse =
   | ApiResponse<PlanMyPeakSaveTrainingPlanResponse>
   | ApiResponse<PlanMyPeakTrainingPlanNote>
   | ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>
+  | ApiResponse<PlanMyPeakCoach>
   | ApiResponse<null>;
 
 /**
@@ -427,6 +430,13 @@ async function handleImportAthleteGroupsToPlanMyPeak(
     groups.length
   );
   return await ingestTrainingPeaksAthleteGroups(groups);
+}
+
+async function handleGetPlanMyPeakCoach(): Promise<
+  ApiResponse<PlanMyPeakCoach>
+> {
+  logger.debug('Handling GET_PLANMYPEAK_COACH message');
+  return await fetchPlanMyPeakCoach();
 }
 
 /**
@@ -823,6 +833,9 @@ export async function handleMessage(
 
     case 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK':
       return await handleImportAthleteGroupsToPlanMyPeak(message.groups);
+
+    case 'GET_PLANMYPEAK_COACH':
+      return await handleGetPlanMyPeakCoach();
 
     case 'GET_LIBRARY_ITEMS':
       return await handleGetLibraryItems(message.libraryId);

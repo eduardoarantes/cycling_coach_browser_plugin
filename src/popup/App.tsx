@@ -12,6 +12,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { ConnectionHealthSummary } from './components/ConnectionHealthSummary';
 import { PlanMyPeakEnvironmentIndicator } from './components/PlanMyPeakEnvironmentIndicator';
 import { ExportProgressBanner } from './components/ExportProgressBanner';
+import { AccountMismatchBanner } from './components/AccountMismatchBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
@@ -151,6 +152,8 @@ function App(): ReactElement {
             isIntervalsEnabled={isIntervalsEnabled}
             isIntervalsAuthenticated={isIntervalsAuthenticated}
           />
+
+          <AccountMismatchBanner />
 
           {!canAccessTrainingPeaksData ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">

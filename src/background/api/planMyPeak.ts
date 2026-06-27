@@ -17,11 +17,13 @@ import {
 } from '@/services/exportProgressService';
 import { logger } from '@/utils/logger';
 import {
+  PlanMyPeakCoachSchema,
   PlanMyPeakCreateWorkoutResponseSchema,
   PlanMyPeakIngestAthleteGroupsResponseSchema,
   PlanMyPeakLibrariesResponseSchema,
   PlanMyPeakLibrarySchema,
   PlanMyPeakWorkoutLibraryResponseSchema,
+  type PlanMyPeakCoach,
   type PlanMyPeakIngestAthleteGroupsResponse,
   type PlanMyPeakLibrary,
   type PlanMyPeakWorkoutLibraryItem,
@@ -50,6 +52,7 @@ const WORKOUT_LIBRARIES_ENDPOINT = '/v1/workouts/libraries';
 const WORKOUT_LIBRARY_ITEMS_ENDPOINT = '/v1/workouts/library';
 const TRAINING_PLANS_ENDPOINT = '/training-plans';
 const ATHLETE_TAGS_INGEST_ENDPOINT = '/athlete-tags/ingest/training-peaks';
+const COACH_ME_ENDPOINT = '/backend/coaches/me';
 
 type PlanMyPeakApiWorkoutType =
   | 'endurance'
@@ -878,6 +881,21 @@ export async function createPlanMyPeakLibrary(
         source_id: trimmedSourceId,
       }),
     }
+  );
+}
+
+/**
+ * Fetch the authenticated PlanMyPeak coach profile, including the linked
+ * TrainingPeaks account (externalIds). Used to warn when the signed-in
+ * TrainingPeaks user differs from the PlanMyPeak coach's linked account.
+ */
+export async function fetchPlanMyPeakCoach(): Promise<
+  ApiResponse<PlanMyPeakCoach>
+> {
+  return apiRequest(
+    COACH_ME_ENDPOINT,
+    PlanMyPeakCoachSchema,
+    'Fetching PlanMyPeak coach profile'
   );
 }
 
