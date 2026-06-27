@@ -11,6 +11,7 @@ import { Users as UsersIcon, Upload as UploadIcon } from 'lucide-react';
 import { useAthleteGroups } from '@/hooks/useAthleteGroups';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { usePlanMyPeakGroupImport } from '@/hooks/usePlanMyPeakGroupImport';
+import { usePlanMyPeakAccountMatch } from '@/hooks/usePlanMyPeakAccountMatch';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -26,6 +27,8 @@ export function AthleteGroupList(): ReactElement {
   const { data: groups, isLoading, error, refetch } = useAthleteGroups();
   const { isAuthenticated: isPlanMyPeakConnected } = useMyPeakAuth();
   const importGroups = usePlanMyPeakGroupImport();
+  const { hasMismatch: hasAccountMismatch } = usePlanMyPeakAccountMatch();
+  const isImportBlocked = !isPlanMyPeakConnected || hasAccountMismatch;
 
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
@@ -140,11 +143,13 @@ export function AthleteGroupList(): ReactElement {
         <button
           type="button"
           onClick={() => importGroups.mutate(groups)}
-          disabled={!isPlanMyPeakConnected || importGroups.isPending}
+          disabled={isImportBlocked || importGroups.isPending}
           title={
-            isPlanMyPeakConnected
-              ? 'Import these groups into PlanMyPeak'
-              : 'Connect PlanMyPeak to import groups'
+            hasAccountMismatch
+              ? 'Import disabled: TrainingPeaks account does not match your PlanMyPeak coach'
+              : isPlanMyPeakConnected
+                ? 'Import these groups into PlanMyPeak'
+                : 'Connect PlanMyPeak to import groups'
           }
           className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -152,6 +157,13 @@ export function AthleteGroupList(): ReactElement {
           {importGroups.isPending ? 'Importing…' : 'Import to PlanMyPeak'}
         </button>
       </div>
+
+      {isPlanMyPeakConnected && hasAccountMismatch && (
+        <p className="mt-2 text-xs text-red-600">
+          Import is disabled because your TrainingPeaks account doesn’t match
+          the one linked to your PlanMyPeak coach profile.
+        </p>
+      )}
 
       {!isPlanMyPeakConnected && (
         <p className="mt-2 text-xs text-amber-600">
