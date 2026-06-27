@@ -7,8 +7,10 @@
  */
 
 import { useMemo, useState, type ReactElement } from 'react';
-import { Users as UsersIcon } from 'lucide-react';
+import { Users as UsersIcon, Upload as UploadIcon } from 'lucide-react';
 import { useAthleteGroups } from '@/hooks/useAthleteGroups';
+import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
+import { usePlanMyPeakGroupImport } from '@/hooks/usePlanMyPeakGroupImport';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -22,6 +24,8 @@ import {
 export function AthleteGroupList(): ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
   const { data: groups, isLoading, error, refetch } = useAthleteGroups();
+  const { isAuthenticated: isPlanMyPeakConnected } = useMyPeakAuth();
+  const importGroups = usePlanMyPeakGroupImport();
 
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
@@ -127,12 +131,62 @@ export function AthleteGroupList(): ReactElement {
         placeholder="Search groups..."
       />
 
-      <p className="mt-3 text-xs text-gray-500">
-        {groups.length} {groups.length === 1 ? 'group' : 'groups'} ·{' '}
-        {totalAthletes} {totalAthletes === 1 ? 'athlete' : 'athletes'}
-      </p>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <p className="text-xs text-gray-500">
+          {groups.length} {groups.length === 1 ? 'group' : 'groups'} ·{' '}
+          {totalAthletes} {totalAthletes === 1 ? 'athlete' : 'athletes'}
+        </p>
 
-      <div className="mt-2 space-y-2">
+        <button
+          type="button"
+          onClick={() => importGroups.mutate(groups)}
+          disabled={!isPlanMyPeakConnected || importGroups.isPending}
+          title={
+            isPlanMyPeakConnected
+              ? 'Import these groups into PlanMyPeak'
+              : 'Connect PlanMyPeak to import groups'
+          }
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <UploadIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          {importGroups.isPending ? 'Importing…' : 'Import to PlanMyPeak'}
+        </button>
+      </div>
+
+      {!isPlanMyPeakConnected && (
+        <p className="mt-2 text-xs text-amber-600">
+          Connect PlanMyPeak to import athlete groups.
+        </p>
+      )}
+
+      {importGroups.isSuccess && (
+        <div className="mt-2 rounded-lg border border-green-200 bg-green-50 p-3">
+          <p className="text-sm font-medium text-green-800">Import complete</p>
+          <p className="mt-1 text-xs text-green-700">
+            {importGroups.data.groupsProcessed ?? groups.length}{' '}
+            {(importGroups.data.groupsProcessed ?? groups.length) === 1
+              ? 'group'
+              : 'groups'}{' '}
+            processed · {importGroups.data.athletesAssociated ?? 0} athletes
+            associated
+            {importGroups.data.skippedAthleteIds &&
+            importGroups.data.skippedAthleteIds.length > 0
+              ? ` · ${importGroups.data.skippedAthleteIds.length} skipped`
+              : ''}
+          </p>
+        </div>
+      )}
+
+      {importGroups.isError && (
+        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-sm font-medium text-red-800">Import failed</p>
+          <p className="mt-1 text-xs text-red-600">
+            {importGroups.error.message}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-3 space-y-2">
         {filteredGroups.map((group) => {
           const athleteCount = group.athleteIds.length;
 

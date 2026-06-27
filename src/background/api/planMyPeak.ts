@@ -4,7 +4,10 @@
  * Handles authenticated requests to PlanMyPeak workout and training-plan endpoints.
  */
 
-import { STORAGE_KEYS } from '@/utils/constants';
+import {
+  STORAGE_KEYS,
+  PLANMYPEAK_ATHLETE_TAGS_BASE_URL,
+} from '@/utils/constants';
 import { getPlanMyPeakApiUrl } from '@/services/portConfigService';
 import {
   startExport,
@@ -15,12 +18,15 @@ import {
 import { logger } from '@/utils/logger';
 import {
   PlanMyPeakCreateWorkoutResponseSchema,
+  PlanMyPeakIngestAthleteGroupsResponseSchema,
   PlanMyPeakLibrariesResponseSchema,
   PlanMyPeakLibrarySchema,
   PlanMyPeakWorkoutLibraryResponseSchema,
+  type PlanMyPeakIngestAthleteGroupsResponse,
   type PlanMyPeakLibrary,
   type PlanMyPeakWorkoutLibraryItem,
 } from '@/schemas/planMyPeakApi.schema';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
 import {
   PlanMyPeakCreatePlanNoteRequestSchema,
   PlanMyPeakCreatePlanNoteResponseSchema,
@@ -43,6 +49,7 @@ import { ZodError, z } from 'zod';
 const WORKOUT_LIBRARIES_ENDPOINT = '/v1/workouts/libraries';
 const WORKOUT_LIBRARY_ITEMS_ENDPOINT = '/v1/workouts/library';
 const TRAINING_PLANS_ENDPOINT = '/training-plans';
+const ATHLETE_TAGS_INGEST_ENDPOINT = '/athlete-tags/ingest/training-peaks';
 
 type PlanMyPeakApiWorkoutType =
   | 'endurance'
@@ -209,7 +216,8 @@ async function clearAuthToken(): Promise<void> {
 
 async function makeApiRequest(
   endpoint: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  baseUrlOverride?: string
 ): Promise<Response> {
   const token = await getAuthToken();
 
@@ -225,8 +233,9 @@ async function makeApiRequest(
     headers.set('content-type', 'application/json');
   }
 
-  // Use dynamic API URL based on configured port (for local development)
-  const apiBaseUrl = await getPlanMyPeakApiUrl();
+  // Default to the main app API base (dynamic port for local development);
+  // callers can override for standalone services (e.g. athlete-tags ingest).
+  const apiBaseUrl = baseUrlOverride ?? (await getPlanMyPeakApiUrl());
 
   const response = await fetch(`${apiBaseUrl}${endpoint}`, {
     ...init,
@@ -694,12 +703,13 @@ async function apiRequest<T>(
   endpoint: string,
   schema: z.ZodSchema<T>,
   operationName: string,
-  init?: RequestInit
+  init?: RequestInit,
+  baseUrlOverride?: string
 ): Promise<ApiResponse<T>> {
   try {
     logger.debug(`[PlanMyPeak API] ${operationName}`);
 
-    const response = await makeApiRequest(endpoint, init);
+    const response = await makeApiRequest(endpoint, init, baseUrlOverride);
 
     if (!response.ok) {
       const message = await parseErrorMessage(response);
@@ -868,6 +878,37 @@ export async function createPlanMyPeakLibrary(
         source_id: trimmedSourceId,
       }),
     }
+  );
+}
+
+/**
+ * Import (ingest) TrainingPeaks athlete groups into PlanMyPeak.
+ *
+ * Forwards the raw TrainingPeaks groups payload verbatim to the coach-authenticated
+ * ingest endpoint, which associates athletes to PlanMyPeak athlete tags.
+ */
+export async function ingestTrainingPeaksAthleteGroups(
+  groups: AthleteGroup[]
+): Promise<ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>> {
+  if (!Array.isArray(groups) || groups.length === 0) {
+    return {
+      success: false,
+      error: {
+        message: 'No athlete groups to import',
+        code: 'VALIDATION_ERROR',
+      },
+    };
+  }
+
+  return apiRequest(
+    ATHLETE_TAGS_INGEST_ENDPOINT,
+    PlanMyPeakIngestAthleteGroupsResponseSchema,
+    `Importing ${groups.length} TrainingPeaks athlete group(s) into PlanMyPeak`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ groups }),
+    },
+    PLANMYPEAK_ATHLETE_TAGS_BASE_URL
   );
 }
 

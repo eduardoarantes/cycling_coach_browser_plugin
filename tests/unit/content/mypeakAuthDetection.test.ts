@@ -32,6 +32,15 @@ describe('mypeakAuthDetection', () => {
       ).toBe(true);
     });
 
+    it('should match the local app backend (api/backend) on any localhost port', () => {
+      expect(
+        isMyPeakSupabaseRequest('https://localhost:3002/api/backend/coaches/me')
+      ).toBe(true);
+      expect(
+        isMyPeakSupabaseRequest('https://127.0.0.1:3006/api/backend/athletes')
+      ).toBe(true);
+    });
+
     it('should NOT match the retired Supabase project host', () => {
       expect(
         isMyPeakSupabaseRequest(

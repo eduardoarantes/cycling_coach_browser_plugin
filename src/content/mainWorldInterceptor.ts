@@ -13,6 +13,17 @@ const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[TP Extension - MAIN World]', ...args);
 };
 
+/**
+ * Detect TrainingPeaks API calls for either environment (production or sandbox),
+ * so the bearer token is captured regardless of the active environment.
+ */
+function isTrainingPeaksApiUrl(url: string): boolean {
+  return (
+    url.includes('tpapi.trainingpeaks.com') ||
+    url.includes('tpapi.sandbox.trainingpeaks.com')
+  );
+}
+
 function maybePostMyPeakSupabaseAuth(
   url: string,
   headers: Headers,
@@ -85,7 +96,7 @@ window.fetch = async function (...args) {
     // Only capture TrainingPeaks encrypted tokens (start with "gAAAA")
     // NOT JWT tokens (start with "eyJ")
     const isEncryptedToken = token.startsWith('gAAAA');
-    const isApiCall = urlStr.includes('tpapi.trainingpeaks.com');
+    const isApiCall = isTrainingPeaksApiUrl(urlStr);
 
     log('  🎫 Bearer token detected', {
       length: token.length,
@@ -167,7 +178,7 @@ XMLHttpRequest.prototype.open = function (
         // Only capture TrainingPeaks encrypted tokens (start with "gAAAA")
         // NOT JWT tokens (start with "eyJ")
         const isEncryptedToken = token.startsWith('gAAAA');
-        const isApiCall = url.toString().includes('tpapi.trainingpeaks.com');
+        const isApiCall = isTrainingPeaksApiUrl(url.toString());
 
         log('  🎫 BEARER TOKEN FOUND (XHR)! Length:', token.length);
         log(

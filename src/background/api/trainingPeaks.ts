@@ -5,12 +5,16 @@
  */
 
 import {
-  API_BASE_URL,
   RX_API_BASE_URL,
   STORAGE_KEYS,
   PLAN_DATE_RANGE,
+  TRAININGPEAKS_ENVIRONMENTS,
   createApiHeaders,
 } from '@/utils/constants';
+import {
+  getTrainingPeaksApiBaseUrl,
+  getTrainingPeaksAppUrl,
+} from '@/services/trainingPeaksConfigService';
 import { logger } from '@/utils/logger';
 import { addLog } from '@/services/debugLogService';
 import {
@@ -78,11 +82,12 @@ async function clearAuthToken(): Promise<void> {
  * Make authenticated API request
  *
  * @param endpoint - API endpoint path
- * @param baseUrl - Base URL (defaults to API_BASE_URL, use RX_API_BASE_URL for RxBuilder)
+ * @param baseUrl - Optional base URL. Defaults to the active TrainingPeaks
+ *   environment API (production/sandbox). Pass RX_API_BASE_URL for RxBuilder.
  */
 async function makeApiRequest(
   endpoint: string,
-  baseUrl: string = API_BASE_URL
+  baseUrl?: string
 ): Promise<Response> {
   const token = await getAuthToken();
 
@@ -90,8 +95,15 @@ async function makeApiRequest(
     throw new Error('NO_TOKEN');
   }
 
-  const response = await fetch(`${baseUrl}${endpoint}`, {
-    headers: createApiHeaders(token),
+  const resolvedBaseUrl = baseUrl ?? (await getTrainingPeaksApiBaseUrl());
+  // An explicit baseUrl (e.g. RxBuilder) keeps the production app origin; the
+  // default TrainingPeaks API uses the active environment's app origin.
+  const appOrigin = baseUrl
+    ? TRAININGPEAKS_ENVIRONMENTS.production.appUrl
+    : await getTrainingPeaksAppUrl();
+
+  const response = await fetch(`${resolvedBaseUrl}${endpoint}`, {
+    headers: createApiHeaders(token, appOrigin),
   });
 
   // Handle 401 Unauthorized - clear invalid token
@@ -231,7 +243,7 @@ async function apiRequest<T>(
   baseUrl?: string
 ): Promise<ApiResponse<T>> {
   const startTime = performance.now();
-  const effectiveBaseUrl = baseUrl ?? API_BASE_URL;
+  const effectiveBaseUrl = baseUrl ?? (await getTrainingPeaksApiBaseUrl());
 
   try {
     logger.debug(`Fetching ${operationName}`);

@@ -145,7 +145,7 @@ export async function getPlanMyPeakAppUrl(): Promise<string> {
   }
 
   const port = await getAppPort();
-  return `http://localhost:${port}`;
+  return `https://localhost:${port}`;
 }
 
 /**
@@ -167,7 +167,7 @@ export async function getSupabaseUrl(): Promise<string> {
   }
 
   const port = await getSupabasePort();
-  return `http://127.0.0.1:${port}`;
+  return `http://localhost:${port}`;
 }
 
 /**

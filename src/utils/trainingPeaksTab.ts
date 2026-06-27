@@ -3,14 +3,13 @@
  */
 
 import { logger } from './logger';
-
-const TRAINING_PEAKS_URL = 'https://app.trainingpeaks.com';
+import { getTrainingPeaksAppUrl } from '@/services/trainingPeaksConfigService';
 
 /**
  * Opens or focuses the TrainingPeaks tab to allow token refresh
  *
  * Strategy:
- * 1. Look for existing TrainingPeaks tab
+ * 1. Look for existing TrainingPeaks tab (for the active environment)
  * 2. If found, reload and focus it
  * 3. If not found, create new tab
  *
@@ -18,9 +17,11 @@ const TRAINING_PEAKS_URL = 'https://app.trainingpeaks.com';
  */
 export async function openTrainingPeaksTab(): Promise<void> {
   try {
+    const trainingPeaksUrl = await getTrainingPeaksAppUrl();
+
     // Query for existing TrainingPeaks tabs
     const tabs = await chrome.tabs.query({
-      url: `${TRAINING_PEAKS_URL}/*`,
+      url: `${trainingPeaksUrl}/*`,
     });
 
     if (tabs.length > 0 && tabs[0].id) {
@@ -37,7 +38,7 @@ export async function openTrainingPeaksTab(): Promise<void> {
       // No existing tab - create new one
       logger.info('Creating new TrainingPeaks tab...');
       await chrome.tabs.create({
-        url: TRAINING_PEAKS_URL,
+        url: trainingPeaksUrl,
         active: true,
       });
     }

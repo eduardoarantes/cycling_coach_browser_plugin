@@ -42,11 +42,18 @@ export function isMyPeakSupabaseRequest(url: string): boolean {
     return true;
   }
 
-  // Also detect any localhost/127.0.0.1 Supabase auth endpoints
-  // This allows flexible port configuration in local development
+  // Also detect localhost/127.0.0.1 auth-bearing endpoints (local development).
+  // This covers two cases regardless of the configured port:
+  //   - Supabase auth/REST endpoints (e.g. GoTrue sign-in on :54341)
+  //   - The local PlanMyPeak app backend (`/api/backend/*`), which carries the
+  //     user access token as a Bearer header. The production portal is matched
+  //     via MYPEAK_APP_HOSTS above; locally the host is localhost:<port>, so we
+  //     match on the path instead.
   const isLocalhost = url.includes('localhost:') || url.includes('127.0.0.1:');
-  const isSupabaseAuthPath =
-    url.includes('/auth/v1/') || url.includes('/rest/v1/');
+  const isAuthBearingPath =
+    url.includes('/auth/v1/') ||
+    url.includes('/rest/v1/') ||
+    url.includes('/api/backend/');
 
-  return isLocalhost && isSupabaseAuthPath;
+  return isLocalhost && isAuthBearingPath;
 }

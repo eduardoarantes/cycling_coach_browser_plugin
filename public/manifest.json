@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "PlanMyPeak Importer",
-  "version": "1.11.90",
+  "version": "1.11.104",
   "description": "Access your workout libraries and training plans directly from your browser",
   "permissions": ["storage", "tabs", "notifications"],
   "host_permissions": [
     "https://tpapi.trainingpeaks.com/*",
+    "https://tpapi.sandbox.trainingpeaks.com/*",
     "https://api.peakswaresb.com/*",
     "https://app.trainingpeaks.com/*",
+    "https://app.sandbox.trainingpeaks.com/*",
     "https://portal.planmypeak.com/*",
     "https://intervals.icu/*",
     "https://nwvtltfibnkdogdeeluh.supabase.co/*"
@@ -28,6 +30,7 @@
     {
       "matches": [
         "https://app.trainingpeaks.com/*",
+        "https://app.sandbox.trainingpeaks.com/*",
         "https://portal.planmypeak.com/*"
       ],
       "js": ["src/content/mainWorldInterceptor.ts"],
@@ -37,6 +40,7 @@
     {
       "matches": [
         "https://app.trainingpeaks.com/*",
+        "https://app.sandbox.trainingpeaks.com/*",
         "https://portal.planmypeak.com/*"
       ],
       "js": ["src/content/isolatedWorldBridge.ts"],

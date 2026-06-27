@@ -434,7 +434,7 @@ describe('messageHandler', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('should return invalid without calling fetch when the Supabase anon key is missing', async () => {
+    it('should validate via the app backend without requiring a Supabase anon key (local build)', async () => {
       global.chrome = {
         storage: {
           local: {
@@ -442,32 +442,9 @@ describe('messageHandler', () => {
           },
         },
       } as any;
-      const fetchMock = vi.fn();
-      global.fetch = fetchMock as any;
-
-      const result = await handleMessage(
-        { type: 'VALIDATE_MY_PEAK_TOKEN' as const },
-        mockSender
-      );
-
-      expect(result).toEqual({ valid: false });
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('should validate against the Supabase /auth/v1/user endpoint with Bearer + apikey', async () => {
-      global.chrome = {
-        storage: {
-          local: {
-            get: vi.fn().mockResolvedValue({
-              mypeak_auth_token: 'user-token',
-              mypeak_supabase_api_key: 'anon-key',
-            }),
-          },
-        },
-      } as any;
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ id: 'athlete-123' }),
+        json: async () => ({ id: 'coach-123' }),
       });
       global.fetch = fetchMock as any;
 
@@ -476,11 +453,35 @@ describe('messageHandler', () => {
         mockSender
       );
 
-      expect(result).toEqual({ valid: true, userId: 'athlete-123' });
+      expect(result).toEqual({ valid: true, userId: 'coach-123' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should validate against the app backend /coaches/me endpoint with Bearer token (local build)', async () => {
+      global.chrome = {
+        storage: {
+          local: {
+            get: vi.fn().mockResolvedValue({
+              mypeak_auth_token: 'user-token',
+            }),
+          },
+        },
+      } as any;
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 'coach-123' }),
+      });
+      global.fetch = fetchMock as any;
+
+      const result = await handleMessage(
+        { type: 'VALIDATE_MY_PEAK_TOKEN' as const },
+        mockSender
+      );
+
+      expect(result).toEqual({ valid: true, userId: 'coach-123' });
       const [endpoint, init] = fetchMock.mock.calls[0];
-      expect(endpoint).toMatch(/\/auth\/v1\/user$/);
+      expect(endpoint).toMatch(/\/api\/backend\/coaches\/me$/);
       expect(init.headers.authorization).toBe('Bearer user-token');
-      expect(init.headers.apikey).toBe('anon-key');
     });
 
     it('should clear the stored MyPeak token on a 401 response', async () => {

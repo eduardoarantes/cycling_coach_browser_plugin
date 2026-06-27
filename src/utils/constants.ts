@@ -5,9 +5,45 @@
  */
 
 /**
- * TrainingPeaks API base URLs
+ * TrainingPeaks environment (production vs sandbox).
+ * Switchable at runtime via the Settings panel; stored in chrome.storage.
  */
-export const API_BASE_URL = 'https://tpapi.trainingpeaks.com';
+export type TrainingPeaksEnvironment = 'production' | 'sandbox';
+
+export interface TrainingPeaksEnvironmentConfig {
+  apiBaseUrl: string;
+  appUrl: string;
+}
+
+export const TRAININGPEAKS_ENVIRONMENTS: Record<
+  TrainingPeaksEnvironment,
+  TrainingPeaksEnvironmentConfig
+> = {
+  production: {
+    apiBaseUrl: 'https://tpapi.trainingpeaks.com',
+    appUrl: 'https://app.trainingpeaks.com',
+  },
+  sandbox: {
+    apiBaseUrl: 'https://tpapi.sandbox.trainingpeaks.com',
+    appUrl: 'https://app.sandbox.trainingpeaks.com',
+  },
+};
+
+export const DEFAULT_TRAININGPEAKS_ENVIRONMENT: TrainingPeaksEnvironment =
+  'production';
+
+export function isTrainingPeaksEnvironment(
+  value: string | undefined
+): value is TrainingPeaksEnvironment {
+  return value === 'production' || value === 'sandbox';
+}
+
+/**
+ * TrainingPeaks API base URL (production default).
+ * Prefer the environment-aware helpers in trainingPeaksConfigService for
+ * runtime calls; this constant remains the production fallback.
+ */
+export const API_BASE_URL = TRAININGPEAKS_ENVIRONMENTS.production.apiBaseUrl;
 
 /**
  * Build mode flags exposed by Vite.
@@ -55,11 +91,12 @@ export const IS_LOCAL_PLANMYPEAK_TARGET = PLANMYPEAK_TARGET === 'local';
 /**
  * Default ports for local PlanMyPeak development.
  * These can be overridden via chrome.storage in local builds.
- * Supported port sets: 3006/54361 (default) and 3004/54341 (alternate)
+ * Supported port sets: 3002/54341 (default) and 3006/54361
+ * Note: the app runs over https locally; Supabase runs over http.
  */
-export const DEFAULT_PLANMYPEAK_APP_PORT = 3006;
-export const DEFAULT_PLANMYPEAK_SUPABASE_PORT = 54361;
-export const SUPPORTED_PLANMYPEAK_APP_PORTS = [3004, 3006] as const;
+export const DEFAULT_PLANMYPEAK_APP_PORT = 3002;
+export const DEFAULT_PLANMYPEAK_SUPABASE_PORT = 54341;
+export const SUPPORTED_PLANMYPEAK_APP_PORTS = [3002, 3004, 3006] as const;
 export const SUPPORTED_PLANMYPEAK_SUPABASE_PORTS = [54341, 54361] as const;
 
 export function isSupportedPlanMyPeakAppPort(port: number): boolean {
@@ -77,7 +114,7 @@ export function isSupportedPlanMyPeakSupabasePort(port: number): boolean {
  * Local uses the local app, production uses the deployed site.
  */
 export const PLANMYPEAK_APP_URL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? `http://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
+  ? `https://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
   : 'https://portal.planmypeak.com';
 
 /**
@@ -93,7 +130,7 @@ export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
  * Production validates via the Supabase cloud instance the rewritten portal authenticates against.
  */
 export const PLANMYPEAK_AUTH_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? `http://127.0.0.1:${DEFAULT_PLANMYPEAK_SUPABASE_PORT}`
+  ? `http://localhost:${DEFAULT_PLANMYPEAK_SUPABASE_PORT}`
   : 'https://nwvtltfibnkdogdeeluh.supabase.co';
 
 /**
@@ -115,6 +152,21 @@ export const PLANMYPEAK_SUPABASE_ANON_KEY = IS_LOCAL_PLANMYPEAK_TARGET
  * PlanMyPeak API base URL.
  */
 export const PLANMYPEAK_API_BASE_URL = `${PLANMYPEAK_APP_URL}/api`;
+
+/**
+ * Default local port for the PlanMyPeak athlete-tags ingest service.
+ * This runs as a standalone service, separate from the main app.
+ */
+export const DEFAULT_PLANMYPEAK_ATHLETE_TAGS_PORT = 4002;
+
+/**
+ * Base URL for the PlanMyPeak athlete-tags ingest service.
+ * Local development runs it as a standalone service on its own port; production
+ * serves it from the portal host. Note: there is no `/api` prefix on this host.
+ */
+export const PLANMYPEAK_ATHLETE_TAGS_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
+  ? `https://localhost:${DEFAULT_PLANMYPEAK_ATHLETE_TAGS_PORT}`
+  : 'https://portal.planmypeak.com';
 
 /**
  * Backward-compatible aliases used across the codebase.
@@ -158,6 +210,7 @@ export const STORAGE_KEYS = {
   CONNECTION_ENABLE_INTERVALS: 'connection_enable_intervals',
   PLANMYPEAK_APP_PORT: 'planmypeak_app_port',
   PLANMYPEAK_SUPABASE_PORT: 'planmypeak_supabase_port',
+  TRAININGPEAKS_ENVIRONMENT: 'trainingpeaks_environment',
 } as const;
 
 /**
@@ -194,14 +247,17 @@ export const CACHE_DURATIONS = {
  * @param token - Bearer token for authentication
  * @returns Headers object for fetch requests
  */
-export function createApiHeaders(token: string): Record<string, string> {
+export function createApiHeaders(
+  token: string,
+  appOrigin: string = TRAININGPEAKS_ENVIRONMENTS.production.appUrl
+): Record<string, string> {
   return {
     accept: 'application/json, text/javascript, */*; q=0.01',
     'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
     authorization: `Bearer ${token}`,
     'content-type': 'application/json',
-    origin: 'https://app.trainingpeaks.com',
-    referer: 'https://app.trainingpeaks.com/',
+    origin: appOrigin,
+    referer: `${appOrigin}/`,
     // Note: sec-fetch-* headers are automatically added by Chrome
     // Note: user-agent is a forbidden header and cannot be set by extensions
   };
