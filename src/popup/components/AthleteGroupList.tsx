@@ -14,6 +14,7 @@ import { usePlanMyPeakGroupImport } from '@/hooks/usePlanMyPeakGroupImport';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
+import { openMyPeakTab } from '@/utils/myPeakTab';
 import {
   is401Error,
   is403Error,
@@ -23,9 +24,21 @@ import {
 
 export function AthleteGroupList(): ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshPromptHandled, setRefreshPromptHandled] = useState(false);
   const { data: groups, isLoading, error, refetch } = useAthleteGroups();
   const { isAuthenticated: isPlanMyPeakConnected } = useMyPeakAuth();
   const importGroups = usePlanMyPeakGroupImport();
+
+  const handleImport = (): void => {
+    // Reset the post-import refresh prompt for this new import run.
+    setRefreshPromptHandled(false);
+    importGroups.mutate(groups ?? []);
+  };
+
+  const handleRefreshMyPeak = (): void => {
+    setRefreshPromptHandled(true);
+    void openMyPeakTab();
+  };
 
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
@@ -139,7 +152,7 @@ export function AthleteGroupList(): ReactElement {
 
         <button
           type="button"
-          onClick={() => importGroups.mutate(groups)}
+          onClick={handleImport}
           disabled={!isPlanMyPeakConnected || importGroups.isPending}
           title={
             isPlanMyPeakConnected
@@ -174,6 +187,30 @@ export function AthleteGroupList(): ReactElement {
               ? ` · ${importGroups.data.skippedAthleteIds.length} skipped`
               : ''}
           </p>
+
+          {!refreshPromptHandled && (
+            <div className="mt-2 border-t border-green-200 pt-2">
+              <p className="text-xs font-medium text-green-800">
+                Refresh the page to see groups?
+              </p>
+              <div className="mt-1.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleRefreshMyPeak}
+                  className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRefreshPromptHandled(true)}
+                  className="rounded-md border border-green-300 bg-white px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-100"
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
