@@ -2,12 +2,11 @@
  * AccountMismatchBanner
  *
  * Warns the coach when the signed-in TrainingPeaks account does not match the
- * TrainingPeaks account linked to their PlanMyPeak coach profile. Importing in
- * that state could associate the wrong athletes, so this is a prominent warning
- * (and the Groups import is blocked while it shows).
+ * TrainingPeaks account linked to their PlanMyPeak coach profile, since
+ * importing in that state could associate the wrong athletes.
  *
- * Renders nothing unless a genuine mismatch (or a missing TrainingPeaks link)
- * is detected.
+ * Renders nothing unless a genuine account mismatch is detected. A coach with
+ * no linked TrainingPeaks account is not flagged.
  */
 
 import type { ReactElement } from 'react';
@@ -18,7 +17,7 @@ export function AccountMismatchBanner(): ReactElement | null {
   const { status, tpUserId, linkedTpId, tpUserName, coachName } =
     usePlanMyPeakAccountMatch();
 
-  if (status !== 'mismatch' && status !== 'not-linked') {
+  if (status !== 'mismatch') {
     return null;
   }
 
@@ -31,23 +30,14 @@ export function AccountMismatchBanner(): ReactElement | null {
         />
         <div className="min-w-0 text-xs text-red-800">
           <p className="font-semibold">Account mismatch</p>
-          {status === 'not-linked' ? (
-            <p className="mt-1">
-              Your PlanMyPeak coach account
-              {coachName ? ` (${coachName})` : ''} is not linked to a
-              TrainingPeaks account. Importing may not associate athletes
-              correctly.
-            </p>
-          ) : (
-            <p className="mt-1">
-              The signed-in TrainingPeaks account
-              {tpUserName ? ` (${tpUserName})` : ''}, ID {tpUserId}, does not
-              match the TrainingPeaks account linked to your PlanMyPeak coach
-              profile
-              {coachName ? ` (${coachName})` : ''}, ID {linkedTpId}. Importing
-              could target the wrong athletes.
-            </p>
-          )}
+          <p className="mt-1">
+            The signed-in TrainingPeaks account
+            {tpUserName ? ` (${tpUserName})` : ''}, ID {tpUserId}, does not
+            match the TrainingPeaks account linked to your PlanMyPeak coach
+            profile
+            {coachName ? ` (${coachName})` : ''}, ID {linkedTpId}. Importing
+            could target the wrong athletes.
+          </p>
         </div>
       </div>
     </div>
