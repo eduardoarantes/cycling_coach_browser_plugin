@@ -14,13 +14,18 @@ import {
 } from '@/services/exportProgressService';
 import { logger } from '@/utils/logger';
 import {
+  PlanMyPeakCoachSchema,
   PlanMyPeakCreateWorkoutResponseSchema,
+  PlanMyPeakIngestAthleteGroupsResponseSchema,
   PlanMyPeakLibrariesResponseSchema,
   PlanMyPeakLibrarySchema,
   PlanMyPeakWorkoutLibraryResponseSchema,
+  type PlanMyPeakCoach,
+  type PlanMyPeakIngestAthleteGroupsResponse,
   type PlanMyPeakLibrary,
   type PlanMyPeakWorkoutLibraryItem,
 } from '@/schemas/planMyPeakApi.schema';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
 import {
   PlanMyPeakCreatePlanNoteRequestSchema,
   PlanMyPeakCreatePlanNoteResponseSchema,
@@ -43,6 +48,9 @@ import { ZodError, z } from 'zod';
 const WORKOUT_LIBRARIES_ENDPOINT = '/v1/workouts/libraries';
 const WORKOUT_LIBRARY_ITEMS_ENDPOINT = '/v1/workouts/library';
 const TRAINING_PLANS_ENDPOINT = '/training-plans';
+const ATHLETE_TAGS_INGEST_ENDPOINT =
+  '/backend/athlete-tags/ingest/training-peaks';
+const COACH_ME_ENDPOINT = '/backend/coaches/me';
 
 type PlanMyPeakApiWorkoutType =
   | 'endurance'
@@ -225,7 +233,7 @@ async function makeApiRequest(
     headers.set('content-type', 'application/json');
   }
 
-  // Use dynamic API URL based on configured port (for local development)
+  // Use the main app API base (dynamic port for local development).
   const apiBaseUrl = await getPlanMyPeakApiUrl();
 
   const response = await fetch(`${apiBaseUrl}${endpoint}`, {
@@ -867,6 +875,51 @@ export async function createPlanMyPeakLibrary(
         name: trimmedName,
         source_id: trimmedSourceId,
       }),
+    }
+  );
+}
+
+/**
+ * Fetch the authenticated PlanMyPeak coach profile, including the linked
+ * TrainingPeaks account (externalIds). Used to warn when the signed-in
+ * TrainingPeaks user differs from the PlanMyPeak coach's linked account.
+ */
+export async function fetchPlanMyPeakCoach(): Promise<
+  ApiResponse<PlanMyPeakCoach>
+> {
+  return apiRequest(
+    COACH_ME_ENDPOINT,
+    PlanMyPeakCoachSchema,
+    'Fetching PlanMyPeak coach profile'
+  );
+}
+
+/**
+ * Import (ingest) TrainingPeaks athlete groups into PlanMyPeak.
+ *
+ * Forwards the raw TrainingPeaks groups payload verbatim to the coach-authenticated
+ * ingest endpoint, which associates athletes to PlanMyPeak athlete tags.
+ */
+export async function ingestTrainingPeaksAthleteGroups(
+  groups: AthleteGroup[]
+): Promise<ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>> {
+  if (!Array.isArray(groups) || groups.length === 0) {
+    return {
+      success: false,
+      error: {
+        message: 'No athlete groups to import',
+        code: 'VALIDATION_ERROR',
+      },
+    };
+  }
+
+  return apiRequest(
+    ATHLETE_TAGS_INGEST_ENDPOINT,
+    PlanMyPeakIngestAthleteGroupsResponseSchema,
+    `Importing ${groups.length} TrainingPeaks athlete group(s) into PlanMyPeak`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ groups }),
     }
   );
 }

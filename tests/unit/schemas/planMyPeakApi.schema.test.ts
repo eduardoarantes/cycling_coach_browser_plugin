@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  PlanMyPeakCoachSchema,
   PlanMyPeakCreateWorkoutResponseSchema,
   PlanMyPeakLibrariesResponseSchema,
   PlanMyPeakLibrarySchema,
   PlanMyPeakWorkoutLibraryResponseSchema,
+  getCoachTrainingPeaksExternalId,
 } from '@/schemas/planMyPeakApi.schema';
 
 describe('planMyPeakApi schemas', () => {
@@ -82,5 +84,33 @@ describe('planMyPeakApi schemas', () => {
     expect(parsed.source_id).toBe('TP:PLAN_WORKOUTS_V1');
     expect(parsed.is_system).toBe(false);
     expect(parsed.is_default).toBe(false);
+  });
+});
+
+describe('getCoachTrainingPeaksExternalId', () => {
+  it('returns the training_peaks externalId when present', () => {
+    const coach = PlanMyPeakCoachSchema.parse({
+      id: '99c02f5a-547d-4b15-b201-2d14e6690368',
+      email: '1@gmail.com',
+      firstName: 'Athlete coach',
+      lastName: 'Rodrigues',
+      externalIds: [{ providerCode: 'training_peaks', externalId: '6469888' }],
+    });
+    expect(getCoachTrainingPeaksExternalId(coach)).toBe('6469888');
+  });
+
+  it('returns null when there is no training_peaks link', () => {
+    const coach = PlanMyPeakCoachSchema.parse({
+      id: 'abc',
+      externalIds: [{ providerCode: 'strava', externalId: '42' }],
+    });
+    expect(getCoachTrainingPeaksExternalId(coach)).toBeNull();
+  });
+
+  it('returns null for missing externalIds or null coach', () => {
+    expect(
+      getCoachTrainingPeaksExternalId(PlanMyPeakCoachSchema.parse({ id: 'x' }))
+    ).toBeNull();
+    expect(getCoachTrainingPeaksExternalId(null)).toBeNull();
   });
 });

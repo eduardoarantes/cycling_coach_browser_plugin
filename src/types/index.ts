@@ -10,6 +10,11 @@ import type {
   CalendarEvent,
 } from '@/schemas/trainingPlan.schema';
 import type { RxBuilderWorkout } from '@/schemas/rxBuilder.schema';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
+import type {
+  PlanMyPeakCoach,
+  PlanMyPeakIngestAthleteGroupsResponse,
+} from '@/schemas/planMyPeakApi.schema';
 import type {
   PlanMyPeakCreatePlanNoteRequest,
   PlanMyPeakCreateTrainingPlanRequest,
@@ -92,6 +97,24 @@ export interface CreatePlanMyPeakTrainingPlanNoteMessage {
   planId: string;
   payload: PlanMyPeakCreatePlanNoteRequest;
 }
+
+/**
+ * Message to import (ingest) TrainingPeaks athlete groups into PlanMyPeak.
+ * Forwards the raw TrainingPeaks groups payload verbatim.
+ */
+export interface ImportAthleteGroupsToPlanMyPeakMessage {
+  type: 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK';
+  groups: AthleteGroup[];
+}
+
+/**
+ * Message to fetch the authenticated PlanMyPeak coach profile.
+ */
+export interface GetPlanMyPeakCoachMessage {
+  type: 'GET_PLANMYPEAK_COACH';
+}
+
+export type { PlanMyPeakCoach, PlanMyPeakIngestAthleteGroupsResponse };
 
 /**
  * Message to request user profile from API
@@ -311,6 +334,8 @@ export type RuntimeMessage =
   | GetPlanMyPeakWorkoutBySourceIdMessage
   | CreatePlanMyPeakTrainingPlanMessage
   | CreatePlanMyPeakTrainingPlanNoteMessage
+  | ImportAthleteGroupsToPlanMyPeakMessage
+  | GetPlanMyPeakCoachMessage
   | GetUserMessage
   | GetLibrariesMessage
   | GetLibraryItemsMessage

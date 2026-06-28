@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createPlanMyPeakTrainingPlan,
   exportWorkoutsToPlanMyPeakLibrary,
+  ingestTrainingPeaksAthleteGroups,
 } from '@/background/api/planMyPeak';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 import { PLANMYPEAK_API_BASE_URL, STORAGE_KEYS } from '@/utils/constants';
@@ -293,5 +294,74 @@ describe('planMyPeak API - training plan upsert behavior', () => {
     }
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('planMyPeak API - ingest TrainingPeaks athlete groups', () => {
+  beforeEach(async () => {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.MYPEAK_AUTH_TOKEN]: 'token-123',
+    });
+  });
+
+  const groups = [
+    {
+      id: 1,
+      coachId: 10,
+      name: 'Europe',
+      athleteIds: [100, 101, 102],
+      isDefault: false,
+    },
+  ];
+
+  it('POSTs the raw groups payload verbatim to the ingest endpoint', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        groupsProcessed: 1,
+        athletesAssociated: 3,
+        skippedAthleteIds: [],
+        groups: [
+          {
+            trainingPeaksGroupId: '1',
+            name: 'Europe',
+            valueId: 'v-1',
+            isDefault: false,
+            athletesAssociated: 3,
+            skippedAthleteIds: [],
+          },
+        ],
+      }),
+    }) as never;
+
+    const result = await ingestTrainingPeaksAthleteGroups(groups);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.groupsProcessed).toBe(1);
+      expect(result.data.athletesAssociated).toBe(3);
+    }
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0];
+    expect(url).toBe(
+      `${PLANMYPEAK_API_BASE_URL}/backend/athlete-tags/ingest/training-peaks`
+    );
+    expect((init as RequestInit).method).toBe('POST');
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toEqual({ groups });
+  });
+
+  it('returns a validation error without calling fetch when no groups are provided', async () => {
+    global.fetch = vi.fn() as never;
+
+    const result = await ingestTrainingPeaksAthleteGroups([]);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('VALIDATION_ERROR');
+    }
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

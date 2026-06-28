@@ -236,3 +236,85 @@ export const PlanMyPeakWorkoutLibraryResponseSchema = z.union([
 export type PlanMyPeakWorkoutLibraryResponse = z.infer<
   typeof PlanMyPeakWorkoutLibraryResponseSchema
 >;
+
+/**
+ * Per-group result returned by the TrainingPeaks athlete-group ingest endpoint.
+ */
+export const PlanMyPeakIngestedAthleteGroupSchema = z
+  .object({
+    trainingPeaksGroupId: z.string(),
+    name: z.string(),
+    valueId: z.string().optional(),
+    isDefault: z.boolean().optional(),
+    athletesAssociated: NonNegativeIntSchema.optional(),
+    skippedAthleteIds: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+/**
+ * Response from POST /athlete-tags/ingest/training-peaks.
+ * Summarizes how many groups/athletes were ingested and which athletes were
+ * skipped (e.g. TrainingPeaks athletes with no matching PlanMyPeak athlete).
+ */
+export const PlanMyPeakIngestAthleteGroupsResponseSchema = z
+  .object({
+    groupsProcessed: NonNegativeIntSchema.optional(),
+    athletesAssociated: NonNegativeIntSchema.optional(),
+    skippedAthleteIds: z.array(z.string()).optional(),
+    groups: z.array(PlanMyPeakIngestedAthleteGroupSchema).optional(),
+  })
+  .passthrough();
+
+export type PlanMyPeakIngestedAthleteGroup = z.infer<
+  typeof PlanMyPeakIngestedAthleteGroupSchema
+>;
+
+export type PlanMyPeakIngestAthleteGroupsResponse = z.infer<
+  typeof PlanMyPeakIngestAthleteGroupsResponseSchema
+>;
+
+/**
+ * A linked external provider account on a PlanMyPeak coach profile
+ * (e.g. providerCode "training_peaks" with the TrainingPeaks user id).
+ */
+export const PlanMyPeakCoachExternalIdSchema = z
+  .object({
+    providerCode: z.string(),
+    externalId: z.string(),
+  })
+  .passthrough();
+
+/**
+ * PlanMyPeak coach profile from GET /api/backend/coaches/me.
+ * Permissive: only the fields the extension needs are typed.
+ */
+export const PlanMyPeakCoachSchema = z
+  .object({
+    id: z.string(),
+    email: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    role: z.string().optional(),
+    externalIds: z.array(PlanMyPeakCoachExternalIdSchema).optional(),
+  })
+  .passthrough();
+
+export type PlanMyPeakCoachExternalId = z.infer<
+  typeof PlanMyPeakCoachExternalIdSchema
+>;
+export type PlanMyPeakCoach = z.infer<typeof PlanMyPeakCoachSchema>;
+
+/** Provider code used by PlanMyPeak for linked TrainingPeaks accounts. */
+export const TRAINING_PEAKS_PROVIDER_CODE = 'training_peaks';
+
+/**
+ * Extract the TrainingPeaks user id a coach profile is linked to, if any.
+ */
+export function getCoachTrainingPeaksExternalId(
+  coach: PlanMyPeakCoach | null | undefined
+): string | null {
+  const match = coach?.externalIds?.find(
+    (entry) => entry.providerCode === TRAINING_PEAKS_PROVIDER_CODE
+  );
+  return match?.externalId ?? null;
+}

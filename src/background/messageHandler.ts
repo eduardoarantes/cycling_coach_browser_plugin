@@ -24,6 +24,8 @@ import type {
 import type {
   PlanMyPeakLibrary,
   PlanMyPeakWorkoutLibraryItem,
+  PlanMyPeakIngestAthleteGroupsResponse,
+  PlanMyPeakCoach,
 } from '@/schemas/planMyPeakApi.schema';
 import type {
   PlanMyPeakCreatePlanNoteRequest,
@@ -33,13 +35,12 @@ import type {
   PlanMyPeakWorkout,
 } from '@/types/planMyPeak.types';
 import { logger } from '@/utils/logger';
+import { STORAGE_KEYS, createApiHeaders } from '@/utils/constants';
+import { getPlanMyPeakAppUrl } from '@/services/portConfigService';
 import {
-  API_BASE_URL,
-  STORAGE_KEYS,
-  createApiHeaders,
-  PLANMYPEAK_SUPABASE_ANON_KEY,
-} from '@/utils/constants';
-import { getSupabaseUrl } from '@/services/portConfigService';
+  getTrainingPeaksApiBaseUrl,
+  getTrainingPeaksAppUrl,
+} from '@/services/trainingPeaksConfigService';
 import {
   fetchUser,
   fetchLibraries,
@@ -59,6 +60,8 @@ import {
   createPlanMyPeakTrainingPlan,
   createPlanMyPeakTrainingPlanNote,
   exportWorkoutsToPlanMyPeakLibrary,
+  ingestTrainingPeaksAthleteGroups,
+  fetchPlanMyPeakCoach,
 } from './api/planMyPeak';
 import {
   createIntervalsFolder,
@@ -111,6 +114,8 @@ type MessageResponse =
   | ApiResponse<PlanMyPeakLibrary>
   | ApiResponse<PlanMyPeakSaveTrainingPlanResponse>
   | ApiResponse<PlanMyPeakTrainingPlanNote>
+  | ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>
+  | ApiResponse<PlanMyPeakCoach>
   | ApiResponse<null>;
 
 /**
@@ -248,12 +253,14 @@ async function handleValidateToken(): Promise<{
     }
 
     // Call TrainingPeaks API from background context (has host_permissions)
-    const endpoint = `${API_BASE_URL}/users/v3/user`;
+    const apiBaseUrl = await getTrainingPeaksApiBaseUrl();
+    const appUrl = await getTrainingPeaksAppUrl();
+    const endpoint = `${apiBaseUrl}/users/v3/user`;
     logger.debug('Calling API:', endpoint);
 
     const response = await fetch(endpoint, {
       method: 'GET',
-      headers: createApiHeaders(token),
+      headers: createApiHeaders(token, appUrl),
     });
 
     logger.debug('Response status:', response.status);
@@ -293,84 +300,85 @@ async function handleValidateToken(): Promise<{
 /**
  * Handle VALIDATE_MY_PEAK_TOKEN message from popup
  *
- * Validates MyPeak auth by calling the local Supabase user endpoint.
- * Requires both a captured user access token and Supabase anon API key.
+ * Validates MyPeak auth against the PlanMyPeak app backend
+ * (`/api/backend/coaches/me`) using the captured coach bearer token. The portal
+ * (local and production) authenticates through its own backend rather than
+ * Supabase directly, so this avoids any dependency on a Supabase anon API key.
  */
 async function handleValidateMyPeakToken(): Promise<{
   valid: boolean;
   userId?: string;
 }> {
   try {
-    logger.debug('Starting MyPeak/Supabase token validation...');
+    logger.debug('Starting MyPeak token validation...');
 
     const data = await chrome.storage.local.get([
       STORAGE_KEYS.MYPEAK_AUTH_TOKEN,
-      STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY,
     ]);
 
     const token = data[STORAGE_KEYS.MYPEAK_AUTH_TOKEN] as string | undefined;
-    const capturedApiKey = data[STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY] as
-      | string
-      | undefined;
-
-    // The rewritten portal restores its session from localStorage and routes
-    // data through its own /api/backend, so the anon `apikey` header is rarely
-    // emitted on intercepted traffic. Fall back to the known public anon key so
-    // validation does not depend on capturing it. (Empty for local builds,
-    // which still rely on the captured key.)
-    const apiKey = capturedApiKey || PLANMYPEAK_SUPABASE_ANON_KEY;
 
     if (!token) {
       logger.debug('No MyPeak auth token to validate');
       return { valid: false };
     }
 
-    if (!apiKey) {
-      logger.debug('No MyPeak Supabase API key available');
-      return { valid: false };
-    }
-
-    // Use dynamic Supabase URL based on configured port (for local development)
-    const supabaseUrl = await getSupabaseUrl();
-    const endpoint = `${supabaseUrl}/auth/v1/user`;
-    logger.debug('Validating MyPeak token via Supabase endpoint:', endpoint);
-
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${token}`,
-        apikey: apiKey,
-      },
-    });
-
-    if (response.ok) {
-      const user = (await response.json()) as { id?: string };
-      logger.info('MyPeak token is valid, Supabase user:', user?.id);
-      return { valid: true, userId: user?.id };
-    }
-
-    const errorText = await response.text();
-    logger.warn(
-      'MyPeak token validation failed - Status:',
-      response.status,
-      'Response:',
-      errorText
-    );
-
-    if (response.status === 401) {
-      await chrome.storage.local.remove([
-        STORAGE_KEYS.MYPEAK_AUTH_TOKEN,
-        STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP,
-      ]);
-      logger.warn('Cleared MyPeak auth token after VALIDATE_MY_PEAK_TOKEN 401');
-    }
-
-    return { valid: false };
+    return await validateMyPeakTokenViaAppBackend(token);
   } catch (error) {
     logger.error('Error validating MyPeak token:', error);
     return { valid: false };
   }
+}
+
+/**
+ * Validate a PlanMyPeak token against the app's own backend.
+ *
+ * The portal (local and production) authenticates through its `/api/backend/*`
+ * routes (server-side) rather than calling Supabase from the browser, so this
+ * needs no Supabase anon key. A `200` from `/api/backend/coaches/me` confirms
+ * the bearer token is a valid logged-in session; a `401` clears the stored
+ * token. `getPlanMyPeakAppUrl()` resolves to the portal in production and to the
+ * local app in local builds.
+ */
+async function validateMyPeakTokenViaAppBackend(token: string): Promise<{
+  valid: boolean;
+  userId?: string;
+}> {
+  const appUrl = await getPlanMyPeakAppUrl();
+  const endpoint = `${appUrl}/api/backend/coaches/me`;
+  logger.debug('Validating MyPeak token via app backend endpoint:', endpoint);
+
+  const response = await fetch(endpoint, {
+    method: 'GET',
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.ok) {
+    const coach = (await response.json()) as { id?: string };
+    logger.info('MyPeak token is valid, coach:', coach?.id);
+    return { valid: true, userId: coach?.id };
+  }
+
+  const errorText = await response.text();
+  logger.warn(
+    'MyPeak token validation (app backend) failed - Status:',
+    response.status,
+    'Response:',
+    errorText
+  );
+
+  if (response.status === 401) {
+    await chrome.storage.local.remove([
+      STORAGE_KEYS.MYPEAK_AUTH_TOKEN,
+      STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP,
+    ]);
+    logger.warn('Cleared MyPeak auth token after VALIDATE_MY_PEAK_TOKEN 401');
+  }
+
+  return { valid: false };
 }
 
 /**
@@ -412,6 +420,23 @@ async function handleCreatePlanMyPeakLibrary(
 ): Promise<ApiResponse<PlanMyPeakLibrary>> {
   logger.debug('Handling CREATE_PLANMYPEAK_LIBRARY message:', name);
   return await createPlanMyPeakLibrary(name, sourceId);
+}
+
+async function handleImportAthleteGroupsToPlanMyPeak(
+  groups: AthleteGroup[]
+): Promise<ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>> {
+  logger.debug(
+    'Handling IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK message:',
+    groups.length
+  );
+  return await ingestTrainingPeaksAthleteGroups(groups);
+}
+
+async function handleGetPlanMyPeakCoach(): Promise<
+  ApiResponse<PlanMyPeakCoach>
+> {
+  logger.debug('Handling GET_PLANMYPEAK_COACH message');
+  return await fetchPlanMyPeakCoach();
 }
 
 /**
@@ -805,6 +830,12 @@ export async function handleMessage(
         message.planId,
         message.payload
       );
+
+    case 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK':
+      return await handleImportAthleteGroupsToPlanMyPeak(message.groups);
+
+    case 'GET_PLANMYPEAK_COACH':
+      return await handleGetPlanMyPeakCoach();
 
     case 'GET_LIBRARY_ITEMS':
       return await handleGetLibraryItems(message.libraryId);

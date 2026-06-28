@@ -1,10 +1,13 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
 import { usePortConfig } from '@/hooks/usePortConfig';
+import { useTrainingPeaksEnvironment } from '@/hooks/useTrainingPeaksEnvironment';
+import type { TrainingPeaksEnvironment } from '@/utils/constants';
 import { openMyPeakTab } from '@/utils/myPeakTab';
 import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
 import {
@@ -140,6 +143,24 @@ function SettingsPageContent({
     setSupabasePort,
   } = usePortConfig();
 
+  const queryClient = useQueryClient();
+  const {
+    environment: tpEnvironment,
+    setEnvironment: setTpEnvironment,
+    isLoading: isTpEnvironmentLoading,
+  } = useTrainingPeaksEnvironment();
+
+  const handleTrainingPeaksEnvironmentChange = async (
+    next: TrainingPeaksEnvironment
+  ): Promise<void> => {
+    if (next === tpEnvironment) return;
+    await setTpEnvironment(next);
+    // The stored token and cached data belong to the previous environment;
+    // refetch everything against the newly selected TrainingPeaks API.
+    await queryClient.invalidateQueries();
+    await refreshTpAuth();
+  };
+
   // Track pending vs saved port values
   const appPortDisplay = pendingAppPort ?? String(appPort);
   const supabasePortDisplay = pendingSupabasePort ?? String(supabasePort);
@@ -272,6 +293,41 @@ function SettingsPageContent({
           error={tpError}
           onRefresh={handleTrainingPeaksRefresh}
         />
+
+        <div className="mt-3 border-t border-blue-200 pt-2">
+          <p className="mb-1 text-xs font-medium text-blue-900">Environment</p>
+          <div className="flex gap-2">
+            {(['production', 'sandbox'] as const).map((env) => (
+              <label
+                key={env}
+                className={`flex flex-1 cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs ${
+                  tpEnvironment === env
+                    ? 'border-blue-400 bg-blue-100 font-medium text-blue-900'
+                    : 'border-blue-200 bg-white text-blue-800'
+                } ${isTpEnvironmentLoading ? 'opacity-60' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="trainingpeaks-environment"
+                  value={env}
+                  checked={tpEnvironment === env}
+                  disabled={isTpEnvironmentLoading}
+                  onChange={() => {
+                    void handleTrainingPeaksEnvironmentChange(env);
+                  }}
+                  className="h-3 w-3"
+                />
+                {env === 'production' ? 'Production' : 'Sandbox'}
+              </label>
+            ))}
+          </div>
+          {tpEnvironment === 'sandbox' && (
+            <p className="mt-1.5 text-[10px] text-blue-700">
+              Using app.sandbox.trainingpeaks.com — sign in there to capture a
+              sandbox token.
+            </p>
+          )}
+        </div>
       </div>
 
       <OptionalConnectionCard
@@ -299,7 +355,7 @@ function SettingsPageContent({
               </div>
               <p className="mb-2 text-[10px] text-amber-700">
                 Local builds only support the manifest-approved port pairs
-                `3004/54341` and `3006/54361`.
+                `3002/54321` (default), `3004/54341`, and `3006/54361`.
               </p>
               <div className="flex items-end gap-2">
                 <div className="flex-1">

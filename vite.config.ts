@@ -5,6 +5,8 @@ import rawManifest from './public/manifest.json';
 import path from 'path';
 
 const LOCAL_HOST_PERMISSIONS = [
+  'https://localhost:3002/*',
+  'https://127.0.0.1:3002/*',
   'http://localhost:3004/*',
   'http://127.0.0.1:3004/*',
   'http://localhost:3006/*',
@@ -16,6 +18,8 @@ const LOCAL_HOST_PERMISSIONS = [
 ];
 
 const LOCAL_CONTENT_SCRIPT_MATCHES = [
+  'https://localhost:3002/*',
+  'https://127.0.0.1:3002/*',
   'http://localhost:3004/*',
   'http://127.0.0.1:3004/*',
   'http://localhost:3006/*',
