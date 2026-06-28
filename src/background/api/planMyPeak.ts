@@ -4,10 +4,7 @@
  * Handles authenticated requests to PlanMyPeak workout and training-plan endpoints.
  */
 
-import {
-  STORAGE_KEYS,
-  PLANMYPEAK_ATHLETE_TAGS_BASE_URL,
-} from '@/utils/constants';
+import { STORAGE_KEYS } from '@/utils/constants';
 import { getPlanMyPeakApiUrl } from '@/services/portConfigService';
 import {
   startExport,
@@ -51,7 +48,8 @@ import { ZodError, z } from 'zod';
 const WORKOUT_LIBRARIES_ENDPOINT = '/v1/workouts/libraries';
 const WORKOUT_LIBRARY_ITEMS_ENDPOINT = '/v1/workouts/library';
 const TRAINING_PLANS_ENDPOINT = '/training-plans';
-const ATHLETE_TAGS_INGEST_ENDPOINT = '/athlete-tags/ingest/training-peaks';
+const ATHLETE_TAGS_INGEST_ENDPOINT =
+  '/backend/athlete-tags/ingest/training-peaks';
 const COACH_ME_ENDPOINT = '/backend/coaches/me';
 
 type PlanMyPeakApiWorkoutType =
@@ -219,8 +217,7 @@ async function clearAuthToken(): Promise<void> {
 
 async function makeApiRequest(
   endpoint: string,
-  init: RequestInit = {},
-  baseUrlOverride?: string
+  init: RequestInit = {}
 ): Promise<Response> {
   const token = await getAuthToken();
 
@@ -236,9 +233,8 @@ async function makeApiRequest(
     headers.set('content-type', 'application/json');
   }
 
-  // Default to the main app API base (dynamic port for local development);
-  // callers can override for standalone services (e.g. athlete-tags ingest).
-  const apiBaseUrl = baseUrlOverride ?? (await getPlanMyPeakApiUrl());
+  // Use the main app API base (dynamic port for local development).
+  const apiBaseUrl = await getPlanMyPeakApiUrl();
 
   const response = await fetch(`${apiBaseUrl}${endpoint}`, {
     ...init,
@@ -706,13 +702,12 @@ async function apiRequest<T>(
   endpoint: string,
   schema: z.ZodSchema<T>,
   operationName: string,
-  init?: RequestInit,
-  baseUrlOverride?: string
+  init?: RequestInit
 ): Promise<ApiResponse<T>> {
   try {
     logger.debug(`[PlanMyPeak API] ${operationName}`);
 
-    const response = await makeApiRequest(endpoint, init, baseUrlOverride);
+    const response = await makeApiRequest(endpoint, init);
 
     if (!response.ok) {
       const message = await parseErrorMessage(response);
@@ -925,8 +920,7 @@ export async function ingestTrainingPeaksAthleteGroups(
     {
       method: 'POST',
       body: JSON.stringify({ groups }),
-    },
-    PLANMYPEAK_ATHLETE_TAGS_BASE_URL
+    }
   );
 }
 

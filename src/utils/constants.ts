@@ -154,21 +154,6 @@ export const PLANMYPEAK_SUPABASE_ANON_KEY = IS_LOCAL_PLANMYPEAK_TARGET
 export const PLANMYPEAK_API_BASE_URL = `${PLANMYPEAK_APP_URL}/api`;
 
 /**
- * Default local port for the PlanMyPeak athlete-tags ingest service.
- * This runs as a standalone service, separate from the main app.
- */
-export const DEFAULT_PLANMYPEAK_ATHLETE_TAGS_PORT = 4002;
-
-/**
- * Base URL for the PlanMyPeak athlete-tags ingest service.
- * Local development runs it as a standalone service on its own port; production
- * serves it from the portal host. Note: there is no `/api` prefix on this host.
- */
-export const PLANMYPEAK_ATHLETE_TAGS_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? `https://localhost:${DEFAULT_PLANMYPEAK_ATHLETE_TAGS_PORT}`
-  : 'https://portal.planmypeak.com';
-
-/**
  * Backward-compatible aliases used across the codebase.
  */
 export const MYPEAK_APP_URL = PLANMYPEAK_APP_URL;

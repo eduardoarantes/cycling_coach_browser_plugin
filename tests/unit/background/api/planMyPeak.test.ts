@@ -5,11 +5,7 @@ import {
   ingestTrainingPeaksAthleteGroups,
 } from '@/background/api/planMyPeak';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
-import {
-  PLANMYPEAK_API_BASE_URL,
-  PLANMYPEAK_ATHLETE_TAGS_BASE_URL,
-  STORAGE_KEYS,
-} from '@/utils/constants';
+import { PLANMYPEAK_API_BASE_URL, STORAGE_KEYS } from '@/utils/constants';
 
 function makeWorkout(
   overrides: Partial<PlanMyPeakWorkout> = {}
@@ -350,7 +346,7 @@ describe('planMyPeak API - ingest TrainingPeaks athlete groups', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, init] = vi.mocked(global.fetch).mock.calls[0];
     expect(url).toBe(
-      `${PLANMYPEAK_ATHLETE_TAGS_BASE_URL}/athlete-tags/ingest/training-peaks`
+      `${PLANMYPEAK_API_BASE_URL}/backend/athlete-tags/ingest/training-peaks`
     );
     expect((init as RequestInit).method).toBe('POST');
     const body = JSON.parse((init as RequestInit).body as string);

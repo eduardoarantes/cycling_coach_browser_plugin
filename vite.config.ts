@@ -7,8 +7,6 @@ import path from 'path';
 const LOCAL_HOST_PERMISSIONS = [
   'https://localhost:3002/*',
   'https://127.0.0.1:3002/*',
-  'https://localhost:4002/*',
-  'https://127.0.0.1:4002/*',
   'http://localhost:3004/*',
   'http://127.0.0.1:3004/*',
   'http://localhost:3006/*',
