@@ -35,8 +35,8 @@ export function AccountMismatchBanner(): ReactElement | null {
             <p className="mt-1">
               Your PlanMyPeak coach account
               {coachName ? ` (${coachName})` : ''} is not linked to a
-              TrainingPeaks account. Importing is disabled until the accounts
-              are linked.
+              TrainingPeaks account. Importing may not associate athletes
+              correctly.
             </p>
           ) : (
             <p className="mt-1">
@@ -45,7 +45,7 @@ export function AccountMismatchBanner(): ReactElement | null {
               match the TrainingPeaks account linked to your PlanMyPeak coach
               profile
               {coachName ? ` (${coachName})` : ''}, ID {linkedTpId}. Importing
-              is disabled to avoid targeting the wrong athletes.
+              could target the wrong athletes.
             </p>
           )}
         </div>
