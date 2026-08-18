@@ -24,6 +24,7 @@ import type {
   IntervalsFolderResponse,
   IntervalsPlanConflictAction,
 } from '@/types/intervalsicu.types';
+import type { SiteControlRequest } from '@/types/siteControl.types';
 
 /**
  * Message types for chrome.runtime messaging
@@ -320,6 +321,19 @@ export interface ClearDebugLogsMessage {
   type: 'CLEAR_DEBUG_LOGS';
 }
 
+/**
+ * Envelope carrying a validated PlanMyPeak site-control request from the
+ * content-script bridge to the background worker.
+ *
+ * The page names a site-control request type, never a `RuntimeMessage` type, so
+ * the page-reachable surface stays limited to `SiteControlRequestType` and does
+ * not grow when handlers are added to the router below.
+ */
+export interface SiteControlRequestMessage {
+  type: 'SITE_CONTROL_REQUEST';
+  request: SiteControlRequest;
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
   | MyPeakAuthFoundMessage
@@ -357,7 +371,8 @@ export type RuntimeMessage =
   | HasIntervalsApiKeyMessage
   | ClearIntervalsApiKeyMessage
   | GetDebugLogsMessage
-  | ClearDebugLogsMessage;
+  | ClearDebugLogsMessage
+  | SiteControlRequestMessage;
 
 export interface FindIntervalsPlanFolderByNameResponse {
   exists: boolean;

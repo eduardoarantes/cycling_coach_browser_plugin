@@ -1,0 +1,20 @@
+/**
+ * Stylesheet for the in-page import overlay.
+ *
+ * Adopted into the overlay's shadow root rather than injected into the host
+ * document, so these rules can never reach PlanMyPeak's own elements. It
+ * deliberately omits the `body` base rules in globals.css: there is no body
+ * inside a shadow root, and the host page owns that element.
+ */
+
+@import 'tailwindcss';
+
+:host {
+  all: initial;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}

@@ -26,6 +26,9 @@ const LOCAL_CONTENT_SCRIPT_MATCHES = [
   'http://127.0.0.1:3006/*',
 ];
 
+// web_accessible_resources is not declared here: @crxjs/vite-plugin derives it
+// from the content scripts' own chunk graph and matches, which covers the
+// import overlay's lazily-imported chunk on both production and local origins.
 function withLocalDevelopmentHosts(): typeof rawManifest {
   return {
     ...rawManifest,

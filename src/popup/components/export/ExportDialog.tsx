@@ -15,9 +15,9 @@ import type {
 import {
   EXPORT_DESTINATIONS,
   type ExportDestination,
+  type TrainingPlanExportProgressDialogState,
 } from '@/types/export.types';
 import type {
-  GetPlanMyPeakLibrariesMessage,
   FindIntervalsLibraryFolderByNameMessage,
   FindIntervalsPlanFolderByNameMessage,
   GetIntervalsApiKeyMessage,
@@ -26,6 +26,10 @@ import type {
 import type { ApiResponse } from '@/types/api.types';
 import { logger } from '@/utils/logger';
 import { useConnectionSettings } from '@/hooks/useConnectionSettings';
+import {
+  findExistingPlanMyPeakLibraries,
+  normalizeTargetLibraryNames,
+} from '@/export/adapters/planMyPeak/duplicatePreflight';
 
 type ExportConfig = PlanMyPeakExportConfig | IntervalsIcuExportConfig;
 export type ExportScope =
@@ -35,24 +39,9 @@ export type ExportScope =
   | 'trainingPlans';
 export type LibraryBatchExportStrategy = 'separate' | 'combined';
 
-export interface TrainingPlanExportProgressDialogState {
-  overallCurrent: number;
-  overallTotal: number;
-  currentPhaseLabel: string;
-  currentPhaseCurrent: number;
-  currentPhaseTotal: number;
-  currentItemName?: string;
-  message?: string;
-  phases: Array<{
-    id: string;
-    label: string;
-    status: 'pending' | 'started' | 'progress' | 'completed' | 'failed';
-    current: number;
-    total: number;
-    itemName?: string;
-    message?: string;
-  }>;
-}
+// Re-exported for existing importers; defined in @/types/export.types so the
+// export hooks do not depend on popup components.
+export type { TrainingPlanExportProgressDialogState };
 
 interface ExportDialogProps {
   /** Whether the dialog is open */
@@ -356,52 +345,26 @@ export function ExportDialog({
       setExistingPlanMyPeakLibraryConflictError(null);
 
       if (isLibraryLikeScope && config.createFolder) {
-        const uniqueLibraryNames = Array.from(
-          new Set(
-            (isLibraryBatchScope
-              ? sourceLibraryNames || []
-              : sourceLibraryName
-                ? [sourceLibraryName]
-                : []
-            )
-              .map((name) => name.trim())
-              .filter((name) => name.length > 0)
-          )
+        const uniqueLibraryNames = normalizeTargetLibraryNames(
+          isLibraryBatchScope
+            ? (sourceLibraryNames ?? [])
+            : sourceLibraryName
+              ? [sourceLibraryName]
+              : []
         );
 
         if (uniqueLibraryNames.length > 0) {
           setIsCheckingExistingPlan(true);
           try {
-            const librariesResponse = await chrome.runtime.sendMessage<
-              GetPlanMyPeakLibrariesMessage,
-              ApiResponse<PlanMyPeakLibrary[]>
-            >({
-              type: 'GET_PLANMYPEAK_LIBRARIES',
-            });
+            const duplicateCheck =
+              await findExistingPlanMyPeakLibraries(uniqueLibraryNames);
 
-            if (!librariesResponse.success) {
-              setExistingPlanMyPeakLibraryConflictError(
-                librariesResponse.error.message ||
-                  'Failed to check existing PlanMyPeak libraries'
-              );
+            if (!duplicateCheck.ok) {
+              setExistingPlanMyPeakLibraryConflictError(duplicateCheck.message);
               return;
             }
 
-            const userLibraries = librariesResponse.data.filter(
-              (library) => !library.is_system
-            );
-            const conflicts: PlanMyPeakLibrary[] = [];
-
-            for (const libraryName of uniqueLibraryNames) {
-              const existing = userLibraries.find(
-                (library) =>
-                  library.name.trim().toLowerCase() ===
-                  libraryName.toLowerCase()
-              );
-              if (existing) {
-                conflicts.push(existing);
-              }
-            }
+            const conflicts = duplicateCheck.conflicts;
 
             if (conflicts.length > 0) {
               setExistingPlanMyPeakLibraryBatchConflicts(

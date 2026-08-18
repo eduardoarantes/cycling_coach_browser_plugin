@@ -44,7 +44,16 @@ The overlay SHALL display the coach's TrainingPeaks workout libraries and traini
 #### Scenario: Browsing libraries
 
 - **WHEN** the overlay opens and TrainingPeaks data is available
-- **THEN** it lists the coach's workout libraries with their names and workout counts
+- **THEN** it lists the coach's workout libraries with their names and owners
+
+#### Scenario: Workout count for a library
+
+- **WHEN** the coach opens a library and its workouts have loaded
+- **THEN** the overlay shows how many workouts that library contains
+
+<!-- The TrainingPeaks libraries endpoint does not return an item count, so the
+     count is shown once a library's workouts have been loaded rather than up
+     front, which would cost one request per library. -->
 
 #### Scenario: Drilling into a library
 

@@ -125,6 +125,71 @@ export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
   : 'portal.planmypeak.com';
 
 /**
+ * PlanMyPeak production origin.
+ */
+export const PLANMYPEAK_PRODUCTION_ORIGIN = 'https://portal.planmypeak.com';
+
+/**
+ * Local PlanMyPeak development origins.
+ *
+ * These mirror the content-script matches vite injects for local-target builds
+ * (see LOCAL_CONTENT_SCRIPT_MATCHES in vite.config.ts). Schemes differ by port:
+ * 3002 is served over https locally, 3004/3006 over http.
+ */
+const LOCAL_PLANMYPEAK_ORIGINS = [
+  'https://localhost:3002',
+  'https://127.0.0.1:3002',
+  'http://localhost:3004',
+  'http://127.0.0.1:3004',
+  'http://localhost:3006',
+  'http://127.0.0.1:3006',
+] as const;
+
+/**
+ * Origins allowed to drive the extension through the site-control channel.
+ *
+ * This is the single source of truth for that gate: the content-script bridge
+ * and the background worker both check against it. Local origins are only
+ * included in local-target builds, matching where the bridge is injected.
+ */
+export const PLANMYPEAK_CONTROL_ORIGINS: readonly string[] =
+  IS_LOCAL_PLANMYPEAK_TARGET
+    ? [PLANMYPEAK_PRODUCTION_ORIGIN, ...LOCAL_PLANMYPEAK_ORIGINS]
+    : [PLANMYPEAK_PRODUCTION_ORIGIN];
+
+/**
+ * Exact-match check for a site-control origin.
+ *
+ * Matching is exact by design: substring or suffix matching would accept
+ * lookalikes such as `https://portal.planmypeak.com.evil.test`.
+ */
+export function isPlanMyPeakControlOrigin(
+  origin: string | null | undefined
+): boolean {
+  if (!origin) {
+    return false;
+  }
+
+  return PLANMYPEAK_CONTROL_ORIGINS.includes(origin);
+}
+
+/**
+ * Resolve a URL to its origin, returning null for values that are not valid
+ * absolute URLs. Used to derive an origin from `sender.tab.url`.
+ */
+export function originFromUrl(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * PlanMyPeak auth validation base URL (uses default port, actual port may be configured in local builds).
  * Development hits the local Supabase instance directly.
  * Production validates via the Supabase cloud instance the rewritten portal authenticates against.
