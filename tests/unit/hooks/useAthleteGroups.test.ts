@@ -64,6 +64,7 @@ function mockSendMessage(
   const groupsResponse: ApiResponse<AthleteGroup[]> = options.groups ?? {
     success: true,
     data: mockGroups,
+    raw: mockGroups,
   };
 
   vi.mocked(chrome.runtime.sendMessage).mockImplementation(
@@ -109,6 +110,36 @@ describe('useAthleteGroups', () => {
       type: 'GET_ATHLETE_GROUPS',
       coachId: 6469888,
     });
+  });
+
+  it('should expose the raw TrainingPeaks response as rawResponse', async () => {
+    const rawPayload = [
+      { id: 1, coachId: 6469888, name: 'Raw', athleteIds: [] },
+    ];
+    mockSendMessage({
+      groups: { success: true, data: mockGroups, raw: rawPayload },
+    });
+
+    const { result } = renderHook(() => useAthleteGroups(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(result.current.data).toEqual(mockGroups);
+    expect(result.current.rawResponse).toEqual(rawPayload);
+  });
+
+  it('should leave rawResponse undefined before data resolves', () => {
+    mockSendMessage();
+
+    const { result } = renderHook(() => useAthleteGroups({ enabled: false }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.rawResponse).toBeUndefined();
   });
 
   it('should handle an empty groups array', async () => {

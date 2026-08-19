@@ -80,6 +80,49 @@ describe('trainingPeaks Athlete Groups API', () => {
       );
     });
 
+    it('should include the raw TrainingPeaks response on success', async () => {
+      const mockToken = 'valid-token-123';
+      const coachId = 6469888;
+      const mockGroups: AthleteGroup[] = [
+        {
+          id: 340276,
+          coachId,
+          name: 'My Athletes',
+          athleteIds: [],
+          isDefault: true,
+        },
+      ];
+
+      mockGet.mockResolvedValue({ auth_token: mockToken });
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockGroups,
+      });
+
+      const result = await fetchAthleteGroups(coachId);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // The raw payload is the exact JSON returned by TrainingPeaks.
+        expect(result.raw).toEqual(mockGroups);
+      }
+    });
+
+    it('should not include a raw payload on error responses', async () => {
+      const mockToken = 'valid-token-123';
+      mockGet.mockResolvedValue({ auth_token: mockToken });
+      (global.fetch as any).mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+
+      const result = await fetchAthleteGroups(6469888);
+
+      expect(result.success).toBe(false);
+      expect((result as { raw?: unknown }).raw).toBeUndefined();
+    });
+
     it('should return an empty array when the coach has no groups', async () => {
       const mockToken = 'valid-token-123';
       mockGet.mockResolvedValue({ auth_token: mockToken });

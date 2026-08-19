@@ -8,12 +8,21 @@ import { CACHE_DURATIONS } from '@/utils/constants';
 import { useUser } from './useUser';
 
 /**
+ * Result of the athlete-groups query: the validated groups plus the raw
+ * TrainingPeaks response that generated them (used by the source-JSON viewer).
+ */
+interface AthleteGroupsQueryResult {
+  groups: AthleteGroup[];
+  raw: unknown;
+}
+
+/**
  * Query function for fetching athlete groups (coach tags)
  * Sends message to background worker and unwraps ApiResponse
  */
 async function fetchAthleteGroupsList(
   coachId: number
-): Promise<AthleteGroup[]> {
+): Promise<AthleteGroupsQueryResult> {
   logger.debug('Fetching athlete groups via background worker', coachId);
 
   const response = await chrome.runtime.sendMessage<
@@ -30,7 +39,7 @@ async function fetchAthleteGroupsList(
       response.data.length,
       'groups'
     );
-    return response.data;
+    return { groups: response.data, raw: response.raw };
   } else {
     logApiResponseError('Failed to fetch athlete groups:', response.error);
     throw new Error(response.error.message || 'Failed to fetch athlete groups');
@@ -71,14 +80,14 @@ async function fetchAthleteGroupsList(
  */
 export function useAthleteGroups(options?: {
   enabled?: boolean;
-}): UseQueryResult<AthleteGroup[], Error> {
+}): UseQueryResult<AthleteGroup[], Error> & { rawResponse: unknown } {
   const enabled = options?.enabled ?? true;
 
   // Fetch user profile to resolve the coach ID (userId)
   const { data: user } = useUser({ enabled });
   const coachId = user?.userId;
 
-  return useQuery<AthleteGroup[], Error>({
+  const query = useQuery<AthleteGroupsQueryResult, Error>({
     queryKey: ['athleteGroups', coachId],
     queryFn: () => fetchAthleteGroupsList(coachId as number),
     // Groups change infrequently
@@ -86,4 +95,14 @@ export function useAthleteGroups(options?: {
     // Only fetch when enabled and the coach ID is known
     enabled: enabled && coachId !== undefined,
   });
+
+  // Keep the public `data` shape as `AthleteGroup[]` for existing call sites,
+  // and surface the raw TrainingPeaks response separately for the JSON viewer.
+  return {
+    ...query,
+    data: query.data?.groups,
+    rawResponse: query.data?.raw,
+  } as unknown as UseQueryResult<AthleteGroup[], Error> & {
+    rawResponse: unknown;
+  };
 }

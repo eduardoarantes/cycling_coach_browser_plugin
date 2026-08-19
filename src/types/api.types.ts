@@ -69,5 +69,5 @@ export interface ApiRequestOptions {
  * API response wrapper for error handling
  */
 export type ApiResponse<T> =
-  | { success: true; data: T }
+  | { success: true; data: T; raw?: unknown }
   | { success: false; error: ApiErrorType };

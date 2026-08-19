@@ -332,7 +332,7 @@ async function apiRequest<T>(
     });
 
     logger.info(`${operationName} fetched successfully`);
-    return { success: true, data: validated };
+    return { success: true, data: validated, raw: json };
   } catch (error) {
     const durationMs = Math.round(performance.now() - startTime);
 
