@@ -8,7 +8,7 @@
  * Reuses the shared modal shell pattern from IntegrationHelpModal.
  */
 
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   Copy as CopyIcon,
   Check as CheckIcon,
@@ -24,26 +24,85 @@ interface GroupSourceJsonModalProps {
 }
 
 const DOWNLOAD_FILE_NAME = 'athlete-groups-source.json';
+const TITLE_ID = 'group-source-json-title';
+
+/** Elements that can receive focus inside the dialog, for the focus trap. */
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function GroupSourceJsonModal({
   raw,
   onClose,
 }: GroupSourceJsonModalProps): ReactElement | null {
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  // Whether the current drag started on the backdrop itself. A text selection
+  // begun inside the JSON and released over the backdrop dispatches its click
+  // on their common ancestor (the backdrop), which would otherwise close the
+  // modal and discard the selection it exists to let users make.
+  const backdropMouseDownRef = useRef(false);
+
+  const isOpen = raw !== undefined && raw !== null;
 
   // Pretty-print once per payload rather than on every render.
   const jsonString = useMemo(() => JSON.stringify(raw, null, 2), [raw]);
 
-  // Close on Escape.
+  // Move focus into the dialog on open, and return it to the group screen on close.
   useEffect(() => {
+    if (!isOpen) return;
+
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    dialogRef.current?.focus();
+
+    return () => {
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [isOpen]);
+
+  // Close on Escape, and keep Tab cycling within the dialog while it is open.
+  useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      const atEdge = event.shiftKey ? active === first : active === last;
+
+      if (
+        atEdge ||
+        !(active instanceof HTMLElement) ||
+        !dialog.contains(active)
+      ) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
       }
     };
+
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [isOpen, onClose]);
 
   // Reset the copied confirmation shortly after it is shown.
   useEffect(() => {
@@ -52,7 +111,7 @@ export function GroupSourceJsonModal({
     return () => clearTimeout(timer);
   }, [copied]);
 
-  if (raw === undefined || raw === null) {
+  if (!isOpen) {
     return null;
   }
 
@@ -76,17 +135,28 @@ export function GroupSourceJsonModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 px-3 py-4 backdrop-blur-sm"
-      onClick={onClose}
+      onMouseDown={(event) => {
+        backdropMouseDownRef.current = event.target === event.currentTarget;
+      }}
+      onClick={(event) => {
+        // Only a click that both started and ended on the backdrop dismisses.
+        if (event.target !== event.currentTarget) return;
+        if (!backdropMouseDownRef.current) return;
+        backdropMouseDownRef.current = false;
+        onClose();
+      }}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={TITLE_ID}
+        tabIndex={-1}
+        className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl outline-none"
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 id={TITLE_ID} className="text-sm font-semibold text-slate-900">
               Source JSON
             </h3>
             <p className="mt-1 text-xs text-slate-600">

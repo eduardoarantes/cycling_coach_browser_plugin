@@ -84,4 +84,95 @@ describe('GroupSourceJsonModal', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  describe('backdrop dismissal', () => {
+    it('should close when a click starts and ends on the backdrop', () => {
+      const onClose = vi.fn();
+      const { container } = render(
+        <GroupSourceJsonModal raw={samplePayload} onClose={onClose} />
+      );
+
+      const backdrop = container.firstElementChild as HTMLElement;
+      fireEvent.mouseDown(backdrop);
+      fireEvent.click(backdrop);
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not close when a selection drag starts inside the JSON and ends on the backdrop', () => {
+      const onClose = vi.fn();
+      const { container } = render(
+        <GroupSourceJsonModal raw={samplePayload} onClose={onClose} />
+      );
+
+      const backdrop = container.firstElementChild as HTMLElement;
+      const pre = container.querySelector('pre') as HTMLElement;
+
+      // A drag from inside the <pre> released over the backdrop dispatches its
+      // click on their common ancestor, which is the backdrop itself.
+      fireEvent.mouseDown(pre);
+      fireEvent.click(backdrop);
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('should not close when clicking inside the dialog', () => {
+      const onClose = vi.fn();
+      render(<GroupSourceJsonModal raw={samplePayload} onClose={onClose} />);
+
+      const dialog = screen.getByRole('dialog');
+      fireEvent.mouseDown(dialog);
+      fireEvent.click(dialog);
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('dialog semantics and focus', () => {
+    it('should expose modal dialog semantics labelled by its heading', () => {
+      render(<GroupSourceJsonModal raw={samplePayload} onClose={vi.fn()} />);
+
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(dialog).toHaveAccessibleName('Source JSON');
+    });
+
+    it('should move focus into the dialog on open', () => {
+      render(<GroupSourceJsonModal raw={samplePayload} onClose={vi.fn()} />);
+
+      expect(document.activeElement).toBe(screen.getByRole('dialog'));
+    });
+
+    it('should return focus to the trigger when closed', () => {
+      const trigger = document.createElement('button');
+      document.body.appendChild(trigger);
+      trigger.focus();
+
+      const { unmount } = render(
+        <GroupSourceJsonModal raw={samplePayload} onClose={vi.fn()} />
+      );
+      expect(document.activeElement).not.toBe(trigger);
+
+      unmount();
+
+      expect(document.activeElement).toBe(trigger);
+      trigger.remove();
+    });
+
+    it('should cycle Tab back to the first control at the end of the dialog', () => {
+      render(<GroupSourceJsonModal raw={samplePayload} onClose={vi.fn()} />);
+
+      const closeButton = screen.getByRole('button', {
+        name: /close source json/i,
+      });
+      const downloadButton = screen.getByRole('button', { name: /download/i });
+
+      downloadButton.focus();
+      fireEvent.keyDown(document, { key: 'Tab' });
+      expect(document.activeElement).toBe(closeButton);
+
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+      expect(document.activeElement).toBe(downloadButton);
+    });
+  });
 });

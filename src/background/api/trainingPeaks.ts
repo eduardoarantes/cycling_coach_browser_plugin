@@ -234,13 +234,18 @@ function extractValidationErrorDetails(
  * @param schema - Zod schema for response validation
  * @param operationName - Description for logging (e.g., "user profile", "libraries")
  * @param baseUrl - Optional base URL (defaults to API_BASE_URL)
+ * @param options - Optional behavior flags. Set `includeRaw` to carry the
+ *   unvalidated response JSON back on the success result. Off by default so
+ *   endpoints with large payloads do not duplicate them across the
+ *   background/popup message boundary for no consumer.
  * @returns Type-safe API response with success/error discriminated union
  */
 async function apiRequest<T>(
   endpoint: string,
   schema: z.ZodSchema<T>,
   operationName: string,
-  baseUrl?: string
+  baseUrl?: string,
+  options?: { includeRaw?: boolean }
 ): Promise<ApiResponse<T>> {
   const startTime = performance.now();
   const effectiveBaseUrl = baseUrl ?? (await getTrainingPeaksApiBaseUrl());
@@ -332,7 +337,9 @@ async function apiRequest<T>(
     });
 
     logger.info(`${operationName} fetched successfully`);
-    return { success: true, data: validated, raw: json };
+    return options?.includeRaw
+      ? { success: true, data: validated, raw: json }
+      : { success: true, data: validated };
   } catch (error) {
     const durationMs = Math.round(performance.now() - startTime);
 
@@ -463,7 +470,10 @@ export async function fetchAthleteGroups(
   return apiRequest(
     `/coaches/v2/coaches/${coachId}/tags`,
     AthleteGroupsApiResponseSchema,
-    `coach ${coachId} athlete groups`
+    `coach ${coachId} athlete groups`,
+    undefined,
+    // The group import screen exposes this payload through its source-JSON viewer.
+    { includeRaw: true }
   );
 }
 

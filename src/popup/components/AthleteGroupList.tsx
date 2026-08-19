@@ -65,6 +65,30 @@ export function AthleteGroupList(): ReactElement {
     return groups.reduce((total, group) => total + group.athleteIds.length, 0);
   }, [groups]);
 
+  // The source-JSON viewer is available whenever a response was received, not
+  // only when it contained groups: an unexpectedly empty result is exactly the
+  // case a user needs to inspect the raw payload for.
+  const hasSourceJson = rawResponse !== undefined && rawResponse !== null;
+
+  const sourceJsonButton = hasSourceJson ? (
+    <button
+      type="button"
+      onClick={() => setIsJsonOpen(true)}
+      title="View source JSON from TrainingPeaks"
+      aria-label="View source JSON from TrainingPeaks"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+    >
+      <BracesIcon className="h-4 w-4" aria-hidden="true" />
+    </button>
+  ) : null;
+
+  const sourceJsonModal = isJsonOpen ? (
+    <GroupSourceJsonModal
+      raw={rawResponse}
+      onClose={() => setIsJsonOpen(false)}
+    />
+  ) : null;
+
   // Loading state
   if (isLoading) {
     return (
@@ -120,10 +144,14 @@ export function AthleteGroupList(): ReactElement {
   if (!groups || groups.length === 0) {
     return (
       <div className="mt-4">
+        {sourceJsonButton && (
+          <div className="flex justify-end">{sourceJsonButton}</div>
+        )}
         <EmptyState
           title="No Athlete Groups Found"
           message="You don't have any athlete groups yet."
         />
+        {sourceJsonModal}
       </div>
     );
   }
@@ -137,12 +165,16 @@ export function AthleteGroupList(): ReactElement {
           onChange={setSearchQuery}
           placeholder="Search groups..."
         />
+        {sourceJsonButton && (
+          <div className="mt-2 flex justify-end">{sourceJsonButton}</div>
+        )}
         <div className="mt-4">
           <EmptyState
             title="No Athlete Groups Found"
             message={`No groups match "${searchQuery}"`}
           />
         </div>
+        {sourceJsonModal}
       </div>
     );
   }
@@ -163,17 +195,7 @@ export function AthleteGroupList(): ReactElement {
         </p>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {rawResponse !== undefined && rawResponse !== null && (
-            <button
-              type="button"
-              onClick={() => setIsJsonOpen(true)}
-              title="View source JSON from TrainingPeaks"
-              aria-label="View source JSON from TrainingPeaks"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            >
-              <BracesIcon className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
+          {sourceJsonButton}
 
           <button
             type="button"
@@ -279,12 +301,7 @@ export function AthleteGroupList(): ReactElement {
         })}
       </div>
 
-      {isJsonOpen && (
-        <GroupSourceJsonModal
-          raw={rawResponse}
-          onClose={() => setIsJsonOpen(false)}
-        />
-      )}
+      {sourceJsonModal}
     </div>
   );
 }

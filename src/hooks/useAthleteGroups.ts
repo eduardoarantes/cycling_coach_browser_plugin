@@ -1,4 +1,8 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import type { AthleteGroup } from '@/types/api.types';
 import type { GetAthleteGroupsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
@@ -82,27 +86,32 @@ export function useAthleteGroups(options?: {
   enabled?: boolean;
 }): UseQueryResult<AthleteGroup[], Error> & { rawResponse: unknown } {
   const enabled = options?.enabled ?? true;
+  const queryClient = useQueryClient();
 
   // Fetch user profile to resolve the coach ID (userId)
   const { data: user } = useUser({ enabled });
   const coachId = user?.userId;
 
-  const query = useQuery<AthleteGroupsQueryResult, Error>({
+  // Keep the public `data` shape as `AthleteGroup[]` for existing call sites by
+  // narrowing through `select`, rather than spreading the query result. React
+  // Query tracks which result properties a component reads to decide whether to
+  // re-render; spreading would touch every property and defeat that.
+  const query = useQuery<AthleteGroupsQueryResult, Error, AthleteGroup[]>({
     queryKey: ['athleteGroups', coachId],
     queryFn: () => fetchAthleteGroupsList(coachId as number),
+    select: (result) => result.groups,
     // Groups change infrequently
     staleTime: CACHE_DURATIONS.ATHLETE_GROUPS,
     // Only fetch when enabled and the coach ID is known
     enabled: enabled && coachId !== undefined,
   });
 
-  // Keep the public `data` shape as `AthleteGroup[]` for existing call sites,
-  // and surface the raw TrainingPeaks response separately for the JSON viewer.
-  return {
-    ...query,
-    data: query.data?.groups,
-    rawResponse: query.data?.raw,
-  } as unknown as UseQueryResult<AthleteGroup[], Error> & {
-    rawResponse: unknown;
-  };
+  // Read the raw TrainingPeaks response straight from the cache so the JSON
+  // viewer can show it without widening the query's public `data` shape.
+  const cached = queryClient.getQueryData<AthleteGroupsQueryResult>([
+    'athleteGroups',
+    coachId,
+  ]);
+
+  return Object.assign(query, { rawResponse: cached?.raw });
 }
