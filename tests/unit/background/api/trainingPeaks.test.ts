@@ -76,6 +76,32 @@ describe('trainingPeaks API', () => {
       );
     });
 
+    it('should not carry a raw payload for endpoints that did not opt in', async () => {
+      // Arrange — only the athlete-groups endpoint opts into `raw`, so other
+      // endpoints must not duplicate their payload across the message boundary.
+      const mockUserData: UserProfile = {
+        userId: 12345,
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        timeZone: 'America/New_York',
+      };
+
+      mockGet.mockResolvedValue({ auth_token: 'valid-token-123' });
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ user: mockUserData }),
+      });
+
+      // Act
+      const result = await fetchUser();
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect((result as { raw?: unknown }).raw).toBeUndefined();
+    });
+
     it('should return error when no token exists', async () => {
       // Arrange
       mockGet.mockResolvedValue({});

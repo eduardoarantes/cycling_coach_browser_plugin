@@ -1,4 +1,8 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import type { AthleteGroup } from '@/types/api.types';
 import type { GetAthleteGroupsMessage } from '@/types';
 import type { ApiResponse } from '@/types/api.types';
@@ -8,12 +12,21 @@ import { CACHE_DURATIONS } from '@/utils/constants';
 import { useUser } from './useUser';
 
 /**
+ * Result of the athlete-groups query: the validated groups plus the raw
+ * TrainingPeaks response that generated them (used by the source-JSON viewer).
+ */
+interface AthleteGroupsQueryResult {
+  groups: AthleteGroup[];
+  raw: unknown;
+}
+
+/**
  * Query function for fetching athlete groups (coach tags)
  * Sends message to background worker and unwraps ApiResponse
  */
 async function fetchAthleteGroupsList(
   coachId: number
-): Promise<AthleteGroup[]> {
+): Promise<AthleteGroupsQueryResult> {
   logger.debug('Fetching athlete groups via background worker', coachId);
 
   const response = await chrome.runtime.sendMessage<
@@ -30,7 +43,7 @@ async function fetchAthleteGroupsList(
       response.data.length,
       'groups'
     );
-    return response.data;
+    return { groups: response.data, raw: response.raw };
   } else {
     logApiResponseError('Failed to fetch athlete groups:', response.error);
     throw new Error(response.error.message || 'Failed to fetch athlete groups');
@@ -71,19 +84,34 @@ async function fetchAthleteGroupsList(
  */
 export function useAthleteGroups(options?: {
   enabled?: boolean;
-}): UseQueryResult<AthleteGroup[], Error> {
+}): UseQueryResult<AthleteGroup[], Error> & { rawResponse: unknown } {
   const enabled = options?.enabled ?? true;
+  const queryClient = useQueryClient();
 
   // Fetch user profile to resolve the coach ID (userId)
   const { data: user } = useUser({ enabled });
   const coachId = user?.userId;
 
-  return useQuery<AthleteGroup[], Error>({
+  // Keep the public `data` shape as `AthleteGroup[]` for existing call sites by
+  // narrowing through `select`, rather than spreading the query result. React
+  // Query tracks which result properties a component reads to decide whether to
+  // re-render; spreading would touch every property and defeat that.
+  const query = useQuery<AthleteGroupsQueryResult, Error, AthleteGroup[]>({
     queryKey: ['athleteGroups', coachId],
     queryFn: () => fetchAthleteGroupsList(coachId as number),
+    select: (result) => result.groups,
     // Groups change infrequently
     staleTime: CACHE_DURATIONS.ATHLETE_GROUPS,
     // Only fetch when enabled and the coach ID is known
     enabled: enabled && coachId !== undefined,
   });
+
+  // Read the raw TrainingPeaks response straight from the cache so the JSON
+  // viewer can show it without widening the query's public `data` shape.
+  const cached = queryClient.getQueryData<AthleteGroupsQueryResult>([
+    'athleteGroups',
+    coachId,
+  ]);
+
+  return Object.assign(query, { rawResponse: cached?.raw });
 }

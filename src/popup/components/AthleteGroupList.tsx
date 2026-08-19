@@ -7,10 +7,15 @@
  */
 
 import { useMemo, useState, type ReactElement } from 'react';
-import { Users as UsersIcon, Upload as UploadIcon } from 'lucide-react';
+import {
+  Users as UsersIcon,
+  Upload as UploadIcon,
+  Braces as BracesIcon,
+} from 'lucide-react';
 import { useAthleteGroups } from '@/hooks/useAthleteGroups';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { usePlanMyPeakGroupImport } from '@/hooks/usePlanMyPeakGroupImport';
+import { GroupSourceJsonModal } from './GroupSourceJsonModal';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -25,7 +30,14 @@ import {
 export function AthleteGroupList(): ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshPromptHandled, setRefreshPromptHandled] = useState(false);
-  const { data: groups, isLoading, error, refetch } = useAthleteGroups();
+  const [isJsonOpen, setIsJsonOpen] = useState(false);
+  const {
+    data: groups,
+    isLoading,
+    error,
+    refetch,
+    rawResponse,
+  } = useAthleteGroups();
   const { isAuthenticated: isPlanMyPeakConnected } = useMyPeakAuth();
   const importGroups = usePlanMyPeakGroupImport();
 
@@ -52,6 +64,30 @@ export function AthleteGroupList(): ReactElement {
     if (!groups) return 0;
     return groups.reduce((total, group) => total + group.athleteIds.length, 0);
   }, [groups]);
+
+  // The source-JSON viewer is available whenever a response was received, not
+  // only when it contained groups: an unexpectedly empty result is exactly the
+  // case a user needs to inspect the raw payload for.
+  const hasSourceJson = rawResponse !== undefined && rawResponse !== null;
+
+  const sourceJsonButton = hasSourceJson ? (
+    <button
+      type="button"
+      onClick={() => setIsJsonOpen(true)}
+      title="View source JSON from TrainingPeaks"
+      aria-label="View source JSON from TrainingPeaks"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+    >
+      <BracesIcon className="h-4 w-4" aria-hidden="true" />
+    </button>
+  ) : null;
+
+  const sourceJsonModal = isJsonOpen ? (
+    <GroupSourceJsonModal
+      raw={rawResponse}
+      onClose={() => setIsJsonOpen(false)}
+    />
+  ) : null;
 
   // Loading state
   if (isLoading) {
@@ -108,10 +144,14 @@ export function AthleteGroupList(): ReactElement {
   if (!groups || groups.length === 0) {
     return (
       <div className="mt-4">
+        {sourceJsonButton && (
+          <div className="flex justify-end">{sourceJsonButton}</div>
+        )}
         <EmptyState
           title="No Athlete Groups Found"
           message="You don't have any athlete groups yet."
         />
+        {sourceJsonModal}
       </div>
     );
   }
@@ -125,12 +165,16 @@ export function AthleteGroupList(): ReactElement {
           onChange={setSearchQuery}
           placeholder="Search groups..."
         />
+        {sourceJsonButton && (
+          <div className="mt-2 flex justify-end">{sourceJsonButton}</div>
+        )}
         <div className="mt-4">
           <EmptyState
             title="No Athlete Groups Found"
             message={`No groups match "${searchQuery}"`}
           />
         </div>
+        {sourceJsonModal}
       </div>
     );
   }
@@ -150,20 +194,24 @@ export function AthleteGroupList(): ReactElement {
           {totalAthletes} {totalAthletes === 1 ? 'athlete' : 'athletes'}
         </p>
 
-        <button
-          type="button"
-          onClick={handleImport}
-          disabled={!isPlanMyPeakConnected || importGroups.isPending}
-          title={
-            isPlanMyPeakConnected
-              ? 'Import these groups into PlanMyPeak'
-              : 'Connect PlanMyPeak to import groups'
-          }
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <UploadIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          {importGroups.isPending ? 'Importing…' : 'Import to PlanMyPeak'}
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {sourceJsonButton}
+
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={!isPlanMyPeakConnected || importGroups.isPending}
+            title={
+              isPlanMyPeakConnected
+                ? 'Import these groups into PlanMyPeak'
+                : 'Connect PlanMyPeak to import groups'
+            }
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <UploadIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            {importGroups.isPending ? 'Importing…' : 'Import to PlanMyPeak'}
+          </button>
+        </div>
       </div>
 
       {!isPlanMyPeakConnected && (
@@ -252,6 +300,8 @@ export function AthleteGroupList(): ReactElement {
           );
         })}
       </div>
+
+      {sourceJsonModal}
     </div>
   );
 }
