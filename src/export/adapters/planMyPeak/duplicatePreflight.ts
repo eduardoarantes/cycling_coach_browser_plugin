@@ -61,11 +61,12 @@ export async function findExistingPlanMyPeakLibraries(
     };
   }
 
-  const userLibraries = response.data.filter((library) => !library.is_system);
+  // Every library belongs to the coach now — there is no system-owned kind to
+  // exclude — so a name collision against any of them is a real collision.
   const conflicts: PlanMyPeakLibrary[] = [];
 
   for (const targetName of targetNames) {
-    const existing = userLibraries.find(
+    const existing = response.data.find(
       (library) =>
         library.name.trim().toLowerCase() === targetName.toLowerCase()
     );

@@ -8,7 +8,7 @@ import { useLibraries } from '@/hooks/useLibraries';
 import { useLibraryItems } from '@/hooks/useLibraryItems';
 import type { Library } from '@/types/api.types';
 import type { LibraryItem } from '@/schemas/library.schema';
-import { isSupportedTpWorkoutTypeForPlanMyPeak } from '@/export/adapters/planMyPeak/workoutMapping';
+import { canImportTpItemToPlanMyPeak } from '@/export/adapters/planMyPeak/workoutMapping';
 import {
   isLibrarySelected,
   isWorkoutSelected,
@@ -82,9 +82,7 @@ function LibraryWorkouts({
       </p>
       <ul className="max-h-56 overflow-y-auto px-1 py-1">
         {items.map((item) => {
-          const supported = isSupportedTpWorkoutTypeForPlanMyPeak(
-            item.workoutTypeId
-          );
+          const supported = canImportTpItemToPlanMyPeak(item);
           return (
             <li key={item.exerciseLibraryItemId}>
               <label className="flex items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">

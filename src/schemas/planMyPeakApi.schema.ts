@@ -1,5 +1,11 @@
 /**
- * Zod schemas for PlanMyPeak workout library API responses
+ * Zod schemas for the PlanMyPeak coach workout-library API.
+ *
+ * These mirror the published contract (`CoachWorkoutSummary`,
+ * `CoachWorkoutDetail`, `WorkoutLibrarySummary` in the PlanMyPeak
+ * `packages/contracts` OpenAPI schemas) rather than accepting both camelCase
+ * and snake_case: the contract is fixed and published, so tolerating both
+ * shapes would only hide drift.
  */
 
 import { z } from 'zod';
@@ -8,230 +14,168 @@ const IntegerSchema = z.coerce.number().int();
 const NonNegativeIntSchema = IntegerSchema.min(0);
 const NumberSchema = z.coerce.number();
 
-const NullableNumberSchema = z
-  .union([NumberSchema, z.null()])
-  .nullable()
-  .optional();
-
-const PlanMyPeakLibraryRawSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    owner_id: z.string().nullable().optional(),
-    ownerId: z.string().nullable().optional(),
-    is_system: z.boolean().optional(),
-    isSystem: z.boolean().optional(),
-    is_default: z.boolean().optional(),
-    isDefault: z.boolean().optional(),
-    source_id: z.string().nullable().optional(),
-    sourceId: z.string().nullable().optional(),
-    created_at: z.string().optional(),
-    createdAt: z.string().optional(),
-    updated_at: z.string().optional(),
-    updatedAt: z.string().optional(),
-  })
-  .passthrough();
-
 /**
- * Normalized schema for a single PlanMyPeak workout library.
- * Accepts snake_case and camelCase keys returned by API variants.
+ * A workout library — the container. `/workout-libraries` returns these;
+ * `/workout-library` returns the workouts inside them.
  */
-export const PlanMyPeakLibrarySchema = PlanMyPeakLibraryRawSchema.transform(
-  (library) => ({
-    id: library.id,
-    name: library.name,
-    owner_id: library.owner_id ?? library.ownerId ?? null,
-    is_system: library.is_system ?? library.isSystem ?? false,
-    is_default: library.is_default ?? library.isDefault ?? false,
-    source_id: library.source_id ?? library.sourceId ?? null,
-    created_at: library.created_at ?? library.createdAt ?? '',
-    updated_at: library.updated_at ?? library.updatedAt ?? '',
-  })
-);
+export const PlanMyPeakLibrarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  isDefault: z.boolean(),
+  workoutCount: NonNegativeIntSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 
 export type PlanMyPeakLibrary = z.infer<typeof PlanMyPeakLibrarySchema>;
 
-const PlanMyPeakLibrariesEnvelopeSchema = z
-  .object({
-    libraries: z.array(PlanMyPeakLibrarySchema),
-    total: NonNegativeIntSchema.optional(),
-  })
-  .passthrough()
-  .transform((data) => ({
-    libraries: data.libraries,
-    total: data.total ?? data.libraries.length,
-  }));
-
-const PlanMyPeakLibrariesArraySchema = z
-  .array(PlanMyPeakLibrarySchema)
-  .transform((libraries) => ({
-    libraries,
-    total: libraries.length,
-  }));
-
-const PlanMyPeakLibrariesDataSchema = z
-  .object({
-    data: z.array(PlanMyPeakLibrarySchema),
-  })
-  .passthrough()
-  .transform((data) => ({
-    libraries: data.data,
-    total: data.data.length,
-  }));
-
-const PlanMyPeakLibrariesItemsSchema = z
-  .object({
-    items: z.array(PlanMyPeakLibrarySchema),
-  })
-  .passthrough()
-  .transform((data) => ({
-    libraries: data.items,
-    total: data.items.length,
-  }));
-
-/**
- * Schema for GET /workouts/libraries response.
- * Accepts wrapped and direct-array payload shapes.
- */
-export const PlanMyPeakLibrariesResponseSchema = z.union([
-  PlanMyPeakLibrariesEnvelopeSchema,
-  PlanMyPeakLibrariesArraySchema,
-  PlanMyPeakLibrariesDataSchema,
-  PlanMyPeakLibrariesItemsSchema,
-]);
+export const PlanMyPeakLibrariesResponseSchema = z.object({
+  data: z.array(PlanMyPeakLibrarySchema),
+});
 
 export type PlanMyPeakLibrariesResponse = z.infer<
   typeof PlanMyPeakLibrariesResponseSchema
 >;
 
-const PlanMyPeakWorkoutLibraryItemRawSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    type: z.string(),
-    intensity: z.string().optional(),
-    structure: z.unknown().optional(),
-    base_duration_min: NumberSchema.optional(),
-    baseDurationMin: NumberSchema.optional(),
-    base_tss: NullableNumberSchema,
-    baseTss: NullableNumberSchema,
-    library_id: z.string().optional(),
-    libraryId: z.string().optional(),
-    source_id: z.string().nullable().optional(),
-    sourceId: z.string().nullable().optional(),
-  })
-  .passthrough();
+/** Disciplines PlanMyPeak accepts. We send these, so the enum is exact. */
+export const PLANMYPEAK_WORKOUT_TYPES = [
+  'bike',
+  'mountain_bike',
+  'run',
+  'swim',
+  'walk',
+  'strength',
+  'cross_train',
+  'cross_country_ski',
+  'rowing',
+  'race',
+  'rest_day',
+  'note',
+  'other',
+] as const;
+
+export const PlanMyPeakWorkoutTypeSchema = z.enum(PLANMYPEAK_WORKOUT_TYPES);
+
+export type PlanMyPeakWorkoutTypeValue = z.infer<
+  typeof PlanMyPeakWorkoutTypeSchema
+>;
+
+/** Counts derived from the structure. `stepCount` is post-expansion. */
+const PlanMyPeakDerivedSummarySchema = z.object({
+  segmentCount: NonNegativeIntSchema,
+  stepCount: NonNegativeIntSchema,
+  estimatedDurationSeconds: NumberSchema.nullable(),
+});
 
 /**
- * Minimal normalized schema for a PlanMyPeak workout response.
- * Accepts additional fields because the API may evolve independently.
+ * Intensity profile, or null when the structure yields none.
+ *
+ * Percentages are always of a threshold, never absolute: a library workout
+ * belongs to a coach, so there is no athlete FTP or LTHR to convert against.
+ * `metric` says which threshold, and `unit` refines it — %LTHR and %maxHR are
+ * different scales and must not share zone boundaries.
  */
-export const PlanMyPeakWorkoutLibraryItemSchema =
-  PlanMyPeakWorkoutLibraryItemRawSchema.transform((workout) => ({
-    id: workout.id,
-    name: workout.name,
-    type: workout.type,
-    intensity: workout.intensity ?? 'moderate',
-    structure: workout.structure ?? {},
-    base_duration_min:
-      workout.base_duration_min ?? workout.baseDurationMin ?? 0,
-    base_tss: workout.base_tss ?? workout.baseTss ?? null,
-    library_id: workout.library_id ?? workout.libraryId ?? '',
-    source_id: workout.source_id ?? workout.sourceId ?? null,
-  }));
+const PlanMyPeakWorkoutProfileSchema = z.object({
+  metric: z.enum(['power', 'heartrate']),
+  unit: z.enum(['percentOfFtp', 'percentOfThresholdHr', 'percentOfMaxHr']),
+  segments: z.array(
+    z.object({ percentOfThreshold: NumberSchema, seconds: NumberSchema })
+  ),
+  durationSeconds: NumberSchema,
+  /**
+   * Null for a heart-rate workout with no provider load: there is no normalized
+   * power to derive one from, and the server will not estimate. Guard before
+   * formatting — this is never 0 standing in for "unknown".
+   */
+  intensityFactor: NumberSchema.nullable(),
+  tss: NumberSchema.nullable(),
+  /**
+   * Whether the load above is ours (`derived`) or came from the provider that
+   * supplied the workout (`provider`). Never present a provider figure as a
+   * derived one.
+   */
+  loadSource: z.enum(['derived', 'provider']).nullable(),
+  peakPercentOfThreshold: NumberSchema,
+});
+
+export type PlanMyPeakWorkoutProfile = z.infer<
+  typeof PlanMyPeakWorkoutProfileSchema
+>;
+
+/** The library a workout is actually filed in, on every read and write. */
+const PlanMyPeakLibraryRefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+/**
+ * A workout as PlanMyPeak returns it.
+ *
+ * `rideType` is deliberately a loose string rather than an enum: the server
+ * derives it and may add vocabulary, and we only ever display it.
+ * `structure` is present on detail reads and absent from list rows.
+ */
+export const PlanMyPeakWorkoutLibraryItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  workoutType: PlanMyPeakWorkoutTypeSchema,
+  rideType: z.string().nullable(),
+  summary: PlanMyPeakDerivedSummarySchema,
+  profile: PlanMyPeakWorkoutProfileSchema.nullable(),
+  library: PlanMyPeakLibraryRefSchema,
+  provider: z.string().nullable(),
+  providerWorkoutId: z.string().nullable(),
+  providerMetadata: z.record(z.string(), z.unknown()).nullable(),
+  /**
+   * Load figures we passed through from TrainingPeaks, readable back so a write
+   * can be verified — relevant because undeclared keys are stripped rather than
+   * rejected on some paths.
+   */
+  providerIntensityFactor: NumberSchema.nullable(),
+  providerTss: NumberSchema.nullable(),
+  structure: z.unknown().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 
 export type PlanMyPeakWorkoutLibraryItem = z.infer<
   typeof PlanMyPeakWorkoutLibraryItemSchema
 >;
 
 /**
- * Schema for POST /workouts/library response.
- * Supports both direct item and wrapped `{ workout: {...} }` payloads.
+ * Response from a workout write. The body is identical for a create and an
+ * update — the HTTP status (201 vs 200) is what distinguishes them.
  */
-export const PlanMyPeakCreateWorkoutResponseSchema = z
-  .union([
-    PlanMyPeakWorkoutLibraryItemSchema,
-    z.object({
-      workout: PlanMyPeakWorkoutLibraryItemSchema,
-    }),
-    z.object({
-      data: PlanMyPeakWorkoutLibraryItemSchema,
-    }),
-  ])
-  .transform((response) => {
-    if ('workout' in response) {
-      return response.workout;
-    }
-    if ('data' in response) {
-      return response.data;
-    }
-    return response;
-  });
+export const PlanMyPeakCreateWorkoutResponseSchema =
+  PlanMyPeakWorkoutLibraryItemSchema;
 
-export const PlanMyPeakWorkoutFiltersAppliedSchema = z
-  .object({
-    library_id: z.string().nullable().optional(),
-    libraryId: z.string().nullable().optional(),
-    source_id: z.string().nullable().optional(),
-    sourceId: z.string().nullable().optional(),
-  })
-  .passthrough()
-  .transform((filters) => ({
-    library_id: filters.library_id ?? filters.libraryId ?? null,
-    source_id: filters.source_id ?? filters.sourceId ?? null,
-  }));
-
-const PlanMyPeakWorkoutLibraryEnvelopeSchema = z
-  .object({
-    workouts: z.array(PlanMyPeakWorkoutLibraryItemSchema),
-    total: NonNegativeIntSchema.optional(),
-    filters_applied: PlanMyPeakWorkoutFiltersAppliedSchema.optional(),
-    filtersApplied: PlanMyPeakWorkoutFiltersAppliedSchema.optional(),
-  })
-  .passthrough()
-  .transform((data) => ({
-    workouts: data.workouts,
-    total: data.total ?? data.workouts.length,
-    filters_applied: data.filters_applied ?? data.filtersApplied,
-  }));
-
-const PlanMyPeakWorkoutLibraryArraySchema = z
-  .array(PlanMyPeakWorkoutLibraryItemSchema)
-  .transform((workouts) => ({
-    workouts,
-    total: workouts.length,
-  }));
-
-const PlanMyPeakWorkoutLibraryDataSchema = z
-  .object({
-    data: z.array(PlanMyPeakWorkoutLibraryItemSchema),
-  })
-  .passthrough()
-  .transform((data) => ({
-    workouts: data.data,
-    total: data.data.length,
-  }));
-
-const PlanMyPeakWorkoutLibraryItemsSchema = z
-  .object({
-    items: z.array(PlanMyPeakWorkoutLibraryItemSchema),
-  })
-  .passthrough()
-  .transform((data) => ({
-    workouts: data.items,
-    total: data.items.length,
-  }));
+const PlanMyPeakPaginationSchema = z.object({
+  limit: NonNegativeIntSchema,
+  offset: NonNegativeIntSchema,
+  total: NonNegativeIntSchema,
+});
 
 /**
- * Schema for GET /workouts/library response.
- * Accepts wrapped and direct-array payload shapes.
+ * Facet counts. Each group is counted against the search and the *other*
+ * groups' filters but never its own selection, so these do not sum to
+ * `pagination.total`. `incomplete` means the library outgrew the bounded scan
+ * the counts came from.
  */
-export const PlanMyPeakWorkoutLibraryResponseSchema = z.union([
-  PlanMyPeakWorkoutLibraryEnvelopeSchema,
-  PlanMyPeakWorkoutLibraryArraySchema,
-  PlanMyPeakWorkoutLibraryDataSchema,
-  PlanMyPeakWorkoutLibraryItemsSchema,
-]);
+const PlanMyPeakFacetCountsSchema = z.object({
+  workoutType: z.record(z.string(), IntegerSchema),
+  rideType: z.record(z.string(), IntegerSchema),
+  duration: z.record(z.string(), IntegerSchema),
+  total: NonNegativeIntSchema,
+  incomplete: z.boolean(),
+});
+
+export const PlanMyPeakWorkoutLibraryResponseSchema = z.object({
+  data: z.array(PlanMyPeakWorkoutLibraryItemSchema),
+  pagination: PlanMyPeakPaginationSchema,
+  facets: PlanMyPeakFacetCountsSchema,
+});
 
 export type PlanMyPeakWorkoutLibraryResponse = z.infer<
   typeof PlanMyPeakWorkoutLibraryResponseSchema

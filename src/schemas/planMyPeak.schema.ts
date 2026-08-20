@@ -15,6 +15,7 @@ export const PlanMyPeakTargetSchema = z.object({
     'speed',
     'strokeRate',
     'resistance',
+    'rpe',
   ]),
   minValue: z.number(),
   maxValue: z.number(),
@@ -36,6 +37,7 @@ export const PlanMyPeakTargetSchema = z.object({
       'kilograms',
       'pounds',
       'percentOf1RM',
+      'scale10',
     ])
     .optional(),
 });
@@ -107,7 +109,7 @@ export const PlanMyPeakStructureSchema = z.object({
     'speed',
     'resistance',
   ]),
-  primaryLengthMetric: z.enum(['duration', 'distance']),
+  primaryLengthMetric: z.enum(['duration', 'distance', 'repetitions']),
   structure: z.array(PlanMyPeakStructureBlockSchema),
 });
 
@@ -184,6 +186,25 @@ export const PlanMyPeakWorkoutSchema = z.object({
   source_file: z.string(),
   source_format: z.literal('json'),
   signature: z.string(),
+  discipline: z.enum([
+    'bike',
+    'mountain_bike',
+    'run',
+    'swim',
+    'walk',
+    'strength',
+    'cross_train',
+    'cross_country_ski',
+    'rowing',
+    'race',
+    'rest_day',
+    'note',
+    'other',
+  ]),
+  provider_workout_id: z.string().min(1),
+  provider_item_type: z.string().nullable(),
+  provider_intensity_factor: z.number().nullable(),
+  provider_tss: z.number().nullable(),
   source_id: z.string().nullable().optional(),
 });
 

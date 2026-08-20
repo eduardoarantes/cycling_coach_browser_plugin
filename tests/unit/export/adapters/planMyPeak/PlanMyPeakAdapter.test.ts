@@ -6,74 +6,77 @@ import { PlanMyPeakAdapter } from '@/export/adapters/planMyPeak/PlanMyPeakAdapte
 import type { LibraryItem } from '@/types';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 
-function createLibrary(
-  overrides: Partial<{
-    id: string;
-    name: string;
-    owner_id: string | null;
-    is_system: boolean;
-    is_default: boolean;
-    source_id: string | null;
-    created_at: string;
-    updated_at: string;
-  }> = {}
-): {
+type TestLibrary = {
   id: string;
   name: string;
-  owner_id: string | null;
-  is_system: boolean;
-  is_default: boolean;
-  source_id: string | null;
-  created_at: string;
-  updated_at: string;
-} {
+  description: string | null;
+  isDefault: boolean;
+  workoutCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function createLibrary(overrides: Partial<TestLibrary> = {}): TestLibrary {
   return {
     id: 'lib-default',
     name: 'TrainingPeaks Library',
-    owner_id: 'user-1',
-    is_system: false,
-    is_default: true,
-    source_id: null,
-    created_at: '2026-02-27T00:00:00.000Z',
-    updated_at: '2026-02-27T00:00:00.000Z',
+    description: null,
+    isDefault: true,
+    workoutCount: 0,
+    createdAt: '2026-02-27T00:00:00.000Z',
+    updatedAt: '2026-02-27T00:00:00.000Z',
     ...overrides,
   };
 }
 
-function createUploadedWorkout(
-  overrides: Partial<{
-    id: string;
-    name: string;
-    type: string;
-    intensity: string;
-    structure: unknown;
-    base_duration_min: number;
-    base_tss: number;
-    library_id: string;
-    source_id: string | null;
-  }> = {}
-): {
+type TestUploadedWorkout = {
   id: string;
   name: string;
-  type: string;
-  intensity: string;
-  structure: unknown;
-  base_duration_min: number;
-  base_tss: number;
-  library_id: string;
-  source_id: string | null;
-} {
+  workoutType: string;
+  library: { id: string; name: string };
+  providerWorkoutId: string | null;
+};
+
+function createUploadedWorkout(
+  overrides: Partial<TestUploadedWorkout> = {}
+): TestUploadedWorkout {
   return {
-    id: 'wk-1',
-    name: 'Test Workout',
-    type: 'tempo',
-    intensity: 'moderate',
-    structure: {},
-    base_duration_min: 60,
-    base_tss: 50,
-    library_id: 'lib-default',
-    source_id: null,
+    id: 'pmp-workout-1',
+    name: 'TP 4x1k',
+    workoutType: 'bike',
+    library: { id: 'lib-default', name: 'TrainingPeaks Library' },
+    providerWorkoutId: '12684302',
     ...overrides,
+  };
+}
+
+/**
+ * The shape the background returns from an upload: per-workout outcome plus the
+ * counts and the empty-destination flag the adapter reports from.
+ */
+function createUploadSummary(
+  workouts: TestUploadedWorkout[],
+  options: {
+    requestedLibraryId?: string;
+    created?: boolean;
+    failures?: Array<{ name: string; message: string }>;
+  } = {}
+) {
+  const requestedLibraryId = options.requestedLibraryId ?? 'lib-default';
+  const created = options.created ?? true;
+  const results = workouts.map((workout) => ({
+    workout,
+    created,
+    filedElsewhere: workout.library.id !== requestedLibraryId,
+  }));
+
+  return {
+    results,
+    createdCount: created ? results.length : 0,
+    updatedCount: created ? 0 : results.length,
+    destinationEmpty:
+      results.length > 0 && results.every((entry) => entry.filedElsewhere),
+    failures: options.failures ?? [],
   };
 }
 
@@ -193,12 +196,80 @@ describe('PlanMyPeakAdapter', () => {
     });
   });
 
+  describe('transform fallback reporting', () => {
+    const adapter = new PlanMyPeakAdapter();
+
+    function strengthItem(unit: string): LibraryItem {
+      return {
+        exerciseLibraryId: 1,
+        exerciseLibraryItemId: 999,
+        exerciseLibraryItemType: 'WorkoutTemplate',
+        itemName: 'Back Squat',
+        workoutTypeId: 9,
+        distancePlanned: null,
+        totalTimePlanned: 1,
+        caloriesPlanned: null,
+        tssPlanned: null,
+        ifPlanned: null,
+        velocityPlanned: null,
+        energyPlanned: null,
+        elevationGainPlanned: null,
+        description: null,
+        coachComments: null,
+        structure: {
+          primaryIntensityMetric: 'resistance',
+          primaryLengthMetric: 'duration',
+          structure: [
+            {
+              type: 'step',
+              length: { unit: 'repetition', value: 1 },
+              steps: [
+                {
+                  name: 'Squat',
+                  intensityClass: 'active',
+                  length: { unit: 'second', value: 60 },
+                  openDuration: false,
+                  targets: [{ minValue: 100, maxValue: 100, unit }],
+                },
+              ],
+            },
+          ],
+        },
+      } as LibraryItem;
+    }
+
+    it('should name the target unit it could not map', async () => {
+      // The unit string is the one fact that says what to add. Without it a
+      // mapping gap just looks like a workout that arrived empty.
+      const workouts = await adapter.transform([strengthItem('stones')], {});
+      const result = await adapter.validate(workouts);
+
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          message: expect.stringContaining('stones'),
+          severity: 'warning',
+        })
+      );
+    });
+
+    it('should not warn when the targets did map', async () => {
+      const workouts = await adapter.transform([strengthItem('kilograms')], {});
+      const result = await adapter.validate(workouts);
+
+      expect(workouts[0].structure.structure).toHaveLength(1);
+      expect(
+        result.warnings.filter((entry) => entry.field?.startsWith('targets:'))
+      ).toEqual([]);
+    });
+  });
+
   describe('validate', () => {
     const validWorkout: PlanMyPeakWorkout = {
       id: 'test123',
       name: 'Test Workout',
       detailed_description: 'Description',
       sport_type: 'cycling',
+      discipline: 'bike',
       type: 'tempo',
       intensity: 'moderate',
       suitable_phases: ['Base', 'Build'],
@@ -235,6 +306,10 @@ describe('PlanMyPeakAdapter', () => {
       source_file: 'workout_123.json',
       source_format: 'json',
       signature: '1234567890abcdef',
+      provider_workout_id: '12684302',
+      provider_item_type: 'WorkoutTemplate',
+      provider_intensity_factor: 0.75,
+      provider_tss: 50,
     };
 
     it('should validate valid workouts', async () => {
@@ -244,7 +319,9 @@ describe('PlanMyPeakAdapter', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should detect missing workout name', async () => {
+    it('should detect missing workout name and identify it by TrainingPeaks id', async () => {
+      // The one case where the name cannot identify the item, so the message
+      // falls back to something the user can still trace.
       const invalid = { ...validWorkout, name: '' };
       const result = await adapter.validate([invalid]);
 
@@ -252,13 +329,40 @@ describe('PlanMyPeakAdapter', () => {
       expect(result.errors).toContainEqual(
         expect.objectContaining({
           field: expect.stringContaining('name'),
-          message: expect.stringContaining('required'),
+          message: expect.stringContaining(validWorkout.provider_workout_id),
           severity: 'error',
         })
       );
     });
 
-    it('should detect empty structure', async () => {
+    it('should name the offending workout in a validation error', async () => {
+      // A rule with no subject leaves the user guessing which of fifty workouts
+      // tripped it.
+      const invalid = {
+        ...validWorkout,
+        name: 'Threshold 2x20',
+        structure: { ...validWorkout.structure, structure: [] },
+      };
+      const result = await adapter.validate([invalid]);
+
+      expect(result.errors[0].message).toContain('"Threshold 2x20"');
+      expect(result.errors[0].message).toContain('bike');
+    });
+
+    it('should name the workout in a warning too', async () => {
+      const result = await adapter.validate([
+        { ...validWorkout, name: 'Recovery Spin', base_tss: -5 },
+      ]);
+
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          message: expect.stringContaining('"Recovery Spin"'),
+          severity: 'warning',
+        })
+      );
+    });
+
+    it('should detect empty structure on a discipline that must prescribe one', async () => {
       const invalid = {
         ...validWorkout,
         structure: { ...validWorkout.structure, structure: [] },
@@ -273,6 +377,25 @@ describe('PlanMyPeakAdapter', () => {
         })
       );
     });
+
+    it.each(['rest_day', 'note', 'race', 'strength'] as const)(
+      'should accept an empty structure for %s',
+      async (discipline) => {
+        // These are stored without a structure, so validation has to allow what
+        // the transform now deliberately produces for them — otherwise the item
+        // is built correctly and then rejected by us before it is ever sent.
+        const result = await adapter.validate([
+          {
+            ...validWorkout,
+            discipline,
+            structure: { ...validWorkout.structure, structure: [] },
+          },
+        ]);
+
+        expect(result.isValid).toBe(true);
+        expect(result.errors).toEqual([]);
+      }
+    );
 
     it('should warn about invalid duration', async () => {
       const invalid = { ...validWorkout, base_duration_min: 0 };
@@ -330,6 +453,7 @@ describe('PlanMyPeakAdapter', () => {
       name: 'Test Workout',
       detailed_description: 'Description',
       sport_type: 'cycling',
+      discipline: 'bike',
       type: 'tempo',
       intensity: 'moderate',
       suitable_phases: ['Base', 'Build'],
@@ -366,6 +490,10 @@ describe('PlanMyPeakAdapter', () => {
       source_file: 'workout_123.json',
       source_format: 'json',
       signature: '1234567890abcdef',
+      provider_workout_id: '12684302',
+      provider_item_type: 'WorkoutTemplate',
+      provider_intensity_factor: 0.75,
+      provider_tss: 50,
     };
 
     it('should export workouts to PlanMyPeak API library', async () => {
@@ -380,7 +508,10 @@ describe('PlanMyPeakAdapter', () => {
           }
 
           if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
-            return { success: true, data: [createUploadedWorkout()] };
+            return {
+              success: true,
+              data: createUploadSummary([createUploadedWorkout()]),
+            };
           }
 
           return {
@@ -408,7 +539,7 @@ describe('PlanMyPeakAdapter', () => {
       const createdLibrary = createLibrary({
         id: 'lib-new',
         name: 'My Export Library',
-        is_default: false,
+        isDefault: false,
       });
 
       vi.mocked(chrome.runtime.sendMessage).mockImplementation(
@@ -426,11 +557,14 @@ describe('PlanMyPeakAdapter', () => {
           if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
             return {
               success: true,
-              data: [
-                createUploadedWorkout({
-                  library_id: 'lib-new',
-                }),
-              ],
+              data: createUploadSummary(
+                [
+                  createUploadedWorkout({
+                    library: { id: 'lib-new', name: 'My Export Library' },
+                  }),
+                ],
+                { requestedLibraryId: 'lib-new' }
+              ),
             };
           }
 
@@ -465,7 +599,7 @@ describe('PlanMyPeakAdapter', () => {
         createLibrary({
           id: 'lib-target',
           name: 'Target Library',
-          is_default: false,
+          isDefault: false,
         }),
       ];
 
@@ -478,13 +612,17 @@ describe('PlanMyPeakAdapter', () => {
           }
 
           if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            const libraryId = typed.libraryId as string;
             return {
               success: true,
-              data: [
-                createUploadedWorkout({
-                  library_id: typed.libraryId as string,
-                }),
-              ],
+              data: createUploadSummary(
+                [
+                  createUploadedWorkout({
+                    library: { id: libraryId, name: 'Target Library' },
+                  }),
+                ],
+                { requestedLibraryId: libraryId }
+              ),
             };
           }
 
@@ -506,6 +644,78 @@ describe('PlanMyPeakAdapter', () => {
           libraryId: 'lib-target',
         })
       );
+    });
+
+    it('should warn that non-cycling workouts are hidden by the library filter', async () => {
+      // Stored correctly and still invisible on the coach's first look, which is
+      // indistinguishable from the import having dropped them.
+      const library = createLibrary();
+
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: [library] };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return {
+              success: true,
+              data: createUploadSummary([
+                createUploadedWorkout({ id: 'w-1', workoutType: 'rest_day' }),
+                createUploadedWorkout({ id: 'w-2', workoutType: 'strength' }),
+              ]),
+            };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
+      const result = await adapter.export([mockWorkout], {});
+
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          field: 'visibility',
+          message: expect.stringContaining('rest_day, strength'),
+        })
+      );
+    });
+
+    it('should stay quiet when everything imported is cycling', async () => {
+      const library = createLibrary();
+
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as { type: string; [key: string]: unknown };
+
+          if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+            return { success: true, data: [library] };
+          }
+
+          if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+            return {
+              success: true,
+              data: createUploadSummary([createUploadedWorkout()]),
+            };
+          }
+
+          return {
+            success: false,
+            error: { message: `Unhandled message ${typed.type}` },
+          };
+        }
+      );
+
+      const result = await adapter.export([mockWorkout], {});
+
+      expect(
+        result.warnings.filter((entry) => entry.field === 'visibility')
+      ).toEqual([]);
     });
 
     it('should return failed export result when upload fails', async () => {
@@ -575,7 +785,10 @@ describe('PlanMyPeakAdapter', () => {
           }
 
           if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
-            return { success: true, data: [createUploadedWorkout()] };
+            return {
+              success: true,
+              data: createUploadSummary([createUploadedWorkout()]),
+            };
           }
 
           return {
@@ -588,8 +801,11 @@ describe('PlanMyPeakAdapter', () => {
       const result = await adapter.export([mockWorkout], {});
 
       expect(result.success).toBe(true);
-      expect(result.warnings.length).toBeGreaterThan(0);
-      expect(result.warnings[0].message).toContain('Skipped');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          message: expect.stringContaining('Skipped'),
+        })
+      );
     });
   });
 
@@ -643,7 +859,10 @@ describe('PlanMyPeakAdapter', () => {
           }
 
           if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
-            return { success: true, data: [createUploadedWorkout()] };
+            return {
+              success: true,
+              data: createUploadSummary([createUploadedWorkout()]),
+            };
           }
 
           return {

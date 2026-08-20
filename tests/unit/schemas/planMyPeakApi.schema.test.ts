@@ -3,87 +3,193 @@ import {
   PlanMyPeakCoachSchema,
   PlanMyPeakCreateWorkoutResponseSchema,
   PlanMyPeakLibrariesResponseSchema,
-  PlanMyPeakLibrarySchema,
   PlanMyPeakWorkoutLibraryResponseSchema,
   getCoachTrainingPeaksExternalId,
 } from '@/schemas/planMyPeakApi.schema';
 
+/** A workout row as PlanMyPeak returns it, used as the base for these cases. */
+function workoutPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'wk-1',
+    name: 'Sweet Spot 4x8',
+    description: 'Tempo work.',
+    workoutType: 'bike',
+    rideType: 'sweet_spot',
+    summary: {
+      segmentCount: 1,
+      stepCount: 4,
+      estimatedDurationSeconds: 1920,
+    },
+    profile: null,
+    library: { id: 'lib-1', name: 'TP Import' },
+    provider: 'training_peaks',
+    providerWorkoutId: '12684302',
+    providerMetadata: { suitablePhases: ['Base'] },
+    providerIntensityFactor: null,
+    providerTss: null,
+    createdAt: '2026-08-19T00:00:00.000Z',
+    updatedAt: '2026-08-19T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 describe('planMyPeakApi schemas', () => {
-  it('accepts libraries as a direct array payload', () => {
-    const parsed = PlanMyPeakLibrariesResponseSchema.parse([
-      {
-        id: 'lib-1',
-        name: 'My Library',
-        is_system: false,
-        is_default: true,
-        created_at: '2026-02-27T00:00:00.000Z',
-        updated_at: '2026-02-27T00:00:00.000Z',
-      },
-    ]);
-
-    expect(parsed.libraries).toHaveLength(1);
-    expect(parsed.total).toBe(1);
-  });
-
-  it('accepts workout list payload with nullable base_tss', () => {
-    const parsed = PlanMyPeakWorkoutLibraryResponseSchema.parse({
-      workouts: [
+  it('parses the libraries list, including the workout count', () => {
+    const parsed = PlanMyPeakLibrariesResponseSchema.parse({
+      data: [
         {
-          id: 'wk-1',
-          name: 'Easy Ride',
-          type: 'endurance',
-          intensity: 'easy',
-          structure: {},
-          base_duration_min: 60,
-          base_tss: null,
-          library_id: 'lib-1',
-          source_id: 'TP:abc123',
+          id: 'lib-1',
+          name: 'My Workouts',
+          description: null,
+          isDefault: true,
+          workoutCount: 25,
+          createdAt: '2026-08-19T00:00:00.000Z',
+          updatedAt: '2026-08-19T00:00:00.000Z',
         },
       ],
-      total: 1,
-      filters_applied: {
-        library_id: 'lib-1',
+    });
+
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0].isDefault).toBe(true);
+    expect(parsed.data[0].workoutCount).toBe(25);
+  });
+
+  it('parses a workout list with pagination and facets', () => {
+    const parsed = PlanMyPeakWorkoutLibraryResponseSchema.parse({
+      data: [workoutPayload()],
+      pagination: { limit: 25, offset: 0, total: 1 },
+      facets: {
+        workoutType: { bike: 1 },
+        rideType: { sweet_spot: 1 },
+        duration: { under_1h: 1 },
+        total: 1,
+        incomplete: false,
       },
     });
 
-    expect(parsed.workouts).toHaveLength(1);
-    expect(parsed.workouts[0].base_tss).toBeNull();
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.pagination.total).toBe(1);
+    expect(parsed.facets.incomplete).toBe(false);
   });
 
-  it('accepts wrapped create workout response', () => {
-    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse({
-      workout: {
-        id: 'wk-1',
-        name: 'Tempo Ride',
-        type: 'tempo',
-        intensity: 'moderate',
-        structure: {},
-        base_duration_min: 75,
-        base_tss: 65,
-        library_id: 'lib-1',
-      },
-    });
+  it('keeps a null profile, which is common rather than exceptional', () => {
+    // Null whenever the structure is open-ended, distance-based, or in absolute
+    // watts, so this has to parse rather than be treated as malformed.
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({ profile: null })
+    );
 
-    expect(parsed.id).toBe('wk-1');
-    expect(parsed.name).toBe('Tempo Ride');
+    expect(parsed.profile).toBeNull();
   });
 
-  it('normalizes camelCase library keys', () => {
-    const parsed = PlanMyPeakLibrarySchema.parse({
-      id: 'lib-2',
-      name: 'Imported',
-      ownerId: 'user-1',
-      isSystem: false,
-      isDefault: false,
-      sourceId: 'TP:PLAN_WORKOUTS_V1',
-      createdAt: '2026-02-27T00:00:00.000Z',
-      updatedAt: '2026-02-27T00:00:00.000Z',
-    });
+  it('accepts a heart-rate profile with no load', () => {
+    // An HR workout has no normalized power, so there is nothing to derive a
+    // load from. Null means unknown here, never zero.
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({
+        profile: {
+          metric: 'heartrate',
+          unit: 'percentOfThresholdHr',
+          segments: [{ percentOfThreshold: 88, seconds: 1200 }],
+          durationSeconds: 1200,
+          intensityFactor: null,
+          tss: null,
+          loadSource: null,
+          peakPercentOfThreshold: 92,
+        },
+      })
+    );
 
-    expect(parsed.owner_id).toBe('user-1');
-    expect(parsed.source_id).toBe('TP:PLAN_WORKOUTS_V1');
-    expect(parsed.is_system).toBe(false);
-    expect(parsed.is_default).toBe(false);
+    expect(parsed.profile?.metric).toBe('heartrate');
+    expect(parsed.profile?.intensityFactor).toBeNull();
+    expect(parsed.profile?.loadSource).toBeNull();
+  });
+
+  it('distinguishes a provider-supplied load from a derived one', () => {
+    // Presenting a passed-through TrainingPeaks figure as our own derivation
+    // would misrepresent where the number came from.
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({
+        providerIntensityFactor: 0.72,
+        providerTss: 61,
+        profile: {
+          metric: 'heartrate',
+          unit: 'percentOfMaxHr',
+          segments: [{ percentOfThreshold: 80, seconds: 3600 }],
+          durationSeconds: 3600,
+          intensityFactor: 0.72,
+          tss: 61,
+          loadSource: 'provider',
+          peakPercentOfThreshold: 84,
+        },
+      })
+    );
+
+    expect(parsed.profile?.loadSource).toBe('provider');
+    expect(parsed.providerIntensityFactor).toBe(0.72);
+    expect(parsed.providerTss).toBe(61);
+  });
+
+  it('parses a populated profile with its ratio intensity factor', () => {
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({
+        profile: {
+          metric: 'power',
+          unit: 'percentOfFtp',
+          segments: [{ percentOfThreshold: 90, seconds: 1920 }],
+          durationSeconds: 1920,
+          intensityFactor: 0.85,
+          tss: 45,
+          loadSource: 'derived',
+          peakPercentOfThreshold: 93.5,
+        },
+      })
+    );
+
+    // A ratio, not a percentage — 0.85 rather than 85.
+    expect(parsed.profile?.intensityFactor).toBe(0.85);
+  });
+
+  it('reports the library a workout is actually filed in', () => {
+    // The write response reports where the workout really is, which is how an
+    // importer detects that a coach had moved it somewhere else.
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({ library: { id: 'lib-9', name: 'Base Phase' } })
+    );
+
+    expect(parsed.library.id).toBe('lib-9');
+    expect(parsed.library.name).toBe('Base Phase');
+  });
+
+  it('accepts a workout authored in PlanMyPeak, which has no provider identity', () => {
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({
+        provider: null,
+        providerWorkoutId: null,
+        providerMetadata: null,
+      })
+    );
+
+    expect(parsed.provider).toBeNull();
+    expect(parsed.providerWorkoutId).toBeNull();
+    expect(parsed.providerMetadata).toBeNull();
+  });
+
+  it('accepts an unfamiliar rideType, which the server derives and may extend', () => {
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({ rideType: 'some_new_classification' })
+    );
+
+    expect(parsed.rideType).toBe('some_new_classification');
+  });
+
+  it('rejects a workoutType outside the accepted vocabulary', () => {
+    // We *send* this one, so a wrong value is our bug and should be loud.
+    expect(() =>
+      PlanMyPeakCreateWorkoutResponseSchema.parse(
+        workoutPayload({ workoutType: 'cycling' })
+      )
+    ).toThrow();
   });
 });
 

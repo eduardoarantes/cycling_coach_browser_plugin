@@ -70,12 +70,15 @@ import {
 } from './api/trainingPeaks';
 import {
   fetchPlanMyPeakLibraries,
-  fetchPlanMyPeakWorkoutBySourceId,
+  fetchPlanMyPeakWorkoutByProviderId,
   createPlanMyPeakLibrary,
   deletePlanMyPeakLibrary,
+  deletePlanMyPeakWorkout,
+  fetchPlanMyPeakWorkouts,
   createPlanMyPeakTrainingPlan,
   createPlanMyPeakTrainingPlanNote,
   exportWorkoutsToPlanMyPeakLibrary,
+  type PlanMyPeakUploadSummary,
   ingestTrainingPeaksAthleteGroups,
   fetchPlanMyPeakCoach,
 } from './api/planMyPeak';
@@ -441,10 +444,10 @@ async function handleGetPlanMyPeakLibraries(): Promise<
  */
 async function handleCreatePlanMyPeakLibrary(
   name: string,
-  sourceId?: string | null
+  description?: string | null
 ): Promise<ApiResponse<PlanMyPeakLibrary>> {
   logger.debug('Handling CREATE_PLANMYPEAK_LIBRARY message:', name);
-  return await createPlanMyPeakLibrary(name, sourceId);
+  return await createPlanMyPeakLibrary(name, description);
 }
 
 async function handleImportAthleteGroupsToPlanMyPeak(
@@ -476,13 +479,35 @@ async function handleDeletePlanMyPeakLibrary(
 }
 
 /**
+ * Handle GET_PLANMYPEAK_WORKOUTS message from popup
+ */
+async function handleGetPlanMyPeakWorkouts(filters: {
+  libraryId?: string;
+  provider?: string;
+  providerWorkoutId?: string;
+}): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
+  logger.debug('Handling GET_PLANMYPEAK_WORKOUTS message:', filters);
+  return await fetchPlanMyPeakWorkouts(filters);
+}
+
+/**
+ * Handle DELETE_PLANMYPEAK_WORKOUT message from popup
+ */
+async function handleDeletePlanMyPeakWorkout(
+  workoutId: string
+): Promise<ApiResponse<null>> {
+  logger.debug('Handling DELETE_PLANMYPEAK_WORKOUT message:', workoutId);
+  return await deletePlanMyPeakWorkout(workoutId);
+}
+
+/**
  * Handle EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message from popup
  * Uploads transformed workouts to a PlanMyPeak library
  */
 async function handleExportWorkoutsToPlanMyPeakLibrary(
   workouts: PlanMyPeakWorkout[],
   libraryId: string
-): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
+): Promise<ApiResponse<PlanMyPeakUploadSummary>> {
   logger.debug(
     'Handling EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message:',
     workouts.length,
@@ -493,20 +518,20 @@ async function handleExportWorkoutsToPlanMyPeakLibrary(
 }
 
 /**
- * Handle GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID message from popup
- * Finds a PlanMyPeak workout by source_id (optionally constrained to a library)
+ * Handle GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID message from popup
+ * Finds a PlanMyPeak workout by its TrainingPeaks id (optionally scoped to a library)
  */
-async function handleGetPlanMyPeakWorkoutBySourceId(
-  sourceId: string,
+async function handleGetPlanMyPeakWorkoutByProviderId(
+  providerWorkoutId: string,
   libraryId?: string
 ): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem | null>> {
   logger.debug(
-    'Handling GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID message:',
-    sourceId,
+    'Handling GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID message:',
+    providerWorkoutId,
     'library:',
     libraryId ?? '(any)'
   );
-  return await fetchPlanMyPeakWorkoutBySourceId(sourceId, libraryId);
+  return await fetchPlanMyPeakWorkoutByProviderId(providerWorkoutId, libraryId);
 }
 
 /**
@@ -1021,7 +1046,7 @@ export async function handleMessage(
     case 'CREATE_PLANMYPEAK_LIBRARY':
       return await handleCreatePlanMyPeakLibrary(
         message.name,
-        message.sourceId
+        message.description
       );
 
     case 'DELETE_PLANMYPEAK_LIBRARY':
@@ -1033,9 +1058,19 @@ export async function handleMessage(
         message.libraryId
       );
 
-    case 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID':
-      return await handleGetPlanMyPeakWorkoutBySourceId(
-        message.sourceId,
+    case 'GET_PLANMYPEAK_WORKOUTS':
+      return await handleGetPlanMyPeakWorkouts({
+        libraryId: message.libraryId,
+        provider: message.provider,
+        providerWorkoutId: message.providerWorkoutId,
+      });
+
+    case 'DELETE_PLANMYPEAK_WORKOUT':
+      return await handleDeletePlanMyPeakWorkout(message.workoutId);
+
+    case 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID':
+      return await handleGetPlanMyPeakWorkoutByProviderId(
+        message.providerWorkoutId,
         message.libraryId
       );
 

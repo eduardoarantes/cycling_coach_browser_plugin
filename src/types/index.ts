@@ -65,12 +65,29 @@ export interface GetPlanMyPeakLibrariesMessage {
 export interface CreatePlanMyPeakLibraryMessage {
   type: 'CREATE_PLANMYPEAK_LIBRARY';
   name: string;
-  sourceId?: string | null;
+  description?: string | null;
 }
 
 export interface DeletePlanMyPeakLibraryMessage {
   type: 'DELETE_PLANMYPEAK_LIBRARY';
   libraryId: string;
+}
+
+/** List workouts, optionally scoped to a library and/or a provider. */
+export interface GetPlanMyPeakWorkoutsMessage {
+  type: 'GET_PLANMYPEAK_WORKOUTS';
+  libraryId?: string;
+  provider?: string;
+  providerWorkoutId?: string;
+}
+
+/**
+ * Remove one workout. Used when reconciling a library on Replace, since a
+ * library holding workouts cannot be deleted and recreated.
+ */
+export interface DeletePlanMyPeakWorkoutMessage {
+  type: 'DELETE_PLANMYPEAK_WORKOUT';
+  workoutId: string;
 }
 
 /**
@@ -82,9 +99,13 @@ export interface ExportWorkoutsToPlanMyPeakLibraryMessage {
   libraryId: string;
 }
 
-export interface GetPlanMyPeakWorkoutBySourceIdMessage {
-  type: 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID';
-  sourceId: string;
+/**
+ * Look a workout up by its TrainingPeaks id before writing it. Rarely needed,
+ * since the workout POST is itself an upsert.
+ */
+export interface GetPlanMyPeakWorkoutByProviderIdMessage {
+  type: 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID';
+  providerWorkoutId: string;
   libraryId?: string;
 }
 
@@ -345,7 +366,9 @@ export type RuntimeMessage =
   | CreatePlanMyPeakLibraryMessage
   | DeletePlanMyPeakLibraryMessage
   | ExportWorkoutsToPlanMyPeakLibraryMessage
-  | GetPlanMyPeakWorkoutBySourceIdMessage
+  | GetPlanMyPeakWorkoutByProviderIdMessage
+  | DeletePlanMyPeakWorkoutMessage
+  | GetPlanMyPeakWorkoutsMessage
   | CreatePlanMyPeakTrainingPlanMessage
   | CreatePlanMyPeakTrainingPlanNoteMessage
   | ImportAthleteGroupsToPlanMyPeakMessage

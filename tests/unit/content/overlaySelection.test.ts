@@ -20,8 +20,33 @@ import type { TrainingPlan } from '@/schemas/trainingPlan.schema';
 
 const LIBRARY = { libraryId: 1, libraryName: 'Base Training' };
 
-function item(id: number, workoutTypeId = 2): LibraryItem {
+/** A minimal structure — enough for the item to be importable at all. */
+const MINIMAL_STRUCTURE = {
+  primaryIntensityMetric: 'percentOfFtp',
+  primaryLengthMetric: 'duration',
+  structure: [
+    {
+      type: 'step',
+      length: { unit: 'minute', value: 30 },
+      steps: [
+        {
+          name: 'Steady',
+          intensityClass: 'active',
+          length: { unit: 'minute', value: 30 },
+          targets: [{ minValue: 70, maxValue: 80 }],
+        },
+      ],
+    },
+  ],
+};
+
+function item(
+  id: number,
+  workoutTypeId = 2,
+  structure: unknown = MINIMAL_STRUCTURE
+): LibraryItem {
   return {
+    structure,
     exerciseLibraryId: 1,
     exerciseLibraryItemId: id,
     exerciseLibraryItemType: 'workout',
@@ -155,11 +180,29 @@ describe('overlay selection', () => {
   });
 
   describe('unsupported workouts', () => {
-    it('should flag workout types PlanMyPeak cannot accept', () => {
-      const strength = item(20, 9);
-      const flagged = unsupportedWorkouts([item(10), strength]);
+    it('should flag a training session that prescribes nothing', () => {
+      // A bike workout with no segments cannot be performed, so PlanMyPeak
+      // refuses it and there is nothing worth sending.
+      const emptyRide = item(20, 2, null);
+      const flagged = unsupportedWorkouts([item(10), emptyRide]);
 
       expect(flagged.map((entry) => entry.exerciseLibraryItemId)).toEqual([20]);
+    });
+
+    it('should not flag entries PlanMyPeak stores without a structure', () => {
+      // Rest days, notes, races and strength sessions are stored without one:
+      // for these, having nothing to prescribe is the point.
+      const restDay = item(21, 7, null);
+      const race = item(22, 6, null);
+      const strength = item(23, 9, null);
+
+      expect(unsupportedWorkouts([restDay, race, strength])).toEqual([]);
+    });
+
+    it('should not flag a discipline that used to be rejected locally', () => {
+      // Walk and rowing have PlanMyPeak disciplines now, so a structured one is
+      // sent and the server is the authority on it.
+      expect(unsupportedWorkouts([item(24, 13), item(25, 12)])).toEqual([]);
     });
   });
 
@@ -200,7 +243,7 @@ describe('overlay selection', () => {
     });
 
     it('should surface unsupported workouts inside the selection', () => {
-      const items = [item(10), item(20, 9)];
+      const items = [item(10), item(20, 2, null)];
       const selection = toggleLibrary(EMPTY_SELECTION, LIBRARY);
       const summary = summarizeSelection(selection, new Map([[1, items]]));
 

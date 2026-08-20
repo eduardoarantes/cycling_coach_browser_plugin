@@ -8,7 +8,7 @@
 
 import type { LibraryItem } from '@/schemas/library.schema';
 import type { TrainingPlan } from '@/schemas/trainingPlan.schema';
-import { isSupportedTpWorkoutTypeForPlanMyPeak } from '@/export/adapters/planMyPeak/workoutMapping';
+import { canImportTpItemToPlanMyPeak } from '@/export/adapters/planMyPeak/workoutMapping';
 
 export type LibraryWorkoutSelection = 'all' | ReadonlySet<number>;
 
@@ -172,9 +172,7 @@ export function selectedItemsForLibrary(
 export function unsupportedWorkouts(
   items: ReadonlyArray<LibraryItem>
 ): LibraryItem[] {
-  return items.filter(
-    (item) => !isSupportedTpWorkoutTypeForPlanMyPeak(item.workoutTypeId)
-  );
+  return items.filter((item) => !canImportTpItemToPlanMyPeak(item));
 }
 
 export interface SelectionSummary {

@@ -4,9 +4,10 @@ import type {
   CreatePlanMyPeakTrainingPlanNoteMessage,
   ExportWorkoutsToPlanMyPeakLibraryMessage,
   GetPlanMyPeakLibrariesMessage,
-  GetPlanMyPeakWorkoutBySourceIdMessage,
+  GetPlanMyPeakWorkoutByProviderIdMessage,
   TrainingPlanExportProgressPayload,
 } from '@/types';
+import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
 import type {
   ApiResponse,
   CalendarNote,
@@ -33,7 +34,6 @@ import { getDayOfWeek, getWeekNumber } from '@/utils/dateUtils';
 import { planMyPeakAdapter } from './PlanMyPeakAdapter';
 import { normalizeTpPlanWorkoutsToPlanMyPeakLibraryItems } from './trainingPlanNormalizer';
 
-const TP_SHARED_PLAN_WORKOUT_LIBRARY_SOURCE_ID = 'TP:PLAN_WORKOUTS_V1';
 const TP_SHARED_PLAN_WORKOUT_LIBRARY_NAME = 'TrainingPeaks Plan Workouts';
 
 const DAY_KEYS = [
@@ -155,8 +155,15 @@ async function resolveSharedPlanWorkoutLibrary(
     return librariesResponse;
   }
 
+  // Libraries carry no provider identity of their own, so name is all we have
+  // to recognise ours by. A coach who renames it gets a second one created here.
+  // Provider identity on the library would fix that; raised with the backend as
+  // a future item.
+  const sharedName =
+    preferredName?.trim() || `${TP_SHARED_PLAN_WORKOUT_LIBRARY_NAME} (Shared)`;
+
   const existing = librariesResponse.data.find(
-    (library) => library.source_id === TP_SHARED_PLAN_WORKOUT_LIBRARY_SOURCE_ID
+    (library) => library.name.trim().toLowerCase() === sharedName.toLowerCase()
   );
   if (existing) {
     return { success: true, data: existing };
@@ -167,10 +174,7 @@ async function resolveSharedPlanWorkoutLibrary(
     ApiResponse<PlanMyPeakLibrary>
   >({
     type: 'CREATE_PLANMYPEAK_LIBRARY',
-    name:
-      preferredName?.trim() ||
-      `${TP_SHARED_PLAN_WORKOUT_LIBRARY_NAME} (Shared)`,
-    sourceId: TP_SHARED_PLAN_WORKOUT_LIBRARY_SOURCE_ID,
+    name: sharedName,
   });
 }
 
@@ -452,11 +456,11 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     }
 
     const existingResult = await chrome.runtime.sendMessage<
-      GetPlanMyPeakWorkoutBySourceIdMessage,
+      GetPlanMyPeakWorkoutByProviderIdMessage,
       ApiResponse<PlanMyPeakWorkoutLibraryItem | null>
     >({
-      type: 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID',
-      sourceId,
+      type: 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID',
+      providerWorkoutId: workout.provider_workout_id,
       libraryId: libraryResult.data.id,
     });
 
@@ -491,21 +495,16 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       continue;
     }
 
-    const uploadPayload: PlanMyPeakWorkout = {
-      ...workout,
-      source_id: sourceId,
-    };
-
     const uploadResult = await chrome.runtime.sendMessage<
       ExportWorkoutsToPlanMyPeakLibraryMessage,
-      ApiResponse<PlanMyPeakWorkoutLibraryItem[]>
+      ApiResponse<PlanMyPeakUploadSummary>
     >({
       type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
-      workouts: [uploadPayload],
+      workouts: [workout],
       libraryId: libraryResult.data.id,
     });
 
-    if (!uploadResult.success || uploadResult.data.length === 0) {
+    if (!uploadResult.success || uploadResult.data.results.length === 0) {
       return failWithProgress(
         [
           uploadResult.success
@@ -521,7 +520,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       );
     }
 
-    sourceIdToWorkoutId.set(sourceId, uploadResult.data[0].id);
+    sourceIdToWorkoutId.set(sourceId, uploadResult.data.results[0].workout.id);
     itemMessage = 'Created workout in shared library';
     classicCurrent += 1;
     overallCurrent += 1;

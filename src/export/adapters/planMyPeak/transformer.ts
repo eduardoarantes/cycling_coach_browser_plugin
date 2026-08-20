@@ -21,6 +21,9 @@ import type {
 import { logger } from '@/utils/logger';
 import {
   isSupportedTpLengthUnitForPlanMyPeak,
+  DISCIPLINES_ALLOWING_EMPTY_STRUCTURE,
+  hasImportableStructure,
+  resolvePlanMyPeakDiscipline,
   mapTpWorkoutTypeIdToPlanMyPeakSportType,
   mapTpIntensityClassToPlanMyPeakStepIntensity,
   mapTpTargetToPlanMyPeakTarget,
@@ -416,6 +419,38 @@ function mapTpPrimaryIntensityMetricToPlanMyPeakPrimaryMetric(
 /**
  * Transform structure blocks (removes begin/end, transforms targets)
  */
+/** The wrapper PlanMyPeak expects when there is nothing to prescribe. */
+const EMPTY_STRUCTURE: PlanMyPeakStructure = {
+  primaryIntensityMetric: 'percentOfFtp',
+  primaryLengthMetric: 'duration',
+  structure: [],
+};
+
+/**
+ * Transform the structure of an item whose discipline may carry none.
+ *
+ * Falls back to an empty structure both when TrainingPeaks supplied none and
+ * when it supplied one we cannot express, rather than failing the whole item.
+ */
+function transformStructureAllowingEmpty(
+  item: LibraryItem
+): PlanMyPeakStructure {
+  if (!hasImportableStructure(item)) {
+    return EMPTY_STRUCTURE;
+  }
+
+  try {
+    return transformStructure(item.structure);
+  } catch (error) {
+    logger.warn(
+      `[Transformer] Sending "${item.itemName}" without a structure - ${
+        error instanceof Error ? error.message : 'unsupported structure'
+      }`
+    );
+    return EMPTY_STRUCTURE;
+  }
+}
+
 function transformStructure(tpStructure: unknown): PlanMyPeakStructure {
   if (
     !tpStructure ||
@@ -433,7 +468,9 @@ function transformStructure(tpStructure: unknown): PlanMyPeakStructure {
 
   if (
     structure.primaryLengthMetric !== 'duration' &&
-    structure.primaryLengthMetric !== 'distance'
+    structure.primaryLengthMetric !== 'distance' &&
+    // Legal for rep-based work such as strength sets.
+    structure.primaryLengthMetric !== 'repetitions'
   ) {
     throw new Error(
       `Unsupported TP primaryLengthMetric for PlanMyPeak: ${String(
@@ -481,19 +518,17 @@ function transformStructure(tpStructure: unknown): PlanMyPeakStructure {
   return {
     primaryIntensityMetric,
     primaryLengthMetric:
-      structure.primaryLengthMetric === 'distance' ? 'distance' : 'duration',
+      structure.primaryLengthMetric === 'distance'
+        ? 'distance'
+        : structure.primaryLengthMetric === 'repetitions'
+          ? 'repetitions'
+          : 'duration',
     structure: transformedBlocks,
   };
 }
 
 function inferSportType(item: LibraryItem): PlanMyPeakSportType {
-  const sportType = mapTpWorkoutTypeIdToPlanMyPeakSportType(item.workoutTypeId);
-  if (!sportType) {
-    throw new Error(
-      `Unsupported TP workoutTypeId for PlanMyPeak: ${String(item.workoutTypeId)}`
-    );
-  }
-  return sportType;
+  return mapTpWorkoutTypeIdToPlanMyPeakSportType(item.workoutTypeId);
 }
 
 function normalizeNarrativeText(
@@ -565,8 +600,21 @@ export function transformToPlanMyPeak(
     );
   }
 
-  // Transform structure (remove polyline, begin/end, add target type/unit)
-  const transformedStructure = transformStructure(item.structure);
+  const discipline = resolvePlanMyPeakDiscipline(item);
+  const allowsEmptyStructure =
+    DISCIPLINES_ALLOWING_EMPTY_STRUCTURE.has(discipline);
+
+  // Transform structure (remove polyline, begin/end, add target type/unit).
+  //
+  // Rest days, notes, races and strength sessions may carry no structure:
+  // PlanMyPeak stores those without one, and the wrapper still has to be sent —
+  // an empty segment list, not an absent object. Strength is the interesting
+  // case: its prescription is usually prose ("5x5 back squat") and our target
+  // vocabulary has no kilograms or percent-of-1RM, so a structure we cannot
+  // express is better sent empty with the description intact than dropped.
+  const transformedStructure = allowsEmptyStructure
+    ? transformStructureAllowingEmpty(item)
+    : transformStructure(item.structure);
   const sportType = inferSportType(item);
 
   const workout: PlanMyPeakWorkout = {
@@ -574,6 +622,7 @@ export function transformToPlanMyPeak(
     name: item.itemName,
     detailed_description: buildPlanMyPeakDetailedDescription(item),
     sport_type: sportType,
+    discipline,
     type: inferWorkoutType(item, config, sportType),
     intensity: inferIntensityLevel(item, config),
     suitable_phases: inferSuitablePhases(item, config, sportType),
@@ -582,6 +631,14 @@ export function transformToPlanMyPeak(
     base_duration_min: baseDuration,
     base_tss: baseTss,
     variable_components: null, // Not available in TrainingPeaks data
+    // TrainingPeaks' own id, which becomes PlanMyPeak's providerWorkoutId and
+    // makes a re-import an update rather than a duplicate.
+    provider_workout_id: String(item.exerciseLibraryItemId),
+    provider_item_type: item.exerciseLibraryItemType?.trim() || null,
+    // Passed through verbatim; the API boundary decides whether the pair is
+    // usable, since PlanMyPeak refuses one without the other.
+    provider_intensity_factor: item.ifPlanned,
+    provider_tss: item.tssPlanned,
     source_file: `workout_${item.exerciseLibraryItemId}.json`,
     source_format: 'json',
     signature: generateSignature(item),

@@ -135,7 +135,7 @@ function makeNote(overrides: Partial<CalendarNote> = {}): CalendarNote {
 }
 
 describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
-  it('deduplicates workouts by TP source_id and creates a training plan with note', async () => {
+  it('deduplicates identical workout structures and creates a training plan with note', async () => {
     const libraryId = 'library-shared';
     const workoutsBySource = new Map<
       string,
@@ -167,32 +167,39 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
             data: {
               id: libraryId,
               name: typed.name,
-              owner_id: 'user-1',
-              is_system: false,
-              is_default: false,
-              source_id: typed.sourceId,
-              created_at: '2026-02-27T00:00:00.000Z',
-              updated_at: '2026-02-27T00:00:00.000Z',
+              description: null,
+              isDefault: false,
+              workoutCount: 0,
+              createdAt: '2026-02-27T00:00:00.000Z',
+              updatedAt: '2026-02-27T00:00:00.000Z',
             },
           };
         }
 
-        if (typed.type === 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID') {
-          const sourceId = typed.sourceId as string;
-          const existing = workoutsBySource.get(sourceId) ?? null;
+        if (typed.type === 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID') {
+          const providerWorkoutId = typed.providerWorkoutId as string;
+          const existing = workoutsBySource.get(providerWorkoutId) ?? null;
           return {
             success: true,
             data: existing
               ? {
                   id: existing.id,
                   name: 'Deduped Workout',
-                  type: 'endurance',
-                  intensity: 'moderate',
-                  structure: {},
-                  base_duration_min: 75,
-                  base_tss: 65,
-                  library_id: libraryId,
-                  source_id: existing.source_id,
+                  description: null,
+                  workoutType: 'bike',
+                  rideType: 'endurance',
+                  summary: {
+                    segmentCount: 1,
+                    stepCount: 1,
+                    estimatedDurationSeconds: 4500,
+                  },
+                  profile: null,
+                  library: { id: libraryId, name: 'Shared' },
+                  provider: 'training_peaks',
+                  providerWorkoutId: existing.source_id,
+                  providerMetadata: {},
+                  createdAt: '2026-02-27T00:00:00.000Z',
+                  updatedAt: '2026-02-27T00:00:00.000Z',
                 }
               : null,
           };
@@ -200,27 +207,44 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
 
         if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
           uploadCalls.push(typed);
-          const workout = (typed.workouts as Array<{ source_id: string }>)[0];
+          const workout = (
+            typed.workouts as Array<{ provider_workout_id: string }>
+          )[0];
           const createdId = `wk-${workoutsBySource.size + 1}`;
-          workoutsBySource.set(workout.source_id, {
+          workoutsBySource.set(workout.provider_workout_id, {
             id: createdId,
-            source_id: workout.source_id,
+            source_id: workout.provider_workout_id,
           });
+          const created = {
+            id: createdId,
+            name: 'Created Workout',
+            description: null,
+            workoutType: 'bike',
+            rideType: 'endurance',
+            summary: {
+              segmentCount: 1,
+              stepCount: 1,
+              estimatedDurationSeconds: 4500,
+            },
+            profile: null,
+            library: { id: libraryId, name: 'Shared' },
+            provider: 'training_peaks',
+            providerWorkoutId: workout.provider_workout_id,
+            providerMetadata: {},
+            createdAt: '2026-02-27T00:00:00.000Z',
+            updatedAt: '2026-02-27T00:00:00.000Z',
+          };
           return {
             success: true,
-            data: [
-              {
-                id: createdId,
-                name: 'Created Workout',
-                type: 'endurance',
-                intensity: 'moderate',
-                structure: {},
-                base_duration_min: 75,
-                base_tss: 65,
-                library_id: libraryId,
-                source_id: workout.source_id,
-              },
-            ],
+            data: {
+              results: [
+                { workout: created, created: true, filedElsewhere: false },
+              ],
+              createdCount: 1,
+              updatedCount: 0,
+              destinationEmpty: false,
+              failures: [],
+            },
           };
         }
 
@@ -295,8 +319,11 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     expect(createPlanPayloads).toHaveLength(1);
     expect(createNotePayloads).toHaveLength(1);
     expect(libraryCreateCalls).toHaveLength(1);
-    expect((libraryCreateCalls[0] as { sourceId: string }).sourceId).toBe(
-      'TP:PLAN_WORKOUTS_V1'
+    // Libraries have no provider identity of their own now, so the plan-workout
+    // library is recognised by name — which means it is per-plan rather than
+    // shared across plans. See the note on this test suite.
+    expect((libraryCreateCalls[0] as { name: string }).name).toBe(
+      'Base Plan - Workouts'
     );
 
     const payload = createPlanPayloads[0] as {
@@ -328,7 +355,17 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     });
   });
 
-  it('reuses existing shared library and existing deduped workout', async () => {
+  // NOTE: this path is not realigned to the new PlanMyPeak API. Plan creation
+  // still calls /training-plans, which does not exist, so the flow fails there.
+  // These tests cover the workout-upload half, which does now work.
+  //
+  // One behaviour changed unavoidably: the plan-workout library used to be a
+  // single library shared by every plan, recognised by a library-level
+  // source_id. Libraries carry no provider identity in the new model, so it is
+  // matched by name and is therefore per-plan. Restoring the shared library
+  // needs provider identity on the library — raised with the backend as a
+  // deferred item.
+  it('reuses an existing plan-workout library and existing deduped workout', async () => {
     const libraryId = 'library-shared';
     const existingSourceIdRef = { value: '' };
     const uploadCalls: unknown[] = [];
@@ -343,39 +380,55 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
             data: [
               {
                 id: libraryId,
-                name: 'Shared',
-                owner_id: 'user-1',
-                is_system: false,
-                is_default: false,
-                source_id: 'TP:PLAN_WORKOUTS_V1',
-                created_at: '2026-02-27T00:00:00.000Z',
-                updated_at: '2026-02-27T00:00:00.000Z',
+                name: 'Second Plan - Workouts',
+                description: null,
+                isDefault: false,
+                workoutCount: 3,
+                createdAt: '2026-02-27T00:00:00.000Z',
+                updatedAt: '2026-02-27T00:00:00.000Z',
               },
             ],
           };
         }
 
-        if (typed.type === 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID') {
-          existingSourceIdRef.value = typed.sourceId as string;
+        if (typed.type === 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID') {
+          existingSourceIdRef.value = typed.providerWorkoutId as string;
           return {
             success: true,
             data: {
               id: 'wk-existing',
               name: 'Existing Workout',
-              type: 'endurance',
-              intensity: 'moderate',
-              structure: {},
-              base_duration_min: 75,
-              base_tss: 65,
-              library_id: libraryId,
-              source_id: typed.sourceId,
+              description: null,
+              workoutType: 'bike',
+              rideType: 'endurance',
+              summary: {
+                segmentCount: 1,
+                stepCount: 1,
+                estimatedDurationSeconds: 4500,
+              },
+              profile: null,
+              library: { id: libraryId, name: 'Second Plan - Workouts' },
+              provider: 'training_peaks',
+              providerWorkoutId: typed.providerWorkoutId,
+              providerMetadata: {},
+              createdAt: '2026-02-27T00:00:00.000Z',
+              updatedAt: '2026-02-27T00:00:00.000Z',
             },
           };
         }
 
         if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
           uploadCalls.push(typed);
-          return { success: true, data: [] };
+          return {
+            success: true,
+            data: {
+              results: [],
+              createdCount: 0,
+              updatedCount: 0,
+              destinationEmpty: false,
+              failures: [],
+            },
+          };
         }
 
         if (typed.type === 'CREATE_PLANMYPEAK_TRAINING_PLAN') {
@@ -401,7 +454,9 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(existingSourceIdRef.value.startsWith('TP:')).toBe(true);
+    // Keyed on TrainingPeaks' own workout id rather than a structure hash, so an
+    // upstream edit updates the workout instead of creating a second one.
+    expect(existingSourceIdRef.value).toBe('1001');
     expect(uploadCalls).toHaveLength(0);
   });
 });
