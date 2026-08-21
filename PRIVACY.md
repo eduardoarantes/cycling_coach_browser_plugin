@@ -31,7 +31,7 @@ layer on top of `chrome.storage.local`.
 The extension makes direct requests to the following services:
 
 - TrainingPeaks web and API endpoints to capture auth and read workout data
-- `api.peakswaresb.com` for TrainingPeaks RxBuilder structured workout data
+- `api.peakswaresb.com` (sandbox: `api.uat.peakswaresb.com`) for TrainingPeaks RxBuilder structured workout data
 - PlanMyPeak APIs when PlanMyPeak features or auth validation are used
 - PlanMyPeak Supabase auth endpoint to validate PlanMyPeak auth state
 - Intervals.icu APIs when that integration is enabled and an API key is present

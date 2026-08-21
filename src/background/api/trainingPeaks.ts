@@ -5,15 +5,14 @@
  */
 
 import {
-  RX_API_BASE_URL,
   STORAGE_KEYS,
   PLAN_DATE_RANGE,
-  TRAININGPEAKS_ENVIRONMENTS,
   createApiHeaders,
 } from '@/utils/constants';
 import {
   getTrainingPeaksApiBaseUrl,
   getTrainingPeaksAppUrl,
+  getTrainingPeaksRxApiBaseUrl,
 } from '@/services/trainingPeaksConfigService';
 import { logger } from '@/utils/logger';
 import { addLog } from '@/services/debugLogService';
@@ -83,7 +82,8 @@ async function clearAuthToken(): Promise<void> {
  *
  * @param endpoint - API endpoint path
  * @param baseUrl - Optional base URL. Defaults to the active TrainingPeaks
- *   environment API (production/sandbox). Pass RX_API_BASE_URL for RxBuilder.
+ *   environment API (production/sandbox). Pass the resolved RxBuilder base URL
+ *   for RxBuilder endpoints.
  */
 async function makeApiRequest(
   endpoint: string,
@@ -96,11 +96,9 @@ async function makeApiRequest(
   }
 
   const resolvedBaseUrl = baseUrl ?? (await getTrainingPeaksApiBaseUrl());
-  // An explicit baseUrl (e.g. RxBuilder) keeps the production app origin; the
-  // default TrainingPeaks API uses the active environment's app origin.
-  const appOrigin = baseUrl
-    ? TRAININGPEAKS_ENVIRONMENTS.production.appUrl
-    : await getTrainingPeaksAppUrl();
+  // Every host (default API and RxBuilder alike) is called with the active
+  // environment's app origin, so sandbox requests never carry a production one.
+  const appOrigin = await getTrainingPeaksAppUrl();
 
   const response = await fetch(`${resolvedBaseUrl}${endpoint}`, {
     headers: createApiHeaders(token, appOrigin),
@@ -541,6 +539,6 @@ export async function fetchRxBuilderWorkouts(
     `/rx/activity/v1/plans/${planId}/workouts/${PLAN_DATE_RANGE.START_DATE}/${PLAN_DATE_RANGE.END_DATE}`,
     RxBuilderWorkoutsApiResponseSchema,
     `plan ${planId} rx builder workouts`,
-    RX_API_BASE_URL // Use RxBuilder API domain
+    await getTrainingPeaksRxApiBaseUrl() // RxBuilder domain for the active environment
   );
 }

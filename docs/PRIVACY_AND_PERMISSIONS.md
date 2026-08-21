@@ -5,15 +5,16 @@ what it sends over the network, and why each permission exists.
 
 ## External Services
 
-| Service                            | Why it is used                                                      |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| `app.trainingpeaks.com`            | Observe authenticated browser traffic to capture TrainingPeaks auth |
-| `tpapi.trainingpeaks.com`          | Read user profile, libraries, workouts, plans, notes, and events    |
-| `api.peakswaresb.com`              | Read RxBuilder structured workout data used by TrainingPeaks        |
-| `planmypeak.com`                   | Observe auth state and export data to PlanMyPeak in production      |
-| `yqaskiwzyhhovthbvmqq.supabase.co` | Validate PlanMyPeak auth in production                              |
-| `intervals.icu`                    | Export workout libraries and plans to Intervals.icu                 |
-| `localhost` / `127.0.0.1` ports    | Support local PlanMyPeak and local Supabase development builds      |
+| Service                            | Why it is used                                                       |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| `app.trainingpeaks.com`            | Observe authenticated browser traffic to capture TrainingPeaks auth  |
+| `tpapi.trainingpeaks.com`          | Read user profile, libraries, workouts, plans, notes, and events     |
+| `api.peakswaresb.com`              | Read RxBuilder structured workout data used by TrainingPeaks         |
+| `api.uat.peakswaresb.com`          | Same RxBuilder data when the TrainingPeaks sandbox environment is on |
+| `planmypeak.com`                   | Observe auth state and export data to PlanMyPeak in production       |
+| `yqaskiwzyhhovthbvmqq.supabase.co` | Validate PlanMyPeak auth in production                               |
+| `intervals.icu`                    | Export workout libraries and plans to Intervals.icu                  |
+| `localhost` / `127.0.0.1` ports    | Support local PlanMyPeak and local Supabase development builds       |
 
 ## Chrome Permissions
 
@@ -48,6 +49,7 @@ Used to:
 - `https://app.trainingpeaks.com/*`
 - `https://tpapi.trainingpeaks.com/*`
 - `https://api.peakswaresb.com/*`
+- `https://api.uat.peakswaresb.com/*`
 
 These permissions let the extension observe page requests for auth capture and
 make direct TrainingPeaks API calls from the background worker.

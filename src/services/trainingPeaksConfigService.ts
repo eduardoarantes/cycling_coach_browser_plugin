@@ -57,3 +57,12 @@ export async function getTrainingPeaksAppUrl(): Promise<string> {
   const environment = await getTrainingPeaksEnvironment();
   return TRAININGPEAKS_ENVIRONMENTS[environment].appUrl;
 }
+
+/**
+ * Get the TrainingPeaks RxBuilder API base URL for the active environment.
+ * Sandbox uses the UAT RxBuilder host.
+ */
+export async function getTrainingPeaksRxApiBaseUrl(): Promise<string> {
+  const environment = await getTrainingPeaksEnvironment();
+  return TRAININGPEAKS_ENVIRONMENTS[environment].rxApiBaseUrl;
+}

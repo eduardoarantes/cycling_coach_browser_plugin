@@ -3,6 +3,7 @@ import {
   getTrainingPeaksApiBaseUrl,
   getTrainingPeaksAppUrl,
   getTrainingPeaksEnvironment,
+  getTrainingPeaksRxApiBaseUrl,
   setTrainingPeaksEnvironment,
 } from '@/services/trainingPeaksConfigService';
 import { STORAGE_KEYS } from '@/utils/constants';
@@ -20,6 +21,9 @@ describe('trainingPeaksConfigService', () => {
     expect(await getTrainingPeaksAppUrl()).toBe(
       'https://app.trainingpeaks.com'
     );
+    expect(await getTrainingPeaksRxApiBaseUrl()).toBe(
+      'https://api.peakswaresb.com'
+    );
   });
 
   it('returns sandbox URLs when the sandbox environment is selected', async () => {
@@ -31,6 +35,9 @@ describe('trainingPeaksConfigService', () => {
     );
     expect(await getTrainingPeaksAppUrl()).toBe(
       'https://app.sandbox.trainingpeaks.com'
+    );
+    expect(await getTrainingPeaksRxApiBaseUrl()).toBe(
+      'https://api.uat.peakswaresb.com'
     );
   });
 
