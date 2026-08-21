@@ -22,10 +22,42 @@ describe('isPlanMyPeakControlOrigin', () => {
 
   it('should accept local development origins under a local-target build', () => {
     // Vitest runs with import.meta.env.DEV === true, which resolves the
-    // PlanMyPeak target to local, so local origins are in the allowlist.
+    // PlanMyPeak target to local, so loopback origins are accepted.
     expect(isPlanMyPeakControlOrigin('https://localhost:3002')).toBe(true);
     expect(isPlanMyPeakControlOrigin('http://localhost:3006')).toBe(true);
     expect(isPlanMyPeakControlOrigin('http://127.0.0.1:3006')).toBe(true);
+  });
+
+  it('should accept any port on a loopback host, since the dev port is configurable', () => {
+    expect(isPlanMyPeakControlOrigin('http://localhost:9999')).toBe(true);
+    expect(isPlanMyPeakControlOrigin('https://localhost:4200')).toBe(true);
+    expect(isPlanMyPeakControlOrigin('http://127.0.0.1:1')).toBe(true);
+    expect(isPlanMyPeakControlOrigin('http://localhost')).toBe(true);
+  });
+
+  it('should reject loopback lookalike hosts', () => {
+    expect(isPlanMyPeakControlOrigin('https://localhost.evil.test')).toBe(
+      false
+    );
+    expect(isPlanMyPeakControlOrigin('https://notlocalhost')).toBe(false);
+    expect(isPlanMyPeakControlOrigin('https://127.0.0.1.evil.test')).toBe(
+      false
+    );
+    expect(isPlanMyPeakControlOrigin('https://127.0.0.2:3002')).toBe(false);
+  });
+
+  it('should reject non-http schemes on a loopback host', () => {
+    expect(isPlanMyPeakControlOrigin('file://localhost')).toBe(false);
+    expect(isPlanMyPeakControlOrigin('ws://localhost:3002')).toBe(false);
+    expect(isPlanMyPeakControlOrigin('chrome-extension://localhost:3002')).toBe(
+      false
+    );
+  });
+
+  it('should reject a loopback value carrying a path', () => {
+    expect(isPlanMyPeakControlOrigin('http://localhost:3002/import')).toBe(
+      false
+    );
   });
 
   it('should reject lookalike origins that merely contain an allowed host', () => {
@@ -49,10 +81,6 @@ describe('isPlanMyPeakControlOrigin', () => {
     expect(isPlanMyPeakControlOrigin('http://portal.planmypeak.com')).toBe(
       false
     );
-  });
-
-  it('should reject an unrelated port on an allowed local host', () => {
-    expect(isPlanMyPeakControlOrigin('http://localhost:9999')).toBe(false);
   });
 
   it('should reject a value carrying a path rather than a bare origin', () => {

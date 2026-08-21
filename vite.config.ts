@@ -4,27 +4,20 @@ import { crx } from '@crxjs/vite-plugin';
 import rawManifest from './public/manifest.json';
 import path from 'path';
 
-const LOCAL_HOST_PERMISSIONS = [
-  'https://localhost:3002/*',
-  'https://127.0.0.1:3002/*',
-  'http://localhost:3004/*',
-  'http://127.0.0.1:3004/*',
-  'http://localhost:3006/*',
-  'http://127.0.0.1:3006/*',
-  'http://127.0.0.1:54341/*',
-  'http://localhost:54341/*',
-  'http://127.0.0.1:54361/*',
-  'http://localhost:54361/*',
+// Loopback patterns for local-target builds only; production builds never see
+// them. They carry no port on purpose: a match pattern without a port matches
+// every port, so the app and Supabase ports stay freely configurable at runtime
+// (see the Local Dev Ports panel) without a manifest edit and rebuild.
+const LOCAL_LOOPBACK_MATCHES = [
+  'https://localhost/*',
+  'https://127.0.0.1/*',
+  'http://localhost/*',
+  'http://127.0.0.1/*',
 ];
 
-const LOCAL_CONTENT_SCRIPT_MATCHES = [
-  'https://localhost:3002/*',
-  'https://127.0.0.1:3002/*',
-  'http://localhost:3004/*',
-  'http://127.0.0.1:3004/*',
-  'http://localhost:3006/*',
-  'http://127.0.0.1:3006/*',
-];
+const LOCAL_HOST_PERMISSIONS = LOCAL_LOOPBACK_MATCHES;
+
+const LOCAL_CONTENT_SCRIPT_MATCHES = LOCAL_LOOPBACK_MATCHES;
 
 // web_accessible_resources is not declared here: @crxjs/vite-plugin derives it
 // from the content scripts' own chunk graph and matches, which covers the
