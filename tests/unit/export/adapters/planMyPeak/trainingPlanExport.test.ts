@@ -187,12 +187,14 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     planCreated?: boolean;
     folders?: unknown[];
     existingPlanLibraries?: unknown[];
+    existingWorkoutLibraries?: unknown[];
   }) {
     const entryPayloads: Array<Record<string, unknown>> = [];
     const deletedEntryIds: string[] = [];
     const planPayloads: Array<Record<string, unknown>> = [];
     const planPatches: Array<Record<string, unknown>> = [];
     const createdPlanLibraryNames: string[] = [];
+    const workoutLibraryCreateNames: string[] = [];
     const libraryId = 'library-shared';
 
     vi.mocked(chrome.runtime.sendMessage).mockImplementation(
@@ -200,13 +202,27 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
         const typed = message as { type: string; [key: string]: unknown };
 
         switch (typed.type) {
+          case 'CREATE_PLANMYPEAK_LIBRARY':
+            workoutLibraryCreateNames.push(typed.name as string);
+            return {
+              success: true,
+              data: {
+                id: libraryId,
+                name: typed.name as string,
+                description: null,
+                isDefault: false,
+                workoutCount: 0,
+                createdAt: '2026-02-27T00:00:00.000Z',
+                updatedAt: '2026-02-27T00:00:00.000Z',
+              },
+            };
           case 'GET_PLANMYPEAK_LIBRARIES':
             return {
               success: true,
-              data: [
+              data: options.existingWorkoutLibraries ?? [
                 {
                   id: libraryId,
-                  name: 'Base Plan - Workouts',
+                  name: 'Base Plan',
                   description: null,
                   isDefault: false,
                   workoutCount: 0,
@@ -333,6 +349,7 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
       planPayloads,
       planPatches,
       createdPlanLibraryNames,
+      workoutLibraryCreateNames,
     };
   }
 
@@ -498,6 +515,22 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     expect(result.success).toBe(true);
     expect(calls.entryPayloads).toHaveLength(1);
     expect(calls.entryPayloads[0].providerEntryId).toBe('1001');
+  });
+
+  it('names the workout library after the plan, so both entry points agree', async () => {
+    // Libraries are matched by name, so a decorated name on one screen and a
+    // plain one on another gives the same plan two libraries depending on where
+    // the import was started.
+    const calls = mockPlanMyPeak({ existingWorkoutLibraries: [] });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.workoutLibraryCreateNames).toEqual(['Base Plan']);
   });
 
   it('mirrors the TrainingPeaks folder as the PlanMyPeak plan library', async () => {

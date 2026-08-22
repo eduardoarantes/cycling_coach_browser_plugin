@@ -213,7 +213,10 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   const transformConfig: PlanMyPeakExportConfig = {
     ...config,
     createFolder: true,
-    targetLibraryName: config.targetLibraryName || `${planName} - Workouts`,
+    // The plan's own name, matching what the single-plan export sends. A
+    // decorated fallback here would create a second library for any caller that
+    // did not set one, because matching is by name.
+    targetLibraryName: config.targetLibraryName || planName,
   };
 
   const transformedWorkouts = await planMyPeakAdapter.transform(

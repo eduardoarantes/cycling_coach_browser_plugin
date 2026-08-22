@@ -260,6 +260,45 @@ describe('transformToPlanMyPeak', () => {
       expect(result.structure.structure).toHaveLength(1);
     });
 
+    it('should read a bare target as an effort rating under an RPE workout', () => {
+      // TrainingPeaks omits the unit on effort steps and leaves the scale to the
+      // structure's primary metric, so a bare {minValue, maxValue} is a rating,
+      // not an unmappable target.
+      const rpeWorkout: LibraryItem = {
+        ...baseLibraryItem,
+        itemName: 'Set Your Threshold and Zones',
+        structure: {
+          primaryIntensityMetric: 'rpe',
+          primaryLengthMetric: 'duration',
+          structure: [
+            {
+              type: 'step',
+              length: { unit: 'repetition', value: 1 },
+              steps: [
+                {
+                  name: 'Warm up',
+                  intensityClass: 'warmUp',
+                  length: { unit: 'minute', value: 5 },
+                  openDuration: false,
+                  targets: [{ minValue: 1, maxValue: 5 }],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const result = transformToPlanMyPeak(rpeWorkout, defaultConfig);
+      const target = result.structure.structure[0].steps[0].targets[0];
+
+      expect(target).toMatchObject({
+        type: 'rpe',
+        minValue: 1,
+        maxValue: 5,
+        unit: 'scale10',
+      });
+    });
+
     it('should still refuse a training session that prescribes nothing', () => {
       // A bike workout with no structure cannot be performed, so this is the one
       // case that must keep failing rather than being sent empty.

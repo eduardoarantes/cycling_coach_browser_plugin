@@ -259,6 +259,18 @@ export function mapTpTargetToPlanMyPeakTarget(
 
   // TP often omits the unit on the primary target and relies on
   // structure.primaryIntensityMetric.
+  // TrainingPeaks omits the unit on effort-rated steps and leaves the scale to
+  // the structure's primary metric, so a bare {minValue, maxValue} under an RPE
+  // workout is a rating rather than an unmappable target.
+  if (!explicitUnit && normalizedPrimaryIntensityMetric === 'rpe') {
+    return {
+      type: 'rpe',
+      minValue,
+      maxValue,
+      unit: 'scale10',
+    };
+  }
+
   if (!explicitUnit && normalizedPrimaryIntensityMetric === 'percentofftp') {
     return {
       type: 'power',

@@ -636,7 +636,11 @@ export function TrainingPlanList({
           config: {
             ...config,
             createFolder: true,
-            targetLibraryName: `${planName} - Workouts`,
+            // Deliberately not overridden with a decorated name. The single-plan
+            // path sends the plan title, and since libraries are matched by name,
+            // any difference here means the same plan gets two libraries
+            // depending on which screen the import was started from.
+            targetLibraryName: config.targetLibraryName || planName,
           },
           onProgress: (update) => {
             setTrainingPlanExportProgress((previous) =>
