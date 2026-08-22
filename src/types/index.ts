@@ -106,7 +106,6 @@ export interface ExportWorkoutsToPlanMyPeakLibraryMessage {
 export interface GetPlanMyPeakWorkoutByProviderIdMessage {
   type: 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID';
   providerWorkoutId: string;
-  libraryId?: string;
 }
 
 /** List the coach's TrainingPeaks plan folders, which carry their plan ids. */

@@ -880,14 +880,18 @@ export async function fetchPlanMyPeakWorkouts(filters?: {
 }
 
 /**
- * Find one workout by its TrainingPeaks id.
+ * Find one workout by its TrainingPeaks id, anywhere in the coach's library.
+ *
+ * Deliberately not scoped to a library. Provider identity is unique per *coach*,
+ * which is what lets a coach move an imported workout and keep it — so scoping
+ * the lookup by library would miss exactly the workouts that had been moved and
+ * report them as new.
  *
  * Rarely needed: POST is itself an upsert, so an importer does not have to look
  * before it writes. Kept for callers that want to know what exists first.
  */
 export async function fetchPlanMyPeakWorkoutByProviderId(
-  providerWorkoutId: string,
-  libraryId?: string
+  providerWorkoutId: string
 ): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem | null>> {
   const trimmedId = providerWorkoutId.trim();
   if (!trimmedId) {
@@ -901,7 +905,6 @@ export async function fetchPlanMyPeakWorkoutByProviderId(
   }
 
   const result = await fetchPlanMyPeakWorkouts({
-    libraryId,
     provider: TRAINING_PEAKS_PROVIDER_CODE,
     providerWorkoutId: trimmedId,
   });

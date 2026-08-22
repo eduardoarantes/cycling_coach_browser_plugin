@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   exportWorkoutsToPlanMyPeakLibrary,
   fetchPlanMyPeakWorkouts,
+  fetchPlanMyPeakWorkoutByProviderId,
   ingestTrainingPeaksAthleteGroups,
 } from '@/background/api/planMyPeak';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
@@ -599,6 +600,19 @@ describe('planMyPeak API - listing workouts', () => {
 
     expect(result.success).toBe(true);
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('should look a provider workout up coach-wide, not within one library', async () => {
+    // Provider identity is unique per coach, which is what lets a coach move an
+    // imported workout and keep it. Scoping the lookup by library would miss
+    // exactly the workouts that had been moved and call them new.
+    global.fetch = vi.fn().mockResolvedValue(page(1, 1, 'a'));
+
+    await fetchPlanMyPeakWorkoutByProviderId('12684302');
+
+    const url = String(vi.mocked(global.fetch).mock.calls[0][0]);
+    expect(url).toContain('providerWorkoutId=12684302');
+    expect(url).not.toContain('libraryId');
   });
 
   it('should treat a filter miss as an empty list rather than an error', async () => {

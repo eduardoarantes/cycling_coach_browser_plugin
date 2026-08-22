@@ -535,16 +535,13 @@ async function handleExportWorkoutsToPlanMyPeakLibrary(
  * Finds a PlanMyPeak workout by its TrainingPeaks id (optionally scoped to a library)
  */
 async function handleGetPlanMyPeakWorkoutByProviderId(
-  providerWorkoutId: string,
-  libraryId?: string
+  providerWorkoutId: string
 ): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem | null>> {
   logger.debug(
     'Handling GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID message:',
-    providerWorkoutId,
-    'library:',
-    libraryId ?? '(any)'
+    providerWorkoutId
   );
-  return await fetchPlanMyPeakWorkoutByProviderId(providerWorkoutId, libraryId);
+  return await fetchPlanMyPeakWorkoutByProviderId(providerWorkoutId);
 }
 
 /**
@@ -1135,8 +1132,7 @@ export async function handleMessage(
 
     case 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID':
       return await handleGetPlanMyPeakWorkoutByProviderId(
-        message.providerWorkoutId,
-        message.libraryId
+        message.providerWorkoutId
       );
 
     case 'GET_TRAINING_PLAN_FOLDERS':
