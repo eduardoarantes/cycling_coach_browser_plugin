@@ -135,7 +135,8 @@ export interface PlanMyPeakStructure {
     | 'percentOfThresholdPace'
     | 'pace'
     | 'speed'
-    | 'resistance';
+    | 'resistance'
+    | 'rpe';
   primaryLengthMetric: 'duration' | 'distance' | 'repetitions';
   structure: PlanMyPeakStructureBlock[];
 }

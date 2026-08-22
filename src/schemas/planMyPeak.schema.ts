@@ -108,6 +108,7 @@ export const PlanMyPeakStructureSchema = z.object({
     'pace',
     'speed',
     'resistance',
+    'rpe',
   ]),
   primaryLengthMetric: z.enum(['duration', 'distance', 'repetitions']),
   structure: z.array(PlanMyPeakStructureBlockSchema),

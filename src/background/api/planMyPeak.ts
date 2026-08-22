@@ -177,7 +177,8 @@ interface PlanMyPeakCreateWorkoutRequest {
       | 'percentOfThresholdPace'
       | 'pace'
       | 'speed'
-      | 'resistance';
+      | 'resistance'
+      | 'rpe';
     primaryLengthMetric: 'duration' | 'distance' | 'repetitions';
     structure: PlanMyPeakApiWorkoutSegment[];
   };
@@ -532,6 +533,7 @@ function normalizeWorkoutStructure(
       case 'pace':
       case 'speed':
       case 'resistance':
+      case 'rpe':
       case 'percentOfFtp':
         return workout.structure.primaryIntensityMetric;
       default:

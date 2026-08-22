@@ -10,7 +10,6 @@ import type {
   DeletePlanMyPeakPlanEntryMessage,
   ExportWorkoutsToPlanMyPeakLibraryMessage,
   GetPlanMyPeakLibrariesMessage,
-  GetPlanMyPeakWorkoutByProviderIdMessage,
   TrainingPlanExportProgressPayload,
 } from '@/types';
 import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
@@ -33,14 +32,8 @@ import type {
   ExportResult as ExportResultType,
   ValidationMessage,
 } from '../base';
-import type {
-  PlanMyPeakExportConfig,
-  PlanMyPeakWorkout,
-} from '@/types/planMyPeak.types';
-import type {
-  PlanMyPeakLibrary,
-  PlanMyPeakWorkoutLibraryItem,
-} from '@/schemas/planMyPeakApi.schema';
+import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import type { PlanMyPeakLibrary } from '@/schemas/planMyPeakApi.schema';
 import { getDayOfWeek, getWeekNumber } from '@/utils/dateUtils';
 import { planMyPeakAdapter } from './PlanMyPeakAdapter';
 import { normalizeTpPlanWorkoutsToPlanMyPeakLibraryItems } from './trainingPlanNormalizer';
@@ -73,45 +66,6 @@ interface ExportTrainingPlanClassicWorkoutsToPlanMyPeakOptions {
   notes?: CalendarNote[];
   config: PlanMyPeakExportConfig;
   onProgress?: (progress: TrainingPlanExportProgressPayload) => void;
-}
-
-function normalizeForStableHash(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeForStableHash(entry));
-  }
-
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).sort(
-      ([a], [b]) => a.localeCompare(b)
-    );
-
-    return entries.reduce<Record<string, unknown>>((acc, [key, entryValue]) => {
-      acc[key] = normalizeForStableHash(entryValue);
-      return acc;
-    }, {});
-  }
-
-  return value;
-}
-
-async function sha256Hex(value: unknown): Promise<string> {
-  const normalized = JSON.stringify(normalizeForStableHash(value));
-  const encoded = new TextEncoder().encode(normalized);
-  const digest = await crypto.subtle.digest('SHA-256', encoded);
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-async function buildWorkoutSourceIdFromStructure(
-  structure: unknown
-): Promise<string | null> {
-  if (!structure || typeof structure !== 'object') {
-    return null;
-  }
-
-  const hash = await sha256Hex(structure);
-  return `TP:${hash}`;
 }
 
 function parseTpDateToUtcMidnight(value: string): Date | null {
@@ -181,22 +135,6 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   const planName =
     trainingPlan.title?.trim() || `Training Plan ${trainingPlan.planId}`;
   const warnings: ValidationMessage[] = [];
-  const tpWorkoutSourceIdById = new Map<number, string>();
-
-  for (const workout of workouts) {
-    const sourceId = await buildWorkoutSourceIdFromStructure(workout.structure);
-    if (!sourceId) {
-      warnings.push({
-        field: `workouts:${workout.workoutId}`,
-        severity: 'warning',
-        message: `Workout "${workout.title}" has no structured data; skipping TP source_id generation`,
-      });
-      continue;
-    }
-
-    tpWorkoutSourceIdById.set(workout.workoutId, sourceId);
-  }
-
   const normalizedItems = normalizeTpPlanWorkoutsToPlanMyPeakLibraryItems(
     workouts,
     { exerciseLibraryId: trainingPlan.planId }
@@ -367,17 +305,8 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     'Shared workout library ready'
   );
 
-  const sourceIdToWorkoutId = new Map<string, string>();
-  const sourceIdToSummary = new Map<
-    string,
-    {
-      name: string;
-      type: string;
-      sport_type: PlanMyPeakWorkout['sport_type'];
-      base_duration_min: number;
-      base_tss: number;
-    }
-  >();
+  /** TrainingPeaks workout id -> the PlanMyPeak workout it became. */
+  const workoutIdByTpWorkoutId = new Map<number, string>();
 
   emitProgress(
     'classicWorkouts',
@@ -385,137 +314,52 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     classicCurrent,
     classicPhaseTotal,
     planName,
-    'Resolving and uploading classic workouts'
+    'Uploading plan workouts'
   );
 
-  for (const workout of transformedWorkouts) {
-    let itemMessage = '';
+  // One batch, and no lookup first: the workout POST is itself an upsert keyed
+  // on provider identity, so a workout this plan shares with another import is
+  // updated rather than duplicated. This used to dedupe on a hash of the
+  // structure, which silently dropped every workout that had none — plyometric
+  // and other prose-only sessions among them.
+  const uploadResult = await chrome.runtime.sendMessage<
+    ExportWorkoutsToPlanMyPeakLibraryMessage,
+    ApiResponse<PlanMyPeakUploadSummary>
+  >({
+    type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
+    workouts: transformedWorkouts,
+    libraryId: libraryResult.data.id,
+  });
 
-    const tpWorkoutId = Number.parseInt(workout.id, 36);
-    const sourceId = Number.isFinite(tpWorkoutId)
-      ? (tpWorkoutSourceIdById.get(tpWorkoutId) ?? null)
-      : null;
-    if (!sourceId) {
-      warnings.push({
-        field: `workouts:${workout.id}`,
-        severity: 'warning',
-        message: `Skipped "${workout.name}" because TP source_id could not be resolved`,
-      });
-      itemMessage = 'Skipped: TP source_id could not be resolved';
-      classicCurrent += 1;
-      overallCurrent += 1;
-      emitProgress(
-        'classicWorkouts',
-        'progress',
-        classicCurrent,
-        classicPhaseTotal,
-        workout.name,
-        itemMessage
-      );
-      continue;
-    }
-
-    sourceIdToSummary.set(sourceId, {
-      name: workout.name,
-      type: workout.type,
-      sport_type: workout.sport_type,
-      base_duration_min: workout.base_duration_min,
-      base_tss: workout.base_tss,
+  if (!uploadResult.success) {
+    return failWithProgress([uploadResult.error.message], {
+      phase: 'classicWorkouts',
+      phaseCurrent: classicCurrent,
+      phaseTotal: classicPhaseTotal,
+      message: 'Failed to upload plan workouts',
     });
-
-    if (sourceIdToWorkoutId.has(sourceId)) {
-      itemMessage = 'Reused deduped workout from this export batch';
-      classicCurrent += 1;
-      overallCurrent += 1;
-      emitProgress(
-        'classicWorkouts',
-        'progress',
-        classicCurrent,
-        classicPhaseTotal,
-        workout.name,
-        itemMessage
-      );
-      continue;
-    }
-
-    const existingResult = await chrome.runtime.sendMessage<
-      GetPlanMyPeakWorkoutByProviderIdMessage,
-      ApiResponse<PlanMyPeakWorkoutLibraryItem | null>
-    >({
-      type: 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID',
-      providerWorkoutId: workout.provider_workout_id,
-      libraryId: libraryResult.data.id,
-    });
-
-    if (!existingResult.success) {
-      return failWithProgress(
-        [
-          existingResult.error.message ||
-            `Failed to resolve existing workout for source_id ${sourceId}`,
-        ],
-        {
-          phase: 'classicWorkouts',
-          phaseCurrent: classicCurrent,
-          phaseTotal: classicPhaseTotal,
-          message: `Failed while resolving workout "${workout.name}"`,
-        }
-      );
-    }
-
-    if (existingResult.data) {
-      sourceIdToWorkoutId.set(sourceId, existingResult.data.id);
-      itemMessage = 'Reused existing workout from shared library';
-      classicCurrent += 1;
-      overallCurrent += 1;
-      emitProgress(
-        'classicWorkouts',
-        'progress',
-        classicCurrent,
-        classicPhaseTotal,
-        workout.name,
-        itemMessage
-      );
-      continue;
-    }
-
-    const uploadResult = await chrome.runtime.sendMessage<
-      ExportWorkoutsToPlanMyPeakLibraryMessage,
-      ApiResponse<PlanMyPeakUploadSummary>
-    >({
-      type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
-      workouts: [workout],
-      libraryId: libraryResult.data.id,
-    });
-
-    if (!uploadResult.success || uploadResult.data.results.length === 0) {
-      return failWithProgress(
-        [
-          uploadResult.success
-            ? `Failed to create PlanMyPeak workout for source_id ${sourceId}`
-            : uploadResult.error.message,
-        ],
-        {
-          phase: 'classicWorkouts',
-          phaseCurrent: classicCurrent,
-          phaseTotal: classicPhaseTotal,
-          message: `Failed while creating workout "${workout.name}"`,
-        }
-      );
-    }
-
-    sourceIdToWorkoutId.set(sourceId, uploadResult.data.results[0].workout.id);
-    itemMessage = 'Created workout in shared library';
-    classicCurrent += 1;
-    overallCurrent += 1;
-    emitProgress(
-      'classicWorkouts',
-      'progress',
-      classicCurrent,
-      classicPhaseTotal,
-      workout.name,
-      itemMessage
-    );
   }
+
+  for (const entry of uploadResult.data.results) {
+    const tpWorkoutId = Number.parseInt(
+      entry.workout.providerWorkoutId ?? '',
+      10
+    );
+    if (Number.isFinite(tpWorkoutId)) {
+      workoutIdByTpWorkoutId.set(tpWorkoutId, entry.workout.id);
+    }
+  }
+
+  for (const failure of uploadResult.data.failures) {
+    warnings.push({
+      field: 'workouts',
+      severity: 'warning',
+      message: `Failed to upload "${failure.name}": ${failure.message}`,
+    });
+  }
+
+  classicCurrent = uploadResult.data.results.length;
+  overallCurrent += classicCurrent;
 
   emitProgress(
     'classicWorkouts',
@@ -561,10 +405,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   });
 
   for (const workout of sortedPlanWorkouts) {
-    const structureSourceId = tpWorkoutSourceIdById.get(workout.workoutId);
-    const planMyPeakWorkoutId = structureSourceId
-      ? sourceIdToWorkoutId.get(structureSourceId)
-      : undefined;
+    const planMyPeakWorkoutId = workoutIdByTpWorkoutId.get(workout.workoutId);
     if (!planMyPeakWorkoutId) {
       warnings.push({
         field: `workouts:${workout.workoutId}`,
@@ -755,7 +596,10 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     warnings.push({
       field: 'plan',
       severity: 'warning',
-      message: `"${plan.name}" lives in "${plan.library.name}" because you moved it there, and was updated there rather than moved back.`,
+      // Deliberately states where it is, not why. An update never re-files a
+      // plan, but the reason could be a coach moving it *or* an earlier import
+      // filing it elsewhere — and the response cannot tell us which.
+      message: `"${plan.name}" already lives in "${plan.library.name}", so it was updated there rather than moved to "${planLibrary?.name ?? 'the target library'}".`,
     });
   }
 

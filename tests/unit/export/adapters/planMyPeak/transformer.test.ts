@@ -227,6 +227,39 @@ describe('transformToPlanMyPeak', () => {
       expect(result.detailed_description).toContain('Coach notes only');
     });
 
+    it('should keep an RPE-prescribed workout as structure', () => {
+      // PlanMyPeak accepts `rpe` as a primary intensity metric, so a workout
+      // written by feel is structured rather than skipped as unsupported.
+      const rpeWorkout: LibraryItem = {
+        ...baseLibraryItem,
+        itemName: 'Set Your Threshold and Zones',
+        structure: {
+          primaryIntensityMetric: 'rpe',
+          primaryLengthMetric: 'duration',
+          structure: [
+            {
+              type: 'step',
+              length: { unit: 'repetition', value: 1 },
+              steps: [
+                {
+                  name: 'Steady',
+                  intensityClass: 'active',
+                  length: { unit: 'minute', value: 20 },
+                  openDuration: false,
+                  targets: [{ minValue: 5, maxValue: 6, unit: 'rpe' }],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const result = transformToPlanMyPeak(rpeWorkout, defaultConfig);
+
+      expect(result.structure.primaryIntensityMetric).toBe('rpe');
+      expect(result.structure.structure).toHaveLength(1);
+    });
+
     it('should still refuse a training session that prescribes nothing', () => {
       // A bike workout with no structure cannot be performed, so this is the one
       // case that must keep failing rather than being sent empty.

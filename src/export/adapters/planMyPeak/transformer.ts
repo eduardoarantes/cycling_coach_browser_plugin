@@ -413,6 +413,12 @@ function mapTpPrimaryIntensityMetricToPlanMyPeakPrimaryMetric(
     return 'resistance';
   }
 
+  // Prescribed by feel. PlanMyPeak accepts `rpe` as a primary metric, so a
+  // workout written that way is structured rather than skipped.
+  if (normalized === 'rpe') {
+    return 'rpe';
+  }
+
   return null;
 }
 

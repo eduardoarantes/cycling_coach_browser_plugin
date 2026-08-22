@@ -468,6 +468,31 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     expect(calls.entryPayloads).toHaveLength(2);
   });
 
+  it('schedules a workout that has no structure at all', async () => {
+    // Plyometric and other prose-only sessions carry no structure. The plan path
+    // used to dedupe on a hash of the structure, so these were dropped before
+    // they reached PlanMyPeak; provider identity replaces that.
+    const calls = mockPlanMyPeak({});
+
+    const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [
+        makeStructuredWorkout({
+          workoutId: 1001,
+          title: 'Plyo A1 All Sports, Basic',
+          workoutTypeValueId: 9,
+          structure: null,
+        } as Partial<PlanWorkout>),
+      ],
+      notes: [],
+      config: {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(calls.entryPayloads).toHaveLength(1);
+    expect(calls.entryPayloads[0].providerEntryId).toBe('1001');
+  });
+
   it('mirrors the TrainingPeaks folder as the PlanMyPeak plan library', async () => {
     // Membership lives on the folder, not the plan: the folder listing the plan's
     // id is the one it belongs to.

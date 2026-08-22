@@ -495,9 +495,12 @@ export class PlanMyPeakAdapter implements ExportAdapter<
         ];
         warnings.push({
           field: 'filedElsewhere',
+          // States where they are, not why. An update never re-files a workout,
+          // but whether a coach moved it or an earlier import put it there is
+          // not something the response can tell us.
           message:
-            `${filedElsewhere.length} workout(s) live in ${libraryNames.join(', ')} ` +
-            `because you moved them there, and were updated there rather than moved back.`,
+            `${filedElsewhere.length} workout(s) already live in ${libraryNames.join(', ')}, ` +
+            `so they were updated there rather than moved.`,
           severity: 'warning',
         });
       }
