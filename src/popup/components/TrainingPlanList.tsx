@@ -6,6 +6,7 @@
 
 import { useState, useMemo, useEffect, useRef, type ReactElement } from 'react';
 import { useTrainingPlans } from '@/hooks/useTrainingPlans';
+import { useTrainingPlanFolders } from '@/hooks/useTrainingPlanFolders';
 import { TrainingPlanCard } from './TrainingPlanCard';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
@@ -85,6 +86,10 @@ function getTrainingPlanExportPhaseLabel(
       return 'Creating Plan Folder';
     case 'classicWorkouts':
       return 'Classic Workouts';
+    case 'plan':
+      return 'Training Plan';
+    case 'entries':
+      return 'Scheduling Workouts';
     case 'rxWorkouts':
       return 'Strength Workouts';
     case 'notes':
@@ -371,6 +376,9 @@ async function fetchTrainingPlanBatchExportBundle(
   };
 }
 
+/** Bucket id for plans TrainingPeaks has not filed in any folder. */
+const UNGROUPED_FOLDER_ID = '__ungrouped__';
+
 export function TrainingPlanList({
   onSelectPlan,
 }: TrainingPlanListProps): ReactElement {
@@ -390,6 +398,8 @@ export function TrainingPlanList({
   const activeBatchTrainingPlanProgressContextRef =
     useRef<ActiveBatchTrainingPlanProgressContext | null>(null);
   const { data: plans, isLoading, error, refetch } = useTrainingPlans();
+  const { data: planFolders } = useTrainingPlanFolders();
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
   // Filter plans based on search query
   const filteredPlans = useMemo(() => {
@@ -403,6 +413,50 @@ export function TrainingPlanList({
         plan.author.toLowerCase().includes(query)
     );
   }, [plans, searchQuery]);
+
+  /**
+   * Plans grouped by their TrainingPeaks folder.
+   *
+   * Membership lives on the folder, so a plan's group is found by looking its id
+   * up across folders. Plans in no folder get an "Ungrouped" bucket rather than
+   * being hidden — a plan that belongs to nothing must still be reachable.
+   */
+  const folderGroups = useMemo(() => {
+    const groups: Array<{ id: string; name: string; plans: TrainingPlan[] }> =
+      [];
+    const claimed = new Set<number>();
+
+    for (const folder of planFolders ?? []) {
+      const inFolder = filteredPlans.filter((plan) =>
+        folder.planIds.includes(plan.planId)
+      );
+      inFolder.forEach((plan) => claimed.add(plan.planId));
+      groups.push({
+        id: folder.folderId,
+        name: folder.folderName,
+        plans: inFolder,
+      });
+    }
+
+    const ungrouped = filteredPlans.filter((plan) => !claimed.has(plan.planId));
+    if (ungrouped.length > 0) {
+      groups.push({
+        id: UNGROUPED_FOLDER_ID,
+        name: 'Ungrouped',
+        plans: ungrouped,
+      });
+    }
+
+    return groups;
+  }, [planFolders, filteredPlans]);
+
+  const openFolder = useMemo(
+    () => folderGroups.find((group) => group.id === selectedFolderId) ?? null,
+    [folderGroups, selectedFolderId]
+  );
+
+  /** The plans the list is currently showing: one folder's, once one is open. */
+  const visiblePlans = openFolder ? openFolder.plans : filteredPlans;
 
   const selectedPlans = useMemo(() => {
     if (!plans || selectedPlanIds.size === 0) {
@@ -478,7 +532,7 @@ export function TrainingPlanList({
   };
 
   const handleSelectAll = (): void => {
-    const allIds = new Set(filteredPlans.map((plan) => plan.planId));
+    const allIds = new Set(visiblePlans.map((plan) => plan.planId));
     setSelectedPlanIds(allIds);
   };
 
@@ -898,7 +952,7 @@ export function TrainingPlanList({
     return (
       <div className="mt-4">
         <EmptyState
-          title="No Training Plans Found"
+          title="No Plans Found"
           message="You don't have any training plans yet."
         />
       </div>
@@ -916,7 +970,7 @@ export function TrainingPlanList({
         />
         <div className="mt-4">
           <EmptyState
-            title="No Training Plans Found"
+            title="No Plans Found"
             message={`No plans match "${searchQuery}"`}
           />
         </div>
@@ -924,9 +978,65 @@ export function TrainingPlanList({
     );
   }
 
+  // Folder listing: the first thing shown, mirroring how TrainingPeaks groups
+  // plans. Opening one drills into its plans.
+  if (!openFolder) {
+    return (
+      <div className="mt-4">
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search plans..."
+        />
+
+        <ul className="mt-4 space-y-2">
+          {folderGroups.map((group) => (
+            <li key={group.id}>
+              <button
+                type="button"
+                onClick={() => setSelectedFolderId(group.id)}
+                className="flex w-full items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2.5 text-left hover:border-blue-300 hover:bg-blue-50"
+              >
+                <span className="text-sm font-medium text-gray-800">
+                  {group.name}
+                </span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
+                  {group.plans.length}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {folderGroups.length === 0 ? (
+          <div className="mt-4">
+            <EmptyState
+              title="No Plans Found"
+              message={
+                searchQuery
+                  ? `No plans match "${searchQuery}"`
+                  : "You don't have any training plans yet."
+              }
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   // Success state with plans
   return (
     <div className="mt-4">
+      <button
+        type="button"
+        onClick={() => setSelectedFolderId(null)}
+        className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
+      >
+        ← All plan libraries
+      </button>
+      <p className="mb-2 text-sm font-semibold text-gray-800">
+        {openFolder.name}
+      </p>
       <SearchBar
         value={searchQuery}
         onChange={setSearchQuery}
@@ -946,7 +1056,7 @@ export function TrainingPlanList({
                 onClick={handleSelectAll}
                 className="text-xs text-blue-600 hover:text-blue-800 font-medium underline-offset-2 hover:underline"
               >
-                Select All ({filteredPlans.length})
+                Select All ({visiblePlans.length})
               </button>
               {selectedPlanIds.size > 0 && (
                 <button
@@ -1027,7 +1137,7 @@ export function TrainingPlanList({
       )}
 
       <div className="mt-4 space-y-3">
-        {filteredPlans.map((plan) => (
+        {visiblePlans.map((plan) => (
           <TrainingPlanCard
             key={plan.planId}
             plan={plan}

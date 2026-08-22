@@ -182,6 +182,87 @@ export type PlanMyPeakWorkoutLibraryResponse = z.infer<
 >;
 
 /**
+ * A training-plan library — the container plans live in.
+ *
+ * Distinct from a *workout* library. The server has three paths one word apart:
+ * `/workout-library` holds workouts, `/workout-libraries` their containers, and
+ * `/workout-plan-libraries` the containers for plans.
+ */
+export const PlanMyPeakPlanLibrarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  isDefault: z.boolean(),
+  planCount: NonNegativeIntSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type PlanMyPeakPlanLibrary = z.infer<typeof PlanMyPeakPlanLibrarySchema>;
+
+export const PlanMyPeakPlanLibrariesResponseSchema = z.object({
+  data: z.array(PlanMyPeakPlanLibrarySchema),
+});
+
+/**
+ * One scheduled session in a plan.
+ *
+ * `provider` / `providerEntryId` are null for a session a coach scheduled by
+ * hand; an import never adopts those. The identity is stable across a move, so
+ * a session that shifts day keeps its id — and its `note`, which the coach may
+ * have written and which an import must not destroy.
+ */
+export const PlanMyPeakPlanEntrySchema = z.object({
+  id: z.string(),
+  planId: z.string(),
+  weekNumber: IntegerSchema,
+  /** ISO weekday: 1 = Monday … 7 = Sunday. */
+  dayOfWeek: IntegerSchema,
+  position: NonNegativeIntSchema,
+  note: z.string().nullable(),
+  workout: PlanMyPeakWorkoutLibraryItemSchema,
+  provider: z.string().nullable(),
+  providerEntryId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type PlanMyPeakPlanEntry = z.infer<typeof PlanMyPeakPlanEntrySchema>;
+
+const PlanMyPeakPlanBaseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  weekCount: IntegerSchema,
+  entryCount: NonNegativeIntSchema,
+  library: z.object({ id: z.string(), name: z.string() }),
+  provider: z.string().nullable(),
+  providerPlanId: z.string().nullable(),
+  providerMetadata: z.record(z.string(), z.unknown()).nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const PlanMyPeakPlanSummarySchema = PlanMyPeakPlanBaseSchema;
+
+/** A plan with its schedule, in week/weekday/position order. */
+export const PlanMyPeakPlanDetailSchema = PlanMyPeakPlanBaseSchema.extend({
+  entries: z.array(PlanMyPeakPlanEntrySchema),
+});
+
+export type PlanMyPeakPlanSummary = z.infer<typeof PlanMyPeakPlanSummarySchema>;
+export type PlanMyPeakPlanDetail = z.infer<typeof PlanMyPeakPlanDetailSchema>;
+
+export const PlanMyPeakPlansResponseSchema = z.object({
+  data: z.array(PlanMyPeakPlanSummarySchema),
+  pagination: z.object({
+    limit: NonNegativeIntSchema,
+    offset: NonNegativeIntSchema,
+    total: NonNegativeIntSchema,
+  }),
+});
+
+/**
  * Per-group result returned by the TrainingPeaks athlete-group ingest endpoint.
  */
 export const PlanMyPeakIngestedAthleteGroupSchema = z

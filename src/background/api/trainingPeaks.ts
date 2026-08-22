@@ -21,6 +21,7 @@ import {
   LibrariesApiResponseSchema,
   LibraryItemsApiResponseSchema,
   TrainingPlansApiResponseSchema,
+  PlanFoldersApiResponseSchema,
   PlanWorkoutsApiResponseSchema,
   CalendarNotesApiResponseSchema,
   CalendarEventsApiResponseSchema,
@@ -39,6 +40,7 @@ import type {
   RxBuilderWorkout,
   AthleteGroup,
 } from '@/types/api.types';
+import type { PlanFolder } from '@/schemas/trainingPlan.schema';
 import type { z } from 'zod';
 
 const MAX_VALIDATION_INPUT_LENGTH = 300;
@@ -450,6 +452,23 @@ export async function fetchTrainingPlans(): Promise<
     '/plans/v1/plansWithAccess',
     TrainingPlansApiResponseSchema,
     'training plans'
+  );
+}
+
+/**
+ * Fetch the coach's plan folders.
+ *
+ * Folders are the grouping TrainingPeaks shows above the plan list. Each folder
+ * carries the ids of the plans inside it, so a plan's folder is resolved by
+ * searching for the folder containing it.
+ */
+export async function fetchTrainingPlanFolders(): Promise<
+  ApiResponse<PlanFolder[]>
+> {
+  return apiRequest(
+    '/planfolder/v1/folder/all',
+    PlanFoldersApiResponseSchema,
+    'training plan folders'
   );
 }
 

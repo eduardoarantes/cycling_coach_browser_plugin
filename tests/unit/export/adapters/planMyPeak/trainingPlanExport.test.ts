@@ -135,328 +135,430 @@ function makeNote(overrides: Partial<CalendarNote> = {}): CalendarNote {
 }
 
 describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
-  it('deduplicates identical workout structures and creates a training plan with note', async () => {
+  /** A PlanMyPeak workout as the API returns it, enough for the schemas we parse. */
+  function pmpWorkout(id: string, libraryId: string) {
+    return {
+      id,
+      name: 'Created Workout',
+      description: null,
+      workoutType: 'bike',
+      rideType: 'endurance',
+      summary: {
+        segmentCount: 1,
+        stepCount: 1,
+        estimatedDurationSeconds: 4500,
+      },
+      profile: null,
+      library: { id: libraryId, name: 'Shared' },
+      provider: 'training_peaks',
+      providerWorkoutId: '1001',
+      providerMetadata: {},
+      providerIntensityFactor: null,
+      providerTss: null,
+      createdAt: '2026-02-27T00:00:00.000Z',
+      updatedAt: '2026-02-27T00:00:00.000Z',
+    };
+  }
+
+  function pmpPlan(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'plan-1',
+      name: 'Base Plan',
+      description: 'Plan description',
+      weekCount: 4,
+      entryCount: 0,
+      library: { id: 'plan-lib-1', name: 'My Training Plans' },
+      provider: 'training_peaks',
+      providerPlanId: '624432',
+      providerMetadata: {},
+      createdAt: '2026-02-27T00:00:00.000Z',
+      updatedAt: '2026-02-27T00:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  /**
+   * Wire up the whole message surface the export talks to, recording the calls
+   * a test wants to assert on.
+   */
+  function mockPlanMyPeak(options: {
+    existingEntries?: unknown[];
+    planWeekCount?: number;
+    planCreated?: boolean;
+    folders?: unknown[];
+    existingPlanLibraries?: unknown[];
+  }) {
+    const entryPayloads: Array<Record<string, unknown>> = [];
+    const deletedEntryIds: string[] = [];
+    const planPayloads: Array<Record<string, unknown>> = [];
+    const planPatches: Array<Record<string, unknown>> = [];
+    const createdPlanLibraryNames: string[] = [];
     const libraryId = 'library-shared';
-    const workoutsBySource = new Map<
-      string,
-      { id: string; source_id: string }
-    >();
-    const createPlanPayloads: unknown[] = [];
-    const createNotePayloads: unknown[] = [];
-    const uploadCalls: unknown[] = [];
-    const libraryCreateCalls: unknown[] = [];
-    const progressUpdates: Array<{
-      phase: string;
-      status: string;
-      current: number;
-      total: number;
-    }> = [];
 
     vi.mocked(chrome.runtime.sendMessage).mockImplementation(
       async (message: unknown) => {
         const typed = message as { type: string; [key: string]: unknown };
 
-        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
-          return { success: true, data: [] };
-        }
-
-        if (typed.type === 'CREATE_PLANMYPEAK_LIBRARY') {
-          libraryCreateCalls.push(typed);
-          return {
-            success: true,
-            data: {
-              id: libraryId,
-              name: typed.name,
-              description: null,
-              isDefault: false,
-              workoutCount: 0,
-              createdAt: '2026-02-27T00:00:00.000Z',
-              updatedAt: '2026-02-27T00:00:00.000Z',
-            },
-          };
-        }
-
-        if (typed.type === 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID') {
-          const providerWorkoutId = typed.providerWorkoutId as string;
-          const existing = workoutsBySource.get(providerWorkoutId) ?? null;
-          return {
-            success: true,
-            data: existing
-              ? {
-                  id: existing.id,
-                  name: 'Deduped Workout',
+        switch (typed.type) {
+          case 'GET_PLANMYPEAK_LIBRARIES':
+            return {
+              success: true,
+              data: [
+                {
+                  id: libraryId,
+                  name: 'Base Plan - Workouts',
                   description: null,
-                  workoutType: 'bike',
-                  rideType: 'endurance',
-                  summary: {
-                    segmentCount: 1,
-                    stepCount: 1,
-                    estimatedDurationSeconds: 4500,
-                  },
-                  profile: null,
-                  library: { id: libraryId, name: 'Shared' },
-                  provider: 'training_peaks',
-                  providerWorkoutId: existing.source_id,
-                  providerMetadata: {},
+                  isDefault: false,
+                  workoutCount: 0,
                   createdAt: '2026-02-27T00:00:00.000Z',
                   updatedAt: '2026-02-27T00:00:00.000Z',
-                }
-              : null,
-          };
-        }
-
-        if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
-          uploadCalls.push(typed);
-          const workout = (
-            typed.workouts as Array<{ provider_workout_id: string }>
-          )[0];
-          const createdId = `wk-${workoutsBySource.size + 1}`;
-          workoutsBySource.set(workout.provider_workout_id, {
-            id: createdId,
-            source_id: workout.provider_workout_id,
-          });
-          const created = {
-            id: createdId,
-            name: 'Created Workout',
-            description: null,
-            workoutType: 'bike',
-            rideType: 'endurance',
-            summary: {
-              segmentCount: 1,
-              stepCount: 1,
-              estimatedDurationSeconds: 4500,
-            },
-            profile: null,
-            library: { id: libraryId, name: 'Shared' },
-            provider: 'training_peaks',
-            providerWorkoutId: workout.provider_workout_id,
-            providerMetadata: {},
-            createdAt: '2026-02-27T00:00:00.000Z',
-            updatedAt: '2026-02-27T00:00:00.000Z',
-          };
-          return {
-            success: true,
-            data: {
-              results: [
-                { workout: created, created: true, filedElsewhere: false },
+                },
               ],
-              createdCount: 1,
-              updatedCount: 0,
-              destinationEmpty: false,
-              failures: [],
-            },
-          };
-        }
-
-        if (typed.type === 'CREATE_PLANMYPEAK_TRAINING_PLAN') {
-          createPlanPayloads.push(typed.payload);
-          return {
-            success: true,
-            data: {
+            };
+          case 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID':
+            return { success: true, data: null };
+          case 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY':
+            return {
               success: true,
-              planId: 'plan-1',
-              savedAt: '2026-02-27T00:00:00.000Z',
-            },
-          };
-        }
-
-        if (typed.type === 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE') {
-          createNotePayloads.push(typed.payload);
-          return {
-            success: true,
-            data: {
-              id: 'note-1',
-              training_plan_id: 'plan-1',
-              week_number: 1,
-              day_of_week: 1,
-              title: 'Nutrition reminder',
-              description: 'Fuel before workout',
-              created_at: '2026-02-27T00:00:00.000Z',
-              updated_at: '2026-02-27T00:00:00.000Z',
-            },
-          };
-        }
-
-        return {
-          success: false,
-          error: { message: `Unhandled message ${typed.type}` },
-        };
-      }
-    );
-
-    const workoutA = makeStructuredWorkout({
-      workoutId: 1001,
-      title: 'Workout A',
-      workoutDay: '2026-03-03T00:00:00',
-      orderOnDay: 0,
-    });
-    const workoutB = makeStructuredWorkout({
-      workoutId: 1002,
-      title: 'Workout B',
-      workoutDay: '2026-03-05T00:00:00',
-      orderOnDay: 0,
-      // Same structure as workoutA -> should dedupe
-      structure: workoutA.structure,
-    });
-
-    const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
-      trainingPlan: makeTrainingPlan(),
-      workouts: [workoutA, workoutB],
-      notes: [makeNote()],
-      config: {},
-      onProgress: (update) => {
-        progressUpdates.push({
-          phase: update.phase,
-          status: update.status,
-          current: update.current,
-          total: update.total,
-        });
-      },
-    });
-
-    expect(result.success).toBe(true);
-    expect(uploadCalls).toHaveLength(1);
-    expect(createPlanPayloads).toHaveLength(1);
-    expect(createNotePayloads).toHaveLength(1);
-    expect(libraryCreateCalls).toHaveLength(1);
-    // Libraries have no provider identity of their own now, so the plan-workout
-    // library is recognised by name — which means it is per-plan rather than
-    // shared across plans. See the note on this test suite.
-    expect((libraryCreateCalls[0] as { name: string }).name).toBe(
-      'Base Plan - Workouts'
-    );
-
-    const payload = createPlanPayloads[0] as {
-      weeks: Array<{
-        workouts: {
-          tuesday: Array<{ workoutKey: string }>;
-          thursday: Array<{ workoutKey: string }>;
-        };
-      }>;
-    };
-
-    expect(payload.weeks[0].workouts.tuesday).toHaveLength(1);
-    expect(payload.weeks[0].workouts.thursday).toHaveLength(1);
-    expect(payload.weeks[0].workouts.tuesday[0].workoutKey).toBe(
-      payload.weeks[0].workouts.thursday[0].workoutKey
-    );
-    expect(progressUpdates.some((update) => update.phase === 'folder')).toBe(
-      true
-    );
-    expect(
-      progressUpdates.some((update) => update.phase === 'classicWorkouts')
-    ).toBe(true);
-    expect(progressUpdates.some((update) => update.phase === 'notes')).toBe(
-      true
-    );
-    expect(progressUpdates[progressUpdates.length - 1]).toMatchObject({
-      phase: 'complete',
-      status: 'completed',
-    });
-  });
-
-  // NOTE: this path is not realigned to the new PlanMyPeak API. Plan creation
-  // still calls /training-plans, which does not exist, so the flow fails there.
-  // These tests cover the workout-upload half, which does now work.
-  //
-  // One behaviour changed unavoidably: the plan-workout library used to be a
-  // single library shared by every plan, recognised by a library-level
-  // source_id. Libraries carry no provider identity in the new model, so it is
-  // matched by name and is therefore per-plan. Restoring the shared library
-  // needs provider identity on the library — raised with the backend as a
-  // deferred item.
-  it('reuses an existing plan-workout library and existing deduped workout', async () => {
-    const libraryId = 'library-shared';
-    const existingSourceIdRef = { value: '' };
-    const uploadCalls: unknown[] = [];
-
-    vi.mocked(chrome.runtime.sendMessage).mockImplementation(
-      async (message: unknown) => {
-        const typed = message as { type: string; [key: string]: unknown };
-
-        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
-          return {
-            success: true,
-            data: [
-              {
-                id: libraryId,
-                name: 'Second Plan - Workouts',
+              data: {
+                results: [
+                  {
+                    workout: pmpWorkout('wk-1', libraryId),
+                    created: true,
+                    filedElsewhere: false,
+                  },
+                ],
+                createdCount: 1,
+                updatedCount: 0,
+                destinationEmpty: false,
+                failures: [],
+              },
+            };
+          case 'GET_TRAINING_PLAN_FOLDERS':
+            return { success: true, data: options.folders ?? [] };
+          case 'GET_PLANMYPEAK_PLAN_LIBRARIES':
+            return {
+              success: true,
+              data: options.existingPlanLibraries ?? [
+                {
+                  id: 'plan-lib-1',
+                  name: 'My Training Plans',
+                  description: null,
+                  isDefault: true,
+                  planCount: 0,
+                  createdAt: '2026-02-27T00:00:00.000Z',
+                  updatedAt: '2026-02-27T00:00:00.000Z',
+                },
+              ],
+            };
+          case 'CREATE_PLANMYPEAK_PLAN_LIBRARY':
+            createdPlanLibraryNames.push(typed.name as string);
+            return {
+              success: true,
+              data: {
+                id: 'plan-lib-new',
+                name: typed.name as string,
                 description: null,
                 isDefault: false,
-                workoutCount: 3,
+                planCount: 0,
                 createdAt: '2026-02-27T00:00:00.000Z',
                 updatedAt: '2026-02-27T00:00:00.000Z',
               },
-            ],
-          };
-        }
-
-        if (typed.type === 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID') {
-          existingSourceIdRef.value = typed.providerWorkoutId as string;
-          return {
-            success: true,
-            data: {
-              id: 'wk-existing',
-              name: 'Existing Workout',
-              description: null,
-              workoutType: 'bike',
-              rideType: 'endurance',
-              summary: {
-                segmentCount: 1,
-                stepCount: 1,
-                estimatedDurationSeconds: 4500,
-              },
-              profile: null,
-              library: { id: libraryId, name: 'Second Plan - Workouts' },
-              provider: 'training_peaks',
-              providerWorkoutId: typed.providerWorkoutId,
-              providerMetadata: {},
-              createdAt: '2026-02-27T00:00:00.000Z',
-              updatedAt: '2026-02-27T00:00:00.000Z',
-            },
-          };
-        }
-
-        if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
-          uploadCalls.push(typed);
-          return {
-            success: true,
-            data: {
-              results: [],
-              createdCount: 0,
-              updatedCount: 0,
-              destinationEmpty: false,
-              failures: [],
-            },
-          };
-        }
-
-        if (typed.type === 'CREATE_PLANMYPEAK_TRAINING_PLAN') {
-          return {
-            success: true,
-            data: {
+            };
+          case 'UPSERT_PLANMYPEAK_PLAN':
+            planPayloads.push(typed.payload as Record<string, unknown>);
+            return {
               success: true,
-              planId: 'plan-2',
-              savedAt: '2026-02-27T00:00:00.000Z',
-            },
-          };
+              data: {
+                value: pmpPlan({
+                  weekCount: options.planWeekCount ?? 4,
+                }),
+                created: options.planCreated ?? true,
+              },
+            };
+          case 'GET_PLANMYPEAK_PLAN':
+            return {
+              success: true,
+              data: {
+                ...pmpPlan({ weekCount: options.planWeekCount ?? 4 }),
+                entries: options.existingEntries ?? [],
+              },
+            };
+          case 'UPSERT_PLANMYPEAK_PLAN_ENTRY':
+            entryPayloads.push(typed.payload as Record<string, unknown>);
+            return {
+              success: true,
+              data: {
+                value: {
+                  id: `entry-${entryPayloads.length}`,
+                  planId: 'plan-1',
+                  weekNumber: 1,
+                  dayOfWeek: 1,
+                  position: 0,
+                  note: null,
+                  workout: pmpWorkout('wk-1', libraryId),
+                  provider: 'training_peaks',
+                  providerEntryId: String(
+                    (typed.payload as { providerEntryId?: string })
+                      .providerEntryId
+                  ),
+                  createdAt: '2026-02-27T00:00:00.000Z',
+                  updatedAt: '2026-02-27T00:00:00.000Z',
+                },
+                created: true,
+              },
+            };
+          case 'DELETE_PLANMYPEAK_PLAN_ENTRY':
+            deletedEntryIds.push(typed.entryId as string);
+            return { success: true, data: null };
+          case 'UPDATE_PLANMYPEAK_PLAN':
+            planPatches.push(typed.payload as Record<string, unknown>);
+            return { success: true, data: pmpPlan() };
+          default:
+            return { success: true, data: null };
         }
-
-        return { success: true, data: { id: 'note-1' } };
       }
     );
 
+    return {
+      entryPayloads,
+      deletedEntryIds,
+      planPayloads,
+      planPatches,
+      createdPlanLibraryNames,
+    };
+  }
+
+  it('schedules each workout as a plan entry carrying its TrainingPeaks identity', async () => {
+    const calls = mockPlanMyPeak({});
+
     const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
-      trainingPlan: makeTrainingPlan({ planId: 624433, title: 'Second Plan' }),
+      trainingPlan: makeTrainingPlan(),
       workouts: [makeStructuredWorkout()],
       notes: [],
       config: {},
     });
 
     expect(result.success).toBe(true);
-    // Keyed on TrainingPeaks' own workout id rather than a structure hash, so an
-    // upstream edit updates the workout instead of creating a second one.
-    expect(existingSourceIdRef.value).toBe('1001');
-    expect(uploadCalls).toHaveLength(0);
+    expect(calls.entryPayloads).toHaveLength(1);
+
+    const entry = calls.entryPayloads[0];
+    expect(entry.providerEntryId).toBe('1001');
+    expect(entry.provider).toBe('training_peaks');
+    // 2026-03-02 is a Monday, so 2026-03-03 is Tuesday: ISO day 2, week 1.
+    expect(entry.weekNumber).toBe(1);
+    expect(entry.dayOfWeek).toBe(2);
+  });
+
+  it('never sends a note, so a coach-written one survives a re-import', async () => {
+    // An omitted note is kept by the server; sending null would erase it. We
+    // have no note to offer, so the field must be absent rather than empty.
+    const calls = mockPlanMyPeak({});
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.entryPayloads[0]).not.toHaveProperty('note');
+  });
+
+  it('sends the plan under its TrainingPeaks identity', async () => {
+    const calls = mockPlanMyPeak({});
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.planPayloads[0].providerPlanId).toBe('624432');
+    expect(calls.planPayloads[0].provider).toBe('training_peaks');
+    expect(calls.planPayloads[0].weekCount).toBe(4);
+  });
+
+  it('removes only the entries this importer placed', async () => {
+    // A session the coach scheduled by hand has no provider identity and must
+    // survive a re-import that no longer contains it.
+    const calls = mockPlanMyPeak({
+      existingEntries: [
+        {
+          id: 'entry-stale',
+          planId: 'plan-1',
+          weekNumber: 3,
+          dayOfWeek: 4,
+          position: 0,
+          note: null,
+          workout: pmpWorkout('wk-9', 'library-shared'),
+          provider: 'training_peaks',
+          providerEntryId: '9999',
+          createdAt: '2026-02-27T00:00:00.000Z',
+          updatedAt: '2026-02-27T00:00:00.000Z',
+        },
+        {
+          id: 'entry-hand-scheduled',
+          planId: 'plan-1',
+          weekNumber: 2,
+          dayOfWeek: 5,
+          position: 0,
+          note: 'Coach note',
+          workout: pmpWorkout('wk-8', 'library-shared'),
+          provider: null,
+          providerEntryId: null,
+          createdAt: '2026-02-27T00:00:00.000Z',
+          updatedAt: '2026-02-27T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.deletedEntryIds).toEqual(['entry-stale']);
+  });
+
+  it('shortens the plan only after the stranded entries are gone', async () => {
+    // The server refuses to shrink a plan below its highest scheduled week, so
+    // ordering is the whole point: delete first, shorten last.
+    const calls = mockPlanMyPeak({ planWeekCount: 8 });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan({ weekCount: 2 }),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.planPatches).toEqual([{ weekCount: 2 }]);
+  });
+
+  it('warns when TrainingPeaks reuses a workout id inside one plan', async () => {
+    // The diagnostic: a repeated id would be read as a move of the first, so the
+    // plan would silently come out short. Caught in the payload, before writing.
+    const calls = mockPlanMyPeak({});
+
+    const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [
+        makeStructuredWorkout({
+          workoutId: 1001,
+          workoutDay: '2026-03-03T00:00:00',
+        }),
+        makeStructuredWorkout({
+          workoutId: 1001,
+          workoutDay: '2026-03-05T00:00:00',
+        }),
+      ],
+      notes: [],
+      config: {},
+    });
+
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining('reused workout id 1001'),
+      })
+    );
+    expect(calls.entryPayloads).toHaveLength(2);
+  });
+
+  it('mirrors the TrainingPeaks folder as the PlanMyPeak plan library', async () => {
+    // Membership lives on the folder, not the plan: the folder listing the plan's
+    // id is the one it belongs to.
+    const calls = mockPlanMyPeak({
+      folders: [
+        {
+          folderId: 'ed1d7a21-1d85-4312-b680-a9e6f5a4ab98',
+          folderName: 'Off the Shelf',
+          ownerId: 6572228,
+          planIds: [624432],
+        },
+      ],
+    });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.createdPlanLibraryNames).toEqual(['Off the Shelf']);
+    expect(calls.planPayloads[0].libraryId).toBe('plan-lib-new');
+  });
+
+  it('reuses an existing plan library of the same name', async () => {
+    const calls = mockPlanMyPeak({
+      folders: [
+        {
+          folderId: 'f1',
+          folderName: 'Off the Shelf',
+          ownerId: 1,
+          planIds: [624432],
+        },
+      ],
+      existingPlanLibraries: [
+        {
+          id: 'plan-lib-existing',
+          name: 'Off the Shelf',
+          description: null,
+          isDefault: false,
+          planCount: 3,
+          createdAt: '2026-02-27T00:00:00.000Z',
+          updatedAt: '2026-02-27T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.createdPlanLibraryNames).toEqual([]);
+    expect(calls.planPayloads[0].libraryId).toBe('plan-lib-existing');
+  });
+
+  it('falls back to the default plan library when the plan is in no folder', async () => {
+    const calls = mockPlanMyPeak({
+      folders: [
+        { folderId: 'f1', folderName: 'Other', ownerId: 1, planIds: [999999] },
+      ],
+    });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.createdPlanLibraryNames).toEqual([]);
+    expect(calls.planPayloads[0].libraryId).toBe('plan-lib-1');
+  });
+
+  it('reports calendar notes as not imported rather than dropping them silently', async () => {
+    mockPlanMyPeak({});
+
+    const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [makeNote()],
+      config: {},
+    });
+
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining('calendar note'),
+      })
+    );
   });
 });

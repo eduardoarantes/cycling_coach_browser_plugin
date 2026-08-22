@@ -1,7 +1,7 @@
 /**
  * TabNavigation component
  *
- * Provides tab navigation between Workout Libraries and Training Plans views
+ * Provides tab navigation between Workout Libraries and Plans Library views
  */
 
 import type { ReactElement } from 'react';
@@ -53,7 +53,7 @@ export function TabNavigation({
         className={getTabClassName('plans')}
         onClick={() => handleTabClick('plans')}
       >
-        Training Plans
+        Plans Library
       </button>
 
       <button

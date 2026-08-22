@@ -77,6 +77,8 @@ type TrackedTrainingPlanExportPhase =
   | 'folder'
   | 'classicWorkouts'
   | 'rxWorkouts'
+  | 'plan'
+  | 'entries'
   | 'notes'
   | 'events';
 
@@ -116,6 +118,10 @@ function getTrainingPlanExportPhaseLabel(
       return 'Creating Plan Folder';
     case 'classicWorkouts':
       return 'Classic Workouts';
+    case 'plan':
+      return 'Training Plan';
+    case 'entries':
+      return 'Scheduling Workouts';
     case 'rxWorkouts':
       return 'Strength Workouts';
     case 'notes':
@@ -160,6 +166,18 @@ function createInitialTrainingPlanExportProgressState(
         status: 'pending',
         current: 0,
         total: folderStepCount,
+      },
+      plan: {
+        label: getTrainingPlanExportPhaseLabel('plan'),
+        status: 'pending',
+        current: 0,
+        total: 1,
+      },
+      entries: {
+        label: getTrainingPlanExportPhaseLabel('entries'),
+        status: 'pending',
+        current: 0,
+        total: classicCount,
       },
       classicWorkouts: {
         label: getTrainingPlanExportPhaseLabel('classicWorkouts'),

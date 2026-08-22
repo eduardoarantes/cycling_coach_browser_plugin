@@ -26,18 +26,18 @@ import {
   type PlanMyPeakWorkoutLibraryItem,
   type PlanMyPeakWorkoutTypeValue,
   TRAINING_PEAKS_PROVIDER_CODE,
+  PlanMyPeakPlanLibrariesResponseSchema,
+  PlanMyPeakPlanLibrarySchema,
+  PlanMyPeakPlanDetailSchema,
+  PlanMyPeakPlanEntrySchema,
+  PlanMyPeakPlanSummarySchema,
+  PlanMyPeakPlansResponseSchema,
+  type PlanMyPeakPlanDetail,
+  type PlanMyPeakPlanEntry,
+  type PlanMyPeakPlanLibrary,
+  type PlanMyPeakPlanSummary,
 } from '@/schemas/planMyPeakApi.schema';
 import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
-import {
-  PlanMyPeakCreatePlanNoteRequestSchema,
-  PlanMyPeakCreatePlanNoteResponseSchema,
-  PlanMyPeakCreateTrainingPlanRequestSchema,
-  PlanMyPeakSaveTrainingPlanResponseSchema,
-  type PlanMyPeakCreatePlanNoteRequest,
-  type PlanMyPeakCreateTrainingPlanRequest,
-  type PlanMyPeakSaveTrainingPlanResponse,
-  type PlanMyPeakTrainingPlanNote,
-} from '@/schemas/planMyPeak.schema';
 import type {
   PlanMyPeakLength,
   PlanMyPeakStep,
@@ -53,9 +53,10 @@ import { ZodError, z } from 'zod';
 // URL spelling, so a transposition cannot typecheck.
 const WORKOUT_ITEMS_ENDPOINT = '/backend/workout-library';
 const WORKOUT_CONTAINERS_ENDPOINT = '/backend/workout-libraries';
-// Training-plan export is not yet realigned: PlanMyPeak has no /training-plans
-// endpoint, so this path still 404s. See the contract-alignment report.
-const TRAINING_PLANS_ENDPOINT = '/training-plans';
+// Plans and their containers. Three paths one word apart, so these are named
+// for what they return rather than mirroring the URLs.
+const PLANS_ENDPOINT = '/backend/workout-plans';
+const PLAN_CONTAINERS_ENDPOINT = '/backend/workout-plan-libraries';
 const ATHLETE_TAGS_INGEST_ENDPOINT =
   '/backend/athlete-tags/ingest/training-peaks';
 const COACH_ME_ENDPOINT = '/backend/coaches/me';
@@ -208,21 +209,6 @@ interface PlanMyPeakCreateWorkoutRequest {
   libraryId?: string;
 }
 
-const PlanMyPeakTrainingPlanSummarySchema = z
-  .object({
-    id: z.string(),
-    name: z.string().optional(),
-    source_id: z.string().nullable().optional(),
-    sourceId: z.string().nullable().optional(),
-  })
-  .passthrough();
-
-const PlanMyPeakTrainingPlansListResponseSchema = z
-  .object({
-    plans: z.array(PlanMyPeakTrainingPlanSummarySchema),
-  })
-  .passthrough();
-
 type QueryValue =
   | string
   | number
@@ -324,121 +310,6 @@ async function parseErrorMessage(response: Response): Promise<string> {
       return `HTTP ${response.status}`;
     }
   }
-}
-
-function isDuplicateTrainingPlanSourceIdError(message: string): boolean {
-  const normalized = message.trim().toLowerCase();
-  return (
-    normalized.includes('source_id') &&
-    normalized.includes('already exists') &&
-    normalized.includes('training plan')
-  );
-}
-
-async function findPlanMyPeakTrainingPlanBySourceId(
-  sourceId: string
-): Promise<ApiResponse<{ id: string; name?: string } | null>> {
-  const trimmedSourceId = sourceId.trim();
-  if (!trimmedSourceId) {
-    return { success: true, data: null };
-  }
-
-  try {
-    logger.debug(
-      `[PlanMyPeak API] Looking up training plan by source_id "${trimmedSourceId}"`
-    );
-
-    const response = await makeApiRequest(TRAINING_PLANS_ENDPOINT);
-    if (!response.ok) {
-      const message = await parseErrorMessage(response);
-      return {
-        success: false,
-        error: {
-          message,
-          status: response.status,
-        },
-      };
-    }
-
-    const json = await response.json();
-    const parsed = PlanMyPeakTrainingPlansListResponseSchema.parse(json);
-    const match = parsed.plans.find(
-      (plan) => (plan.source_id ?? plan.sourceId ?? null) === trimmedSourceId
-    );
-
-    if (!match) {
-      return { success: true, data: null };
-    }
-
-    return {
-      success: true,
-      data: {
-        id: match.id,
-        name: match.name,
-      },
-    };
-  } catch (error) {
-    if (error instanceof Error && error.message === 'NO_TOKEN') {
-      return {
-        success: false,
-        error: {
-          message: 'PlanMyPeak authentication required',
-          code: 'NO_TOKEN',
-        },
-      };
-    }
-
-    if (error instanceof ZodError) {
-      logger.error(
-        '[PlanMyPeak API] Training plan lookup response validation failed:',
-        error
-      );
-      return {
-        success: false,
-        error: {
-          message: 'Response validation failed while listing training plans',
-          code: 'VALIDATION_ERROR',
-        },
-      };
-    }
-
-    logger.error(
-      '[PlanMyPeak API] Failed to lookup training plan by source_id:',
-      error
-    );
-    return {
-      success: false,
-      error: {
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-    };
-  }
-}
-
-function updatePlanMyPeakTrainingPlan(
-  planId: string,
-  payload: PlanMyPeakCreateTrainingPlanRequest
-): Promise<ApiResponse<PlanMyPeakSaveTrainingPlanResponse>> {
-  const trimmedPlanId = planId.trim();
-  if (!trimmedPlanId) {
-    return Promise.resolve({
-      success: false,
-      error: {
-        message: 'Plan id is required',
-        code: 'VALIDATION_ERROR',
-      },
-    });
-  }
-
-  return apiRequest(
-    `${TRAINING_PLANS_ENDPOINT}/${encodeURIComponent(trimmedPlanId)}`,
-    PlanMyPeakSaveTrainingPlanResponseSchema,
-    `Updating PlanMyPeak training plan "${payload.metadata.name}" (${trimmedPlanId})`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }
-  );
 }
 
 function normalizeWorkoutType(
@@ -1247,6 +1118,241 @@ export async function deletePlanMyPeakWorkout(
   }
 }
 
+/**
+ * Body of POST /workout-plans. Also used for PATCH, which is sparse.
+ *
+ * `weekCount` may not be shortened below the highest scheduled week — that is a
+ * 409 from the service, which the schema cannot see. Shorten a plan *after*
+ * removing the entries that would be stranded.
+ */
+export interface PlanMyPeakCreatePlanRequest {
+  name: string;
+  description?: string | null;
+  weekCount: number;
+  libraryId?: string;
+  provider?: string;
+  providerPlanId?: string;
+  providerMetadata?: Record<string, unknown> | null;
+}
+
+/**
+ * Body of POST /workout-plans/:planId/entries.
+ *
+ * `note` is deliberately never sent by the importer: an omitted note is kept on
+ * an identity-matched write, and we have no note to offer, so saying nothing is
+ * how a coach's own note survives a re-import.
+ */
+export interface PlanMyPeakCreatePlanEntryRequest {
+  workoutId: string;
+  weekNumber: number;
+  /** ISO weekday: 1 = Monday … 7 = Sunday. */
+  dayOfWeek: number;
+  position?: number;
+  provider?: string;
+  providerEntryId?: string;
+}
+
+/** Outcome of an upsert: the record, and whether it was newly created. */
+export interface PlanMyPeakUpsertResult<T> {
+  value: T;
+  created: boolean;
+}
+
+/** List the coach's training-plan libraries, creating their default if needed. */
+export async function fetchPlanMyPeakPlanLibraries(): Promise<
+  ApiResponse<PlanMyPeakPlanLibrary[]>
+> {
+  const result = await apiRequest(
+    PLAN_CONTAINERS_ENDPOINT,
+    PlanMyPeakPlanLibrariesResponseSchema,
+    'Fetching PlanMyPeak plan libraries'
+  );
+
+  if (!result.success) {
+    return result;
+  }
+
+  return { success: true, data: result.data.data };
+}
+
+/** Create a training-plan library. */
+export async function createPlanMyPeakPlanLibrary(
+  name: string,
+  description?: string | null
+): Promise<ApiResponse<PlanMyPeakPlanLibrary>> {
+  const trimmedName = name.trim();
+
+  if (!trimmedName) {
+    return {
+      success: false,
+      error: {
+        message: 'Plan library name is required',
+        code: 'VALIDATION_ERROR',
+      },
+    };
+  }
+
+  return apiRequest(
+    PLAN_CONTAINERS_ENDPOINT,
+    PlanMyPeakPlanLibrarySchema,
+    `Creating PlanMyPeak plan library "${trimmedName}"`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: trimmedName,
+        description: description?.trim() || null,
+      }),
+    }
+  );
+}
+
+/**
+ * Create or update a training plan.
+ *
+ * POST is the upsert: a plan carrying a provider identity this coach already
+ * holds is updated and answers 200 rather than 201. An update never re-files the
+ * plan, so `libraryId` is ignored on that path and the response reports the
+ * library it is actually in.
+ */
+export async function upsertPlanMyPeakPlan(
+  payload: PlanMyPeakCreatePlanRequest
+): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanSummary>>> {
+  const result = await apiRequestWithStatus(
+    PLANS_ENDPOINT,
+    PlanMyPeakPlanSummarySchema,
+    `Upserting PlanMyPeak training plan "${payload.name}"`,
+    { method: 'POST', body: JSON.stringify(payload) }
+  );
+
+  if (!result.success) {
+    return result;
+  }
+
+  return {
+    success: true,
+    data: { value: result.data.value, created: result.data.status === 201 },
+  };
+}
+
+/** Shorten or rename a plan. Shortening below the highest scheduled week is a 409. */
+export async function updatePlanMyPeakPlan(
+  planId: string,
+  payload: Partial<PlanMyPeakCreatePlanRequest>
+): Promise<ApiResponse<PlanMyPeakPlanSummary>> {
+  return apiRequest(
+    `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}`,
+    PlanMyPeakPlanSummarySchema,
+    `Updating PlanMyPeak training plan ${planId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) }
+  );
+}
+
+/** Read a plan with its full schedule, for reconciling against a source. */
+export async function fetchPlanMyPeakPlan(
+  planId: string
+): Promise<ApiResponse<PlanMyPeakPlanDetail>> {
+  return apiRequest(
+    `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}`,
+    PlanMyPeakPlanDetailSchema,
+    `Fetching PlanMyPeak training plan ${planId}`
+  );
+}
+
+/** Find plans, optionally by provider identity. A miss is an empty list. */
+export async function fetchPlanMyPeakPlans(filters?: {
+  libraryId?: string;
+  provider?: string;
+  providerPlanId?: string;
+}): Promise<ApiResponse<PlanMyPeakPlanSummary[]>> {
+  const query = buildQuery({
+    libraryId: filters?.libraryId,
+    provider: filters?.provider,
+    providerPlanId: filters?.providerPlanId,
+  });
+
+  const result = await apiRequest(
+    `${PLANS_ENDPOINT}${query}`,
+    PlanMyPeakPlansResponseSchema,
+    `Fetching PlanMyPeak training plans${query}`
+  );
+
+  if (!result.success) {
+    return result;
+  }
+
+  return { success: true, data: result.data.data };
+}
+
+/**
+ * Schedule or move one session in a plan.
+ *
+ * 201 means newly scheduled, 200 means an entry with this identity moved. The
+ * bodies are identical, so the status is the only signal.
+ */
+export async function upsertPlanMyPeakPlanEntry(
+  planId: string,
+  payload: PlanMyPeakCreatePlanEntryRequest
+): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanEntry>>> {
+  const result = await apiRequestWithStatus(
+    `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}/entries`,
+    PlanMyPeakPlanEntrySchema,
+    `Scheduling PlanMyPeak plan entry in ${planId}`,
+    { method: 'POST', body: JSON.stringify(payload) }
+  );
+
+  if (!result.success) {
+    return result;
+  }
+
+  return {
+    success: true,
+    data: { value: result.data.value, created: result.data.status === 201 },
+  };
+}
+
+/** Remove one scheduled session. */
+export async function deletePlanMyPeakPlanEntry(
+  planId: string,
+  entryId: string
+): Promise<ApiResponse<null>> {
+  try {
+    const response = await makeApiRequest(
+      `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}/entries/${encodeURIComponent(entryId)}`,
+      { method: 'DELETE' }
+    );
+
+    if (response.status === 204 || response.status === 200) {
+      return { success: true, data: null };
+    }
+
+    return {
+      success: false,
+      error: {
+        message: await parseErrorMessage(response),
+        status: response.status,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'NO_TOKEN') {
+      return {
+        success: false,
+        error: {
+          message: 'PlanMyPeak authentication required',
+          code: 'NO_TOKEN',
+        },
+      };
+    }
+
+    logger.error('[PlanMyPeak API] Delete plan entry failed:', error);
+    return {
+      success: false,
+      error: {
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+    };
+  }
+}
+
 /** What happened to one workout in an upload. */
 export interface PlanMyPeakWorkoutUploadResult {
   workout: PlanMyPeakWorkoutLibraryItem;
@@ -1409,130 +1515,3 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
 /**
  * Create a training plan template.
  */
-export async function createPlanMyPeakTrainingPlan(
-  payload: PlanMyPeakCreateTrainingPlanRequest
-): Promise<ApiResponse<PlanMyPeakSaveTrainingPlanResponse>> {
-  const parsedPayload =
-    PlanMyPeakCreateTrainingPlanRequestSchema.safeParse(payload);
-  if (!parsedPayload.success) {
-    return {
-      success: false,
-      error: {
-        message: 'Invalid training plan payload',
-        code: 'VALIDATION_ERROR',
-      },
-    };
-  }
-
-  const createResult = await apiRequest(
-    TRAINING_PLANS_ENDPOINT,
-    PlanMyPeakSaveTrainingPlanResponseSchema,
-    `Creating PlanMyPeak training plan "${parsedPayload.data.metadata.name}"`,
-    {
-      method: 'POST',
-      body: JSON.stringify(parsedPayload.data),
-    }
-  );
-
-  if (createResult.success) {
-    return createResult;
-  }
-
-  const sourceId = parsedPayload.data.metadata.source_id?.trim();
-  if (
-    !sourceId ||
-    !isDuplicateTrainingPlanSourceIdError(createResult.error.message)
-  ) {
-    return createResult;
-  }
-
-  logger.warn(
-    `[PlanMyPeak API] Duplicate training plan source_id "${sourceId}" detected. Attempting update fallback.`
-  );
-
-  const existingPlanResult =
-    await findPlanMyPeakTrainingPlanBySourceId(sourceId);
-  if (!existingPlanResult.success) {
-    return {
-      success: false,
-      error: {
-        ...existingPlanResult.error,
-        message: `Failed to resolve existing training plan for source_id "${sourceId}": ${existingPlanResult.error.message}`,
-      },
-    };
-  }
-
-  if (!existingPlanResult.data) {
-    return createResult;
-  }
-
-  const updateResult = await updatePlanMyPeakTrainingPlan(
-    existingPlanResult.data.id,
-    parsedPayload.data
-  );
-
-  if (!updateResult.success) {
-    return {
-      success: false,
-      error: {
-        ...updateResult.error,
-        message: `Failed to update existing training plan for source_id "${sourceId}": ${updateResult.error.message}`,
-      },
-    };
-  }
-
-  logger.info(
-    `[PlanMyPeak API] Updated existing training plan ${existingPlanResult.data.id} for source_id "${sourceId}"`
-  );
-  return updateResult;
-}
-
-/**
- * Create a note on an existing training plan template.
- */
-export async function createPlanMyPeakTrainingPlanNote(
-  planId: string,
-  payload: PlanMyPeakCreatePlanNoteRequest
-): Promise<ApiResponse<PlanMyPeakTrainingPlanNote>> {
-  const trimmedPlanId = planId.trim();
-  if (!trimmedPlanId) {
-    return {
-      success: false,
-      error: {
-        message: 'Plan id is required',
-        code: 'VALIDATION_ERROR',
-      },
-    };
-  }
-
-  const parsedPayload =
-    PlanMyPeakCreatePlanNoteRequestSchema.safeParse(payload);
-  if (!parsedPayload.success) {
-    return {
-      success: false,
-      error: {
-        message: 'Invalid plan note payload',
-        code: 'VALIDATION_ERROR',
-      },
-    };
-  }
-
-  const result = await apiRequest(
-    `${TRAINING_PLANS_ENDPOINT}/${encodeURIComponent(trimmedPlanId)}/notes`,
-    PlanMyPeakCreatePlanNoteResponseSchema,
-    `Creating note on PlanMyPeak training plan ${trimmedPlanId}`,
-    {
-      method: 'POST',
-      body: JSON.stringify(parsedPayload.data),
-    }
-  );
-
-  if (!result.success) {
-    return result;
-  }
-
-  return {
-    success: true,
-    data: result.data.note,
-  };
-}

@@ -15,11 +15,11 @@ import type {
   PlanMyPeakCoach,
   PlanMyPeakIngestAthleteGroupsResponse,
 } from '@/schemas/planMyPeakApi.schema';
+import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 import type {
-  PlanMyPeakCreatePlanNoteRequest,
-  PlanMyPeakCreateTrainingPlanRequest,
-  PlanMyPeakWorkout,
-} from '@/types/planMyPeak.types';
+  PlanMyPeakCreatePlanEntryRequest,
+  PlanMyPeakCreatePlanRequest,
+} from '@/background/api/planMyPeak';
 import type {
   IntervalsFolderResponse,
   IntervalsPlanConflictAction,
@@ -109,15 +109,59 @@ export interface GetPlanMyPeakWorkoutByProviderIdMessage {
   libraryId?: string;
 }
 
-export interface CreatePlanMyPeakTrainingPlanMessage {
-  type: 'CREATE_PLANMYPEAK_TRAINING_PLAN';
-  payload: PlanMyPeakCreateTrainingPlanRequest;
+/** List the coach's TrainingPeaks plan folders, which carry their plan ids. */
+export interface GetTrainingPlanFoldersMessage {
+  type: 'GET_TRAINING_PLAN_FOLDERS';
 }
 
-export interface CreatePlanMyPeakTrainingPlanNoteMessage {
-  type: 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE';
+/** List the coach's training-plan libraries (creates their default if absent). */
+export interface GetPlanMyPeakPlanLibrariesMessage {
+  type: 'GET_PLANMYPEAK_PLAN_LIBRARIES';
+}
+
+export interface CreatePlanMyPeakPlanLibraryMessage {
+  type: 'CREATE_PLANMYPEAK_PLAN_LIBRARY';
+  name: string;
+  description?: string | null;
+}
+
+/** Create or update a plan, matched on provider identity. 201 created, 200 updated. */
+export interface UpsertPlanMyPeakPlanMessage {
+  type: 'UPSERT_PLANMYPEAK_PLAN';
+  payload: PlanMyPeakCreatePlanRequest;
+}
+
+/** Shorten or rename a plan. Shortening past a scheduled week is a 409. */
+export interface UpdatePlanMyPeakPlanMessage {
+  type: 'UPDATE_PLANMYPEAK_PLAN';
   planId: string;
-  payload: PlanMyPeakCreatePlanNoteRequest;
+  payload: Partial<PlanMyPeakCreatePlanRequest>;
+}
+
+/** Read a plan with its schedule, for reconciling against the source. */
+export interface GetPlanMyPeakPlanMessage {
+  type: 'GET_PLANMYPEAK_PLAN';
+  planId: string;
+}
+
+export interface GetPlanMyPeakPlansMessage {
+  type: 'GET_PLANMYPEAK_PLANS';
+  libraryId?: string;
+  provider?: string;
+  providerPlanId?: string;
+}
+
+/** Schedule or move one session. 201 scheduled, 200 moved. */
+export interface UpsertPlanMyPeakPlanEntryMessage {
+  type: 'UPSERT_PLANMYPEAK_PLAN_ENTRY';
+  planId: string;
+  payload: PlanMyPeakCreatePlanEntryRequest;
+}
+
+export interface DeletePlanMyPeakPlanEntryMessage {
+  type: 'DELETE_PLANMYPEAK_PLAN_ENTRY';
+  planId: string;
+  entryId: string;
 }
 
 /**
@@ -269,6 +313,8 @@ export type TrainingPlanExportProgressPhase =
   | 'folder'
   | 'classicWorkouts'
   | 'rxWorkouts'
+  | 'plan'
+  | 'entries'
   | 'notes'
   | 'events'
   | 'complete';
@@ -369,8 +415,15 @@ export type RuntimeMessage =
   | GetPlanMyPeakWorkoutByProviderIdMessage
   | DeletePlanMyPeakWorkoutMessage
   | GetPlanMyPeakWorkoutsMessage
-  | CreatePlanMyPeakTrainingPlanMessage
-  | CreatePlanMyPeakTrainingPlanNoteMessage
+  | GetTrainingPlanFoldersMessage
+  | GetPlanMyPeakPlanLibrariesMessage
+  | CreatePlanMyPeakPlanLibraryMessage
+  | UpsertPlanMyPeakPlanMessage
+  | UpdatePlanMyPeakPlanMessage
+  | GetPlanMyPeakPlanMessage
+  | GetPlanMyPeakPlansMessage
+  | UpsertPlanMyPeakPlanEntryMessage
+  | DeletePlanMyPeakPlanEntryMessage
   | ImportAthleteGroupsToPlanMyPeakMessage
   | GetPlanMyPeakCoachMessage
   | GetUserMessage

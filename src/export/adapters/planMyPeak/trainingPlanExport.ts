@@ -1,13 +1,28 @@
 import type {
   CreatePlanMyPeakLibraryMessage,
-  CreatePlanMyPeakTrainingPlanMessage,
-  CreatePlanMyPeakTrainingPlanNoteMessage,
+  GetTrainingPlanFoldersMessage,
+  GetPlanMyPeakPlanLibrariesMessage,
+  CreatePlanMyPeakPlanLibraryMessage,
+  GetPlanMyPeakPlanMessage,
+  UpsertPlanMyPeakPlanMessage,
+  UpdatePlanMyPeakPlanMessage,
+  UpsertPlanMyPeakPlanEntryMessage,
+  DeletePlanMyPeakPlanEntryMessage,
   ExportWorkoutsToPlanMyPeakLibraryMessage,
   GetPlanMyPeakLibrariesMessage,
   GetPlanMyPeakWorkoutByProviderIdMessage,
   TrainingPlanExportProgressPayload,
 } from '@/types';
 import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
+import type { PlanFolder } from '@/schemas/trainingPlan.schema';
+import type {
+  PlanMyPeakPlanLibrary,
+  PlanMyPeakPlanSummary,
+  PlanMyPeakPlanDetail,
+  PlanMyPeakPlanEntry,
+} from '@/schemas/planMyPeakApi.schema';
+import { TRAINING_PEAKS_PROVIDER_CODE } from '@/schemas/planMyPeakApi.schema';
+import type { PlanMyPeakUpsertResult } from '@/background/api/planMyPeak';
 import type {
   ApiResponse,
   CalendarNote,
@@ -19,12 +34,8 @@ import type {
   ValidationMessage,
 } from '../base';
 import type {
-  PlanMyPeakCreateTrainingPlanRequest,
   PlanMyPeakExportConfig,
-  PlanMyPeakTrainingPlanNote,
-  PlanMyPeakWeekWorkoutsData,
   PlanMyPeakWorkout,
-  TrainingPhase,
 } from '@/types/planMyPeak.types';
 import type {
   PlanMyPeakLibrary,
@@ -36,15 +47,25 @@ import { normalizeTpPlanWorkoutsToPlanMyPeakLibraryItems } from './trainingPlanN
 
 const TP_SHARED_PLAN_WORKOUT_LIBRARY_NAME = 'TrainingPeaks Plan Workouts';
 
-const DAY_KEYS = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-] as const;
+/**
+ * The TrainingPeaks folder a plan sits in, used as the PlanMyPeak plan library.
+ *
+ * Membership lives on the folder rather than the plan — `/planfolder/v1/folder/all`
+ * returns each folder with the ids it holds — so the plan's folder is the one
+ * listing its id. A plan in no folder returns null and lands in the coach's
+ * default plan library.
+ */
+function resolveTrainingPeaksPlanFolderName(
+  planId: number,
+  folders: PlanFolder[]
+): string | null {
+  const folder = folders.find((entry) => entry.planIds.includes(planId));
+  return folder?.folderName.trim() || null;
+}
+
+/** PlanMyPeak bounds a plan to 52 weeks and a day to 51 positions. */
+const MAX_PLAN_WEEKS = 52;
+const MAX_ENTRY_POSITION = 50;
 
 interface ExportTrainingPlanClassicWorkoutsToPlanMyPeakOptions {
   trainingPlan: TrainingPlan;
@@ -52,23 +73,6 @@ interface ExportTrainingPlanClassicWorkoutsToPlanMyPeakOptions {
   notes?: CalendarNote[];
   config: PlanMyPeakExportConfig;
   onProgress?: (progress: TrainingPlanExportProgressPayload) => void;
-}
-
-interface WeekBuildState {
-  workouts: PlanMyPeakWeekWorkoutsData;
-  weeklyTss: number;
-}
-
-function createEmptyWeekWorkouts(): PlanMyPeakWeekWorkoutsData {
-  return {
-    monday: [],
-    tuesday: [],
-    wednesday: [],
-    thursday: [],
-    friday: [],
-    saturday: [],
-    sunday: [],
-  };
 }
 
 function normalizeForStableHash(value: unknown): unknown {
@@ -119,26 +123,6 @@ function parseTpDateToUtcMidnight(value: string): Date | null {
   const [, year, month, day] = match.map(Number);
   const parsed = new Date(Date.UTC(year, month - 1, day));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function inferWeekPhase(weekNumber: number, totalWeeks: number): TrainingPhase {
-  if (totalWeeks <= 1) {
-    return 'Base';
-  }
-
-  if (weekNumber === totalWeeks) {
-    return 'Recovery';
-  }
-
-  const progress = weekNumber / totalWeeks;
-  if (progress <= 0.5) {
-    return 'Base';
-  }
-  if (progress >= 0.85) {
-    return 'Peak';
-  }
-
-  return 'Build';
 }
 
 async function resolveSharedPlanWorkoutLibrary(
@@ -287,7 +271,6 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   let overallCurrent = 0;
   let folderCurrent = 0;
   let classicCurrent = 0;
-  let notesCurrent = 0;
 
   const emitProgress = (
     phase: TrainingPlanExportProgressPayload['phase'],
@@ -556,40 +539,37 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     );
   }
 
-  const weekState = new Map<number, WeekBuildState>();
-  let scheduledWorkoutCount = 0;
+  /** One scheduled session, in PlanMyPeak's terms. */
+  interface Placement {
+    providerEntryId: string;
+    weekNumber: number;
+    dayOfWeek: number;
+    position: number;
+    planMyPeakWorkoutId: string;
+    title: string;
+  }
 
-  const sortedWorkouts = [...workouts].sort((a, b) => {
+  const placements: Placement[] = [];
+  const seenProviderEntryIds = new Set<string>();
+
+  // Earliest first, so `orderOnDay` gaps fall back to a stable ordering.
+  const sortedPlanWorkouts = [...workouts].sort((a, b) => {
     const dayCompare = a.workoutDay.localeCompare(b.workoutDay);
-    if (dayCompare !== 0) {
-      return dayCompare;
-    }
-
-    const aOrder =
-      typeof a.orderOnDay === 'number' ? a.orderOnDay : Number.MAX_SAFE_INTEGER;
-    const bOrder =
-      typeof b.orderOnDay === 'number' ? b.orderOnDay : Number.MAX_SAFE_INTEGER;
-    return aOrder - bOrder;
+    return dayCompare !== 0
+      ? dayCompare
+      : (a.orderOnDay ?? 0) - (b.orderOnDay ?? 0);
   });
 
-  for (const workout of sortedWorkouts) {
-    const sourceId = tpWorkoutSourceIdById.get(workout.workoutId) ?? null;
-    if (!sourceId) {
+  for (const workout of sortedPlanWorkouts) {
+    const structureSourceId = tpWorkoutSourceIdById.get(workout.workoutId);
+    const planMyPeakWorkoutId = structureSourceId
+      ? sourceIdToWorkoutId.get(structureSourceId)
+      : undefined;
+    if (!planMyPeakWorkoutId) {
       warnings.push({
         field: `workouts:${workout.workoutId}`,
         severity: 'warning',
-        message: `Skipped workout placement for "${workout.title}" because structure was missing`,
-      });
-      continue;
-    }
-
-    const planMyPeakWorkoutId = sourceIdToWorkoutId.get(sourceId);
-    const summary = sourceIdToSummary.get(sourceId);
-    if (!planMyPeakWorkoutId || !summary) {
-      warnings.push({
-        field: `workouts:${workout.workoutId}`,
-        severity: 'warning',
-        message: `Skipped workout placement for "${workout.title}" because deduped workout was unavailable`,
+        message: `Skipped placement for "${workout.title}" because its workout was not uploaded`,
       });
       continue;
     }
@@ -599,245 +579,321 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       warnings.push({
         field: `workouts:${workout.workoutId}`,
         severity: 'warning',
-        message: `Skipped workout placement for "${workout.title}" due to invalid date ${workout.workoutDay}`,
+        message: `Skipped placement for "${workout.title}" due to invalid date ${workout.workoutDay}`,
       });
       continue;
     }
 
     const weekNumber = getWeekNumber(workoutDate, planStart);
-    if (weekNumber < 1) {
+    if (weekNumber < 1 || weekNumber > MAX_PLAN_WEEKS) {
       warnings.push({
         field: `workouts:${workout.workoutId}`,
         severity: 'warning',
-        message: `Skipped workout placement for "${workout.title}" because it occurs before plan start`,
+        message: `Skipped placement for "${workout.title}": week ${weekNumber} is outside the 1-${MAX_PLAN_WEEKS} PlanMyPeak supports`,
       });
       continue;
     }
 
-    const dayIndex = getDayOfWeek(workoutDate);
-    const dayKey = DAY_KEYS[dayIndex];
+    const providerEntryId = String(workout.workoutId);
 
-    let week = weekState.get(weekNumber);
-    if (!week) {
-      week = {
-        workouts: createEmptyWeekWorkouts(),
-        weeklyTss: 0,
-      };
-      weekState.set(weekNumber, week);
+    // The diagnostic the PlanMyPeak side needs: if TrainingPeaks reuses a
+    // workoutId within one plan, the second occurrence would be read as a *move*
+    // of the first and the plan would silently end up short. Detected here, in
+    // the payload, before any request — no round trip and no confusing it with a
+    // coach having moved something.
+    if (seenProviderEntryIds.has(providerEntryId)) {
+      warnings.push({
+        field: `workouts:${workout.workoutId}`,
+        severity: 'warning',
+        message: `TrainingPeaks reused workout id ${providerEntryId} within this plan. Only the last occurrence will be scheduled — please report this, it affects how imports identify sessions.`,
+      });
     }
+    seenProviderEntryIds.add(providerEntryId);
 
-    const fallbackOrder = week.workouts[dayKey].length;
-    const order =
-      typeof workout.orderOnDay === 'number' &&
-      Number.isFinite(workout.orderOnDay)
-        ? Math.max(0, Math.round(workout.orderOnDay))
-        : fallbackOrder;
-
-    week.workouts[dayKey].push({
-      id: `tp-${workout.workoutId}-${weekNumber}-${dayIndex}-${order}`,
-      order,
-      workoutKey: planMyPeakWorkoutId,
-      workout: {
-        name: summary.name,
-        type: summary.type,
-        sport_type: summary.sport_type,
-        base_duration_min: Math.max(
-          1,
-          Math.round(summary.base_duration_min || 1)
-        ),
-        base_tss: Math.max(0, Math.round(summary.base_tss || 0)),
-      },
-    });
-
-    week.weeklyTss += Math.max(0, Math.round(summary.base_tss || 0));
-    scheduledWorkoutCount += 1;
-  }
-
-  const weekNumbers = Array.from(weekState.keys());
-  const maxWeekFromWorkouts =
-    weekNumbers.length > 0 ? Math.max(...weekNumbers) : 0;
-  const totalWeeks = Math.max(
-    trainingPlan.weekCount || 0,
-    maxWeekFromWorkouts,
-    1
-  );
-
-  const weeks: PlanMyPeakCreateTrainingPlanRequest['weeks'] = [];
-  for (let weekNumber = 1; weekNumber <= totalWeeks; weekNumber += 1) {
-    const state = weekState.get(weekNumber) ?? {
-      workouts: createEmptyWeekWorkouts(),
-      weeklyTss: 0,
-    };
-
-    for (const dayKey of DAY_KEYS) {
-      state.workouts[dayKey].sort((a, b) => a.order - b.order);
-    }
-
-    weeks.push({
+    placements.push({
+      providerEntryId,
       weekNumber,
-      phase: inferWeekPhase(weekNumber, totalWeeks),
-      weeklyTss: state.weeklyTss,
-      notes: null,
-      workouts: state.workouts,
+      // getDayOfWeek is 0 = Monday; PlanMyPeak uses ISO, 1 = Monday.
+      dayOfWeek: getDayOfWeek(workoutDate) + 1,
+      position:
+        typeof workout.orderOnDay === 'number' &&
+        Number.isFinite(workout.orderOnDay)
+          ? Math.min(
+              MAX_ENTRY_POSITION,
+              Math.max(0, Math.round(workout.orderOnDay))
+            )
+          : 0,
+      planMyPeakWorkoutId,
+      title: workout.title,
     });
   }
 
-  const createPlanPayload: PlanMyPeakCreateTrainingPlanRequest = {
-    metadata: {
-      name: planName,
-      description: trainingPlan.description,
-      goal: `Imported from TrainingPeaks plan ${trainingPlan.planId}`,
-      source_id: `TP:${trainingPlan.planId}`,
-    },
-    weeks,
-    publish: true,
-  };
-
-  emitProgress(
-    'folder',
-    'progress',
-    folderCurrent,
-    folderPhaseTotal,
-    planName,
-    'Creating PlanMyPeak training plan'
+  const sourceWeekCount = Math.min(
+    MAX_PLAN_WEEKS,
+    Math.max(
+      1,
+      trainingPlan.weekCount ?? 0,
+      ...placements.map((placement) => placement.weekNumber)
+    )
   );
 
-  const createPlanResponse = await chrome.runtime.sendMessage<
-    CreatePlanMyPeakTrainingPlanMessage,
-    ApiResponse<{ success: boolean; planId: string; savedAt: string }>
+  // Resolve the plan's container. Listing creates the coach's default if they
+  // have none, so there is always somewhere to put it.
+  const planLibrariesResponse = await chrome.runtime.sendMessage<
+    GetPlanMyPeakPlanLibrariesMessage,
+    ApiResponse<PlanMyPeakPlanLibrary[]>
+  >({ type: 'GET_PLANMYPEAK_PLAN_LIBRARIES' });
+
+  if (!planLibrariesResponse.success) {
+    return failWithProgress([planLibrariesResponse.error.message], {
+      phase: 'plan',
+      phaseCurrent: 0,
+      phaseTotal: 1,
+      message: 'Failed to read PlanMyPeak plan libraries',
+    });
+  }
+
+  // Mirror the TrainingPeaks folder as the PlanMyPeak plan library, the way a
+  // workout library already mirrors its TrainingPeaks source. Falls back to the
+  // coach's default when we have no folder name — listing creates that default
+  // if they have none, so there is always a destination.
+  const foldersResponse = await chrome.runtime.sendMessage<
+    GetTrainingPlanFoldersMessage,
+    ApiResponse<PlanFolder[]>
+  >({ type: 'GET_TRAINING_PLAN_FOLDERS' });
+
+  if (!foldersResponse.success) {
+    warnings.push({
+      field: 'planLibrary',
+      severity: 'warning',
+      message: `Could not read TrainingPeaks plan folders, using the default PlanMyPeak plan library: ${foldersResponse.error.message}`,
+    });
+  }
+
+  const planFolderName = foldersResponse.success
+    ? resolveTrainingPeaksPlanFolderName(
+        trainingPlan.planId,
+        foldersResponse.data
+      )
+    : null;
+
+  let planLibrary =
+    planLibrariesResponse.data.find((library) => library.isDefault) ??
+    planLibrariesResponse.data[0];
+
+  if (planFolderName) {
+    const byName = planLibrariesResponse.data.find(
+      (library) =>
+        library.name.trim().toLowerCase() === planFolderName.toLowerCase()
+    );
+
+    if (byName) {
+      planLibrary = byName;
+    } else {
+      const created = await chrome.runtime.sendMessage<
+        CreatePlanMyPeakPlanLibraryMessage,
+        ApiResponse<PlanMyPeakPlanLibrary>
+      >({
+        type: 'CREATE_PLANMYPEAK_PLAN_LIBRARY',
+        name: planFolderName,
+      });
+
+      if (created.success) {
+        planLibrary = created.data;
+      } else {
+        warnings.push({
+          field: 'planLibrary',
+          severity: 'warning',
+          message: `Could not create plan library "${planFolderName}", using "${planLibrary?.name ?? 'the default'}" instead: ${created.error.message}`,
+        });
+      }
+    }
+  }
+
+  emitProgress('plan', 'started', 0, 1, planName, 'Creating training plan');
+
+  // The plan is created at its full length. Shortening happens last, after any
+  // stranded entries are gone, because the server refuses to shrink a plan below
+  // its highest scheduled week.
+  const upsertPlanResponse = await chrome.runtime.sendMessage<
+    UpsertPlanMyPeakPlanMessage,
+    ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanSummary>>
   >({
-    type: 'CREATE_PLANMYPEAK_TRAINING_PLAN',
-    payload: createPlanPayload,
+    type: 'UPSERT_PLANMYPEAK_PLAN',
+    payload: {
+      name: planName,
+      description: trainingPlan.description ?? null,
+      weekCount: sourceWeekCount,
+      libraryId: planLibrary?.id,
+      provider: TRAINING_PEAKS_PROVIDER_CODE,
+      providerPlanId: String(trainingPlan.planId),
+      providerMetadata: {
+        trainingPeaksPlanId: trainingPlan.planId,
+        trainingPeaksStartDate: trainingPlan.startDate,
+      },
+    },
   });
 
-  if (!createPlanResponse.success) {
-    return failWithProgress(
-      [
-        createPlanResponse.error.message ||
-          `Failed to create PlanMyPeak training plan "${planName}"`,
-      ],
-      {
-        phase: 'folder',
-        phaseCurrent: folderCurrent,
-        phaseTotal: folderPhaseTotal,
-        message: `Failed to create PlanMyPeak training plan "${planName}"`,
-        itemsExported: scheduledWorkoutCount,
-      }
-    );
+  if (!upsertPlanResponse.success) {
+    return failWithProgress([upsertPlanResponse.error.message], {
+      phase: 'plan',
+      phaseCurrent: 0,
+      phaseTotal: 1,
+      message: `Failed to create training plan "${planName}"`,
+    });
   }
 
-  folderCurrent += 1;
-  overallCurrent += 1;
-  emitProgress(
-    'folder',
-    'completed',
-    folderCurrent,
-    folderPhaseTotal,
-    planName,
-    'Training plan created'
-  );
+  const plan = upsertPlanResponse.data.value;
+  if (!upsertPlanResponse.data.created) {
+    warnings.push({
+      field: 'plan',
+      severity: 'warning',
+      message: `"${plan.name}" already existed in PlanMyPeak and was updated in place.`,
+    });
+  }
+  if (planLibrary && plan.library.id !== planLibrary.id) {
+    warnings.push({
+      field: 'plan',
+      severity: 'warning',
+      message: `"${plan.name}" lives in "${plan.library.name}" because you moved it there, and was updated there rather than moved back.`,
+    });
+  }
+
+  emitProgress('plan', 'completed', 1, 1, planName, 'Training plan ready');
+
+  // Read the existing schedule before touching it, so the reconcile knows which
+  // entries the source no longer has.
+  const existingPlanResponse = await chrome.runtime.sendMessage<
+    GetPlanMyPeakPlanMessage,
+    ApiResponse<PlanMyPeakPlanDetail>
+  >({ type: 'GET_PLANMYPEAK_PLAN', planId: plan.id });
+
+  const existingEntries = existingPlanResponse.success
+    ? existingPlanResponse.data.entries
+    : [];
 
   emitProgress(
-    'notes',
+    'entries',
     'started',
-    notesCurrent,
-    notesPhaseTotal,
+    0,
+    placements.length,
     planName,
-    notesPhaseTotal > 0 ? 'Creating plan notes' : 'No notes to export'
+    'Scheduling workouts'
   );
 
-  for (const note of notes) {
-    const noteTitle = note.title?.trim() || `Note ${note.id}`;
-    let noteMessage = '';
+  let entriesCurrent = 0;
+  let scheduledWorkoutCount = 0;
 
-    const noteDate = parseTpDateToUtcMidnight(note.noteDate);
-    if (!noteDate) {
-      warnings.push({
-        field: `notes:${note.id}`,
-        severity: 'warning',
-        message: `Skipped note "${note.title}" due to invalid date ${note.noteDate}`,
-      });
-      noteMessage = `Skipped: invalid date ${note.noteDate}`;
-      notesCurrent += 1;
-      overallCurrent += 1;
-      emitProgress(
-        'notes',
-        'progress',
-        notesCurrent,
-        notesPhaseTotal,
-        noteTitle,
-        noteMessage
-      );
-      continue;
-    }
-
-    const weekNumber = getWeekNumber(noteDate, planStart);
-    if (weekNumber < 1) {
-      warnings.push({
-        field: `notes:${note.id}`,
-        severity: 'warning',
-        message: `Skipped note "${note.title}" because it occurs before plan start`,
-      });
-      noteMessage = 'Skipped: note occurs before plan start';
-      notesCurrent += 1;
-      overallCurrent += 1;
-      emitProgress(
-        'notes',
-        'progress',
-        notesCurrent,
-        notesPhaseTotal,
-        noteTitle,
-        noteMessage
-      );
-      continue;
-    }
-
-    const dayOfWeek = getDayOfWeek(noteDate);
-    const createNoteResponse = await chrome.runtime.sendMessage<
-      CreatePlanMyPeakTrainingPlanNoteMessage,
-      ApiResponse<PlanMyPeakTrainingPlanNote>
+  for (const placement of placements) {
+    const entryResponse = await chrome.runtime.sendMessage<
+      UpsertPlanMyPeakPlanEntryMessage,
+      ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanEntry>>
     >({
-      type: 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE',
-      planId: createPlanResponse.data.planId,
+      type: 'UPSERT_PLANMYPEAK_PLAN_ENTRY',
+      planId: plan.id,
       payload: {
-        week_number: weekNumber,
-        day_of_week: dayOfWeek,
-        title: note.title?.trim() || `Note ${note.id}`,
-        description: note.description?.trim() ? note.description.trim() : null,
+        workoutId: placement.planMyPeakWorkoutId,
+        weekNumber: placement.weekNumber,
+        dayOfWeek: placement.dayOfWeek,
+        position: placement.position,
+        provider: TRAINING_PEAKS_PROVIDER_CODE,
+        providerEntryId: placement.providerEntryId,
+        // `note` is deliberately absent: an omitted note is kept, and we have
+        // none to offer. Sending null would erase whatever the coach wrote.
       },
     });
 
-    if (!createNoteResponse.success) {
+    entriesCurrent += 1;
+    overallCurrent += 1;
+
+    if (!entryResponse.success) {
       warnings.push({
-        field: `notes:${note.id}`,
+        field: `entries:${placement.providerEntryId}`,
         severity: 'warning',
-        message: `Failed to create note "${note.title}" for week ${weekNumber}, day ${dayOfWeek}: ${createNoteResponse.error.message}`,
+        message: `Failed to schedule "${placement.title}" in week ${placement.weekNumber}: ${entryResponse.error.message}`,
       });
-      noteMessage = `Failed: ${createNoteResponse.error.message}`;
     } else {
-      noteMessage = `Created note for week ${weekNumber}, day ${dayOfWeek}`;
+      scheduledWorkoutCount += 1;
     }
 
-    notesCurrent += 1;
-    overallCurrent += 1;
     emitProgress(
-      'notes',
+      'entries',
       'progress',
-      notesCurrent,
-      notesPhaseTotal,
-      noteTitle,
-      noteMessage
+      entriesCurrent,
+      placements.length,
+      placement.title,
+      entryResponse.success ? 'Scheduled' : 'Failed'
     );
   }
 
   emitProgress(
-    'notes',
+    'entries',
     'completed',
-    notesCurrent,
-    notesPhaseTotal,
+    entriesCurrent,
+    placements.length,
     planName,
-    'Plan notes processing complete'
+    'Scheduling complete'
   );
+
+  // Remove sessions this import no longer has. Only entries we placed are
+  // considered: one a coach scheduled by hand carries no provider identity and
+  // is never adopted, so it is never removed either.
+  const stale = existingEntries.filter(
+    (entry) =>
+      entry.provider === TRAINING_PEAKS_PROVIDER_CODE &&
+      entry.providerEntryId !== null &&
+      !seenProviderEntryIds.has(entry.providerEntryId)
+  );
+
+  for (const entry of stale) {
+    const deleted = await chrome.runtime.sendMessage<
+      DeletePlanMyPeakPlanEntryMessage,
+      ApiResponse<null>
+    >({
+      type: 'DELETE_PLANMYPEAK_PLAN_ENTRY',
+      planId: plan.id,
+      entryId: entry.id,
+    });
+
+    if (!deleted.success) {
+      warnings.push({
+        field: `entries:${entry.id}`,
+        severity: 'warning',
+        message: `Kept "${entry.workout.name}" in week ${entry.weekNumber}: ${deleted.error.message}`,
+      });
+    }
+  }
+
+  // Shortening last, once nothing is stranded outside the new length.
+  if (plan.weekCount > sourceWeekCount) {
+    const shortened = await chrome.runtime.sendMessage<
+      UpdatePlanMyPeakPlanMessage,
+      ApiResponse<PlanMyPeakPlanSummary>
+    >({
+      type: 'UPDATE_PLANMYPEAK_PLAN',
+      planId: plan.id,
+      payload: { weekCount: sourceWeekCount },
+    });
+
+    if (!shortened.success) {
+      warnings.push({
+        field: 'plan',
+        severity: 'warning',
+        message: `Left "${plan.name}" at ${plan.weekCount} weeks: ${shortened.error.message}`,
+      });
+    }
+  }
+
+  if (notes.length > 0) {
+    // TrainingPeaks calendar notes are day-level annotations. PlanMyPeak models
+    // a note only on a scheduled entry, so a note on a day with no session has
+    // nowhere to go. Reported rather than dropped silently.
+    warnings.push({
+      field: 'notes',
+      severity: 'warning',
+      message: `${notes.length} TrainingPeaks calendar note(s) were not imported - PlanMyPeak attaches notes to a scheduled workout, not to a day.`,
+    });
+  }
 
   emitProgress(
     'complete',

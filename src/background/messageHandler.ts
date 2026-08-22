@@ -21,15 +21,18 @@ import type {
   AthleteGroup,
   ApiResponse,
 } from '@/types/api.types';
+import type { PlanFolder } from '@/schemas/trainingPlan.schema';
 import type {
+  PlanMyPeakPlanLibrary,
+  PlanMyPeakPlanSummary,
+  PlanMyPeakPlanDetail,
+  PlanMyPeakPlanEntry,
   PlanMyPeakLibrary,
   PlanMyPeakWorkoutLibraryItem,
   PlanMyPeakIngestAthleteGroupsResponse,
   PlanMyPeakCoach,
 } from '@/schemas/planMyPeakApi.schema';
 import type {
-  PlanMyPeakCreatePlanNoteRequest,
-  PlanMyPeakCreateTrainingPlanRequest,
   PlanMyPeakSaveTrainingPlanResponse,
   PlanMyPeakTrainingPlanNote,
   PlanMyPeakWorkout,
@@ -62,6 +65,7 @@ import {
   fetchLibraries,
   fetchLibraryItems,
   fetchTrainingPlans,
+  fetchTrainingPlanFolders,
   fetchPlanWorkouts,
   fetchPlanNotes,
   fetchPlanEvents,
@@ -75,10 +79,19 @@ import {
   deletePlanMyPeakLibrary,
   deletePlanMyPeakWorkout,
   fetchPlanMyPeakWorkouts,
-  createPlanMyPeakTrainingPlan,
-  createPlanMyPeakTrainingPlanNote,
+  upsertPlanMyPeakPlan,
+  upsertPlanMyPeakPlanEntry,
+  deletePlanMyPeakPlanEntry,
+  updatePlanMyPeakPlan,
+  fetchPlanMyPeakPlan,
+  fetchPlanMyPeakPlans,
+  fetchPlanMyPeakPlanLibraries,
+  createPlanMyPeakPlanLibrary,
   exportWorkoutsToPlanMyPeakLibrary,
   type PlanMyPeakUploadSummary,
+  type PlanMyPeakCreatePlanRequest,
+  type PlanMyPeakCreatePlanEntryRequest,
+  type PlanMyPeakUpsertResult,
   ingestTrainingPeaksAthleteGroups,
   fetchPlanMyPeakCoach,
 } from './api/planMyPeak';
@@ -535,34 +548,86 @@ async function handleGetPlanMyPeakWorkoutByProviderId(
 }
 
 /**
- * Handle CREATE_PLANMYPEAK_TRAINING_PLAN message from popup
- * Creates a training plan template in PlanMyPeak
+ * Handle GET_TRAINING_PLAN_FOLDERS message from popup.
+ * Folders are how TrainingPeaks groups plans; each carries the ids it holds.
  */
-async function handleCreatePlanMyPeakTrainingPlan(
-  payload: PlanMyPeakCreateTrainingPlanRequest
-): Promise<ApiResponse<PlanMyPeakSaveTrainingPlanResponse>> {
-  logger.debug(
-    'Handling CREATE_PLANMYPEAK_TRAINING_PLAN message:',
-    payload.metadata.name
-  );
-  return await createPlanMyPeakTrainingPlan(payload);
+async function handleGetTrainingPlanFolders(): Promise<
+  ApiResponse<PlanFolder[]>
+> {
+  logger.debug('Handling GET_TRAINING_PLAN_FOLDERS message');
+  return await fetchTrainingPlanFolders();
 }
 
-/**
- * Handle CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE message from popup
- * Adds a note to a specific week/day in a PlanMyPeak training plan
- */
-async function handleCreatePlanMyPeakTrainingPlanNote(
+/** Training-plan library and plan operations, all thin pass-throughs. */
+async function handleGetPlanMyPeakPlanLibraries(): Promise<
+  ApiResponse<PlanMyPeakPlanLibrary[]>
+> {
+  logger.debug('Handling GET_PLANMYPEAK_PLAN_LIBRARIES message');
+  return await fetchPlanMyPeakPlanLibraries();
+}
+
+async function handleCreatePlanMyPeakPlanLibrary(
+  name: string,
+  description?: string | null
+): Promise<ApiResponse<PlanMyPeakPlanLibrary>> {
+  logger.debug('Handling CREATE_PLANMYPEAK_PLAN_LIBRARY message:', name);
+  return await createPlanMyPeakPlanLibrary(name, description);
+}
+
+async function handleUpsertPlanMyPeakPlan(
+  payload: PlanMyPeakCreatePlanRequest
+): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanSummary>>> {
+  logger.debug('Handling UPSERT_PLANMYPEAK_PLAN message:', payload.name);
+  return await upsertPlanMyPeakPlan(payload);
+}
+
+async function handleUpdatePlanMyPeakPlan(
   planId: string,
-  payload: PlanMyPeakCreatePlanNoteRequest
-): Promise<ApiResponse<PlanMyPeakTrainingPlanNote>> {
+  payload: Partial<PlanMyPeakCreatePlanRequest>
+): Promise<ApiResponse<PlanMyPeakPlanSummary>> {
+  logger.debug('Handling UPDATE_PLANMYPEAK_PLAN message:', planId);
+  return await updatePlanMyPeakPlan(planId, payload);
+}
+
+async function handleGetPlanMyPeakPlan(
+  planId: string
+): Promise<ApiResponse<PlanMyPeakPlanDetail>> {
+  logger.debug('Handling GET_PLANMYPEAK_PLAN message:', planId);
+  return await fetchPlanMyPeakPlan(planId);
+}
+
+async function handleGetPlanMyPeakPlans(filters: {
+  libraryId?: string;
+  provider?: string;
+  providerPlanId?: string;
+}): Promise<ApiResponse<PlanMyPeakPlanSummary[]>> {
+  logger.debug('Handling GET_PLANMYPEAK_PLANS message:', filters);
+  return await fetchPlanMyPeakPlans(filters);
+}
+
+async function handleUpsertPlanMyPeakPlanEntry(
+  planId: string,
+  payload: PlanMyPeakCreatePlanEntryRequest
+): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanEntry>>> {
   logger.debug(
-    'Handling CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE message:',
+    'Handling UPSERT_PLANMYPEAK_PLAN_ENTRY message:',
     planId,
-    payload.week_number,
-    payload.day_of_week
+    payload.weekNumber,
+    payload.dayOfWeek
   );
-  return await createPlanMyPeakTrainingPlanNote(planId, payload);
+  return await upsertPlanMyPeakPlanEntry(planId, payload);
+}
+
+async function handleDeletePlanMyPeakPlanEntry(
+  planId: string,
+  entryId: string
+): Promise<ApiResponse<null>> {
+  logger.debug(
+    'Handling DELETE_PLANMYPEAK_PLAN_ENTRY message:',
+    planId,
+    entryId
+  );
+  return await deletePlanMyPeakPlanEntry(planId, entryId);
 }
 
 /**
@@ -1074,13 +1139,44 @@ export async function handleMessage(
         message.libraryId
       );
 
-    case 'CREATE_PLANMYPEAK_TRAINING_PLAN':
-      return await handleCreatePlanMyPeakTrainingPlan(message.payload);
+    case 'GET_TRAINING_PLAN_FOLDERS':
+      return await handleGetTrainingPlanFolders();
 
-    case 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE':
-      return await handleCreatePlanMyPeakTrainingPlanNote(
+    case 'GET_PLANMYPEAK_PLAN_LIBRARIES':
+      return await handleGetPlanMyPeakPlanLibraries();
+
+    case 'CREATE_PLANMYPEAK_PLAN_LIBRARY':
+      return await handleCreatePlanMyPeakPlanLibrary(
+        message.name,
+        message.description
+      );
+
+    case 'UPSERT_PLANMYPEAK_PLAN':
+      return await handleUpsertPlanMyPeakPlan(message.payload);
+
+    case 'UPDATE_PLANMYPEAK_PLAN':
+      return await handleUpdatePlanMyPeakPlan(message.planId, message.payload);
+
+    case 'GET_PLANMYPEAK_PLAN':
+      return await handleGetPlanMyPeakPlan(message.planId);
+
+    case 'GET_PLANMYPEAK_PLANS':
+      return await handleGetPlanMyPeakPlans({
+        libraryId: message.libraryId,
+        provider: message.provider,
+        providerPlanId: message.providerPlanId,
+      });
+
+    case 'UPSERT_PLANMYPEAK_PLAN_ENTRY':
+      return await handleUpsertPlanMyPeakPlanEntry(
         message.planId,
         message.payload
+      );
+
+    case 'DELETE_PLANMYPEAK_PLAN_ENTRY':
+      return await handleDeletePlanMyPeakPlanEntry(
+        message.planId,
+        message.entryId
       );
 
     case 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK':
