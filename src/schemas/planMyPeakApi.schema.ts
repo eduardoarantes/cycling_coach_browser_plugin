@@ -71,32 +71,39 @@ const PlanMyPeakDerivedSummarySchema = z.object({
 /**
  * Intensity profile, or null when the structure yields none.
  *
- * Percentages are always of a threshold, never absolute: a library workout
- * belongs to a coach, so there is no athlete FTP or LTHR to convert against.
- * `metric` says which threshold, and `unit` refines it — %LTHR and %maxHR are
- * different scales and must not share zone boundaries.
+ * Values are never absolute — no watts, no bpm — because a library workout
+ * belongs to a coach and has no athlete to convert against. **Read `unit`
+ * before formatting**: three of the four are percentages, but `scale10` is a
+ * point on the 1-10 RPE scale, so appending "%" would render a maximal effort
+ * as "9%". That is why the field is `intensity` rather than a percent.
  */
 const PlanMyPeakWorkoutProfileSchema = z.object({
-  metric: z.enum(['power', 'heartrate']),
-  unit: z.enum(['percentOfFtp', 'percentOfThresholdHr', 'percentOfMaxHr']),
+  metric: z.enum(['power', 'heartrate', 'rpe']),
+  unit: z.enum([
+    'percentOfFtp',
+    'percentOfThresholdHr',
+    'percentOfMaxHr',
+    'scale10',
+  ]),
   segments: z.array(
-    z.object({ percentOfThreshold: NumberSchema, seconds: NumberSchema })
+    z.object({ intensity: NumberSchema, seconds: NumberSchema })
   ),
   durationSeconds: NumberSchema,
   /**
-   * Null for a heart-rate workout with no provider load: there is no normalized
-   * power to derive one from, and the server will not estimate. Guard before
-   * formatting — this is never 0 standing in for "unknown".
+   * Null for a workout with no derivable load and no provider figure — a
+   * heart-rate or effort-rated session has no normalized power behind it, and
+   * the server will not estimate. Guard before formatting: this is never 0
+   * standing in for "unknown".
    */
   intensityFactor: NumberSchema.nullable(),
   tss: NumberSchema.nullable(),
   /**
    * Whether the load above is ours (`derived`) or came from the provider that
    * supplied the workout (`provider`). Never present a provider figure as a
-   * derived one.
+   * derived one. Null exactly when there is no load.
    */
   loadSource: z.enum(['derived', 'provider']).nullable(),
-  peakPercentOfThreshold: NumberSchema,
+  peakIntensity: NumberSchema,
 });
 
 export type PlanMyPeakWorkoutProfile = z.infer<

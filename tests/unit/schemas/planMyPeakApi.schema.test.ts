@@ -90,12 +90,12 @@ describe('planMyPeakApi schemas', () => {
         profile: {
           metric: 'heartrate',
           unit: 'percentOfThresholdHr',
-          segments: [{ percentOfThreshold: 88, seconds: 1200 }],
+          segments: [{ intensity: 88, seconds: 1200 }],
           durationSeconds: 1200,
           intensityFactor: null,
           tss: null,
           loadSource: null,
-          peakPercentOfThreshold: 92,
+          peakIntensity: 92,
         },
       })
     );
@@ -115,12 +115,12 @@ describe('planMyPeakApi schemas', () => {
         profile: {
           metric: 'heartrate',
           unit: 'percentOfMaxHr',
-          segments: [{ percentOfThreshold: 80, seconds: 3600 }],
+          segments: [{ intensity: 80, seconds: 3600 }],
           durationSeconds: 3600,
           intensityFactor: 0.72,
           tss: 61,
           loadSource: 'provider',
-          peakPercentOfThreshold: 84,
+          peakIntensity: 84,
         },
       })
     );
@@ -130,18 +130,44 @@ describe('planMyPeakApi schemas', () => {
     expect(parsed.providerTss).toBe(61);
   });
 
+  it('parses an effort-rated profile on the 1-10 scale', () => {
+    // The value is a point on a scale, not a percentage. `unit` is the only
+    // thing that says so, which is why the field is `intensity` — formatting an
+    // RPE of 9 as "9%" would describe a maximal effort as almost nothing.
+    const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
+      workoutPayload({
+        profile: {
+          metric: 'rpe',
+          unit: 'scale10',
+          segments: [{ intensity: 9, seconds: 60 }],
+          durationSeconds: 3480,
+          intensityFactor: null,
+          tss: null,
+          loadSource: null,
+          peakIntensity: 9,
+        },
+      })
+    );
+
+    expect(parsed.profile?.metric).toBe('rpe');
+    expect(parsed.profile?.unit).toBe('scale10');
+    expect(parsed.profile?.peakIntensity).toBe(9);
+    // An effort rating computes no training stress.
+    expect(parsed.profile?.tss).toBeNull();
+  });
+
   it('parses a populated profile with its ratio intensity factor', () => {
     const parsed = PlanMyPeakCreateWorkoutResponseSchema.parse(
       workoutPayload({
         profile: {
           metric: 'power',
           unit: 'percentOfFtp',
-          segments: [{ percentOfThreshold: 90, seconds: 1920 }],
+          segments: [{ intensity: 90, seconds: 1920 }],
           durationSeconds: 1920,
           intensityFactor: 0.85,
           tss: 45,
           loadSource: 'derived',
-          peakPercentOfThreshold: 93.5,
+          peakIntensity: 93.5,
         },
       })
     );
