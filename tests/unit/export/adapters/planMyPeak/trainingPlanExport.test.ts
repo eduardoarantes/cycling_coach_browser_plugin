@@ -217,23 +217,30 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
             };
           case 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID':
             return { success: true, data: null };
-          case 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY':
+          case 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY': {
+            // Echo one result per submitted workout, carrying its provider
+            // identity back — that is how the export maps them to entries.
+            const submitted = typed.workouts as Array<{
+              provider_workout_id: string;
+            }>;
             return {
               success: true,
               data: {
-                results: [
-                  {
-                    workout: pmpWorkout('wk-1', libraryId),
-                    created: true,
-                    filedElsewhere: false,
+                results: submitted.map((workout, index) => ({
+                  workout: {
+                    ...pmpWorkout(`wk-${index + 1}`, libraryId),
+                    providerWorkoutId: workout.provider_workout_id,
                   },
-                ],
-                createdCount: 1,
+                  created: true,
+                  filedElsewhere: false,
+                })),
+                createdCount: submitted.length,
                 updatedCount: 0,
                 destinationEmpty: false,
                 failures: [],
               },
             };
+          }
           case 'GET_TRAINING_PLAN_FOLDERS':
             return { success: true, data: options.folders ?? [] };
           case 'GET_PLANMYPEAK_PLAN_LIBRARIES':
@@ -570,8 +577,11 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     expect(calls.planPayloads[0].libraryId).toBe('plan-lib-1');
   });
 
-  it('reports calendar notes as not imported rather than dropping them silently', async () => {
-    mockPlanMyPeak({});
+  it('imports a calendar note as a note-discipline entry on its own day', async () => {
+    // PlanMyPeak has no day-level note, but it does have a `note` discipline,
+    // added for exactly this and stored without a structure. Scheduling one on
+    // its day keeps the coach's words rather than dropping them.
+    const calls = mockPlanMyPeak({});
 
     const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       trainingPlan: makeTrainingPlan(),
@@ -580,10 +590,91 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
       config: {},
     });
 
-    expect(result.warnings).toContainEqual(
-      expect.objectContaining({
-        message: expect.stringContaining('calendar note'),
-      })
+    expect(result.success).toBe(true);
+
+    const noteEntry = calls.entryPayloads.find((payload) =>
+      String(payload.providerEntryId).startsWith('note-')
     );
+    expect(noteEntry).toBeDefined();
+    // Namespaced: note ids and workout ids are both plain integers upstream and
+    // would otherwise share one identity space.
+    expect(noteEntry?.providerEntryId).toBe('note-501');
+  });
+
+  it('mirrors the TrainingPeaks folder as the PlanMyPeak plan library', async () => {
+    // Membership lives on the folder, not the plan: the folder listing the plan's
+    // id is the one it belongs to.
+    const calls = mockPlanMyPeak({
+      folders: [
+        {
+          folderId: 'ed1d7a21-1d85-4312-b680-a9e6f5a4ab98',
+          folderName: 'Off the Shelf',
+          ownerId: 6572228,
+          planIds: [624432],
+        },
+      ],
+    });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.createdPlanLibraryNames).toEqual(['Off the Shelf']);
+    expect(calls.planPayloads[0].libraryId).toBe('plan-lib-new');
+  });
+
+  it('reuses an existing plan library of the same name', async () => {
+    const calls = mockPlanMyPeak({
+      folders: [
+        {
+          folderId: 'f1',
+          folderName: 'Off the Shelf',
+          ownerId: 1,
+          planIds: [624432],
+        },
+      ],
+      existingPlanLibraries: [
+        {
+          id: 'plan-lib-existing',
+          name: 'Off the Shelf',
+          description: null,
+          isDefault: false,
+          planCount: 3,
+          createdAt: '2026-02-27T00:00:00.000Z',
+          updatedAt: '2026-02-27T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.createdPlanLibraryNames).toEqual([]);
+    expect(calls.planPayloads[0].libraryId).toBe('plan-lib-existing');
+  });
+
+  it('falls back to the default plan library when the plan is in no folder', async () => {
+    const calls = mockPlanMyPeak({
+      folders: [
+        { folderId: 'f1', folderName: 'Other', ownerId: 1, planIds: [999999] },
+      ],
+    });
+
+    await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan(),
+      workouts: [makeStructuredWorkout()],
+      notes: [],
+      config: {},
+    });
+
+    expect(calls.createdPlanLibraryNames).toEqual([]);
+    expect(calls.planPayloads[0].libraryId).toBe('plan-lib-1');
   });
 });

@@ -14,6 +14,7 @@ import type {
 } from '@/types';
 import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
 import type { PlanFolder } from '@/schemas/trainingPlan.schema';
+import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 import type {
   PlanMyPeakPlanLibrary,
   PlanMyPeakPlanSummary,
@@ -54,6 +55,53 @@ function resolveTrainingPeaksPlanFolderName(
 ): string | null {
   const folder = folders.find((entry) => entry.planIds.includes(planId));
   return folder?.folderName.trim() || null;
+}
+
+/**
+ * Turn a TrainingPeaks calendar note into a PlanMyPeak workout.
+ *
+ * PlanMyPeak has no day-level note, but it does have a `note` discipline —
+ * added precisely for calendar annotations, and one of the four types stored
+ * with no structure. So a note becomes a workout of that type scheduled on its
+ * own day, which is closer to what the coach wrote than dropping it.
+ *
+ * The provider id is namespaced: note ids and workout ids are both plain
+ * integers in TrainingPeaks and would otherwise collide in one identity space.
+ */
+function toPlanMyPeakNoteWorkout(note: CalendarNote): PlanMyPeakWorkout {
+  const title = note.title?.trim() || `Note ${note.id}`;
+
+  return {
+    id: `note-${note.id}`,
+    name: title,
+    detailed_description: note.description?.trim() || null,
+    sport_type: 'cycling',
+    discipline: 'note',
+    type: 'mixed',
+    intensity: 'easy',
+    suitable_phases: [],
+    suitable_weekdays: null,
+    structure: {
+      primaryIntensityMetric: 'percentOfFtp',
+      primaryLengthMetric: 'duration',
+      structure: [],
+    },
+    base_duration_min: 1,
+    base_tss: 0,
+    variable_components: null,
+    source_file: `note_${note.id}.json`,
+    source_format: 'json',
+    signature: `note-${note.id}`,
+    provider_workout_id: notePlacementId(note),
+    provider_item_type: 'Note',
+    provider_intensity_factor: null,
+    provider_tss: null,
+  };
+}
+
+/** Identity for a note, namespaced so it cannot collide with a workout id. */
+function notePlacementId(note: CalendarNote): string {
+  return `note-${note.id}`;
 }
 
 /** PlanMyPeak bounds a plan to 52 weeks and a day to 51 positions. */
@@ -327,7 +375,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     ApiResponse<PlanMyPeakUploadSummary>
   >({
     type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
-    workouts: transformedWorkouts,
+    workouts: [...transformedWorkouts, ...notes.map(toPlanMyPeakNoteWorkout)],
     libraryId: libraryResult.data.id,
   });
 
@@ -340,11 +388,18 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     });
   }
 
+  /** Namespaced note id -> the PlanMyPeak workout it became. */
+  const workoutIdByNoteId = new Map<string, string>();
+
   for (const entry of uploadResult.data.results) {
-    const tpWorkoutId = Number.parseInt(
-      entry.workout.providerWorkoutId ?? '',
-      10
-    );
+    const providerWorkoutId = entry.workout.providerWorkoutId ?? '';
+
+    if (providerWorkoutId.startsWith('note-')) {
+      workoutIdByNoteId.set(providerWorkoutId, entry.workout.id);
+      continue;
+    }
+
+    const tpWorkoutId = Number.parseInt(providerWorkoutId, 10);
     if (Number.isFinite(tpWorkoutId)) {
       workoutIdByTpWorkoutId.set(tpWorkoutId, entry.workout.id);
     }
@@ -466,6 +521,40 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
           : 0,
       planMyPeakWorkoutId,
       title: workout.title,
+    });
+  }
+
+  for (const note of notes) {
+    const planMyPeakWorkoutId = workoutIdByNoteId.get(notePlacementId(note));
+    const noteDate = parseTpDateToUtcMidnight(note.noteDate);
+
+    if (!planMyPeakWorkoutId || !noteDate) {
+      warnings.push({
+        field: `notes:${note.id}`,
+        severity: 'warning',
+        message: `Skipped note "${note.title}" - ${planMyPeakWorkoutId ? `invalid date ${note.noteDate}` : 'it could not be uploaded'}`,
+      });
+      continue;
+    }
+
+    const weekNumber = getWeekNumber(noteDate, planStart);
+    if (weekNumber < 1 || weekNumber > MAX_PLAN_WEEKS) {
+      warnings.push({
+        field: `notes:${note.id}`,
+        severity: 'warning',
+        message: `Skipped note "${note.title}": week ${weekNumber} is outside the 1-${MAX_PLAN_WEEKS} PlanMyPeak supports`,
+      });
+      continue;
+    }
+
+    placements.push({
+      providerEntryId: notePlacementId(note),
+      weekNumber,
+      dayOfWeek: getDayOfWeek(noteDate) + 1,
+      // After the day's sessions, since a note comments on them.
+      position: MAX_ENTRY_POSITION,
+      planMyPeakWorkoutId,
+      title: note.title?.trim() || `Note ${note.id}`,
     });
   }
 
@@ -726,17 +815,6 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         message: `Left "${plan.name}" at ${plan.weekCount} weeks: ${shortened.error.message}`,
       });
     }
-  }
-
-  if (notes.length > 0) {
-    // TrainingPeaks calendar notes are day-level annotations. PlanMyPeak models
-    // a note only on a scheduled entry, so a note on a day with no session has
-    // nowhere to go. Reported rather than dropped silently.
-    warnings.push({
-      field: 'notes',
-      severity: 'warning',
-      message: `${notes.length} TrainingPeaks calendar note(s) were not imported - PlanMyPeak attaches notes to a scheduled workout, not to a day.`,
-    });
   }
 
   emitProgress(
