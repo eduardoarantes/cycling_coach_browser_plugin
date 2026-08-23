@@ -17,8 +17,9 @@ import {
   AUTH_STATUS_STRINGS,
 } from '@/utils/uiStrings';
 import {
-  SUPPORTED_PLANMYPEAK_APP_PORTS,
-  SUPPORTED_PLANMYPEAK_SUPABASE_PORTS,
+  DEFAULT_PLANMYPEAK_APP_PORT,
+  DEFAULT_PLANMYPEAK_SUPABASE_PORT,
+  parsePort,
 } from '@/utils/constants';
 import { IntervalsApiKeyBanner } from './IntervalsApiKeyBanner';
 import { AuthRow } from './shared/AuthRow';
@@ -169,30 +170,31 @@ function SettingsPageContent({
   const hasUnsavedPortChanges =
     pendingAppPort !== null || pendingSupabasePort !== null;
 
-  // Validate port inputs
-  const isSupportedPort = (
-    value: string,
-    supportedPorts: readonly number[]
-  ): boolean => {
-    const port = parseInt(value, 10);
-    return !isNaN(port) && supportedPorts.includes(port);
-  };
+  // Any TCP port is accepted; local-target builds match loopback hosts without
+  // a port in the manifest, so no rebuild is needed to move the dev app.
+  const parsedAppPort = parsePort(appPortDisplay);
+  const parsedSupabasePort = parsePort(supabasePortDisplay);
 
   const canSavePorts =
     hasUnsavedPortChanges &&
-    isSupportedPort(appPortDisplay, SUPPORTED_PLANMYPEAK_APP_PORTS) &&
-    isSupportedPort(supabasePortDisplay, SUPPORTED_PLANMYPEAK_SUPABASE_PORTS);
+    parsedAppPort !== null &&
+    parsedSupabasePort !== null;
 
   const handleSavePorts = async (): Promise<void> => {
-    if (!canSavePorts) return;
+    // Re-checked field by field rather than via canSavePorts so the parsed
+    // ports narrow to numbers here.
+    if (
+      !hasUnsavedPortChanges ||
+      parsedAppPort === null ||
+      parsedSupabasePort === null
+    ) {
+      return;
+    }
 
     setIsSaving(true);
     try {
-      const newAppPort = parseInt(appPortDisplay, 10);
-      const newSupabasePort = parseInt(supabasePortDisplay, 10);
-
-      await setAppPort(newAppPort);
-      await setSupabasePort(newSupabasePort);
+      await setAppPort(parsedAppPort);
+      await setSupabasePort(parsedSupabasePort);
 
       // Clear pending state after successful save
       setPendingAppPort(null);
@@ -354,8 +356,10 @@ function SettingsPageContent({
                 Local Dev Ports
               </div>
               <p className="mb-2 text-[10px] text-amber-700">
-                Local builds only support the manifest-approved port pairs
-                `3002/54321` (default), `3004/54341`, and `3006/54361`.
+                Point local builds at whichever ports your dev app and Supabase
+                are on. Defaults are{' '}
+                {`${DEFAULT_PLANMYPEAK_APP_PORT}/${DEFAULT_PLANMYPEAK_SUPABASE_PORT}`}
+                .
               </p>
               <div className="flex items-end gap-2">
                 <div className="flex-1">
@@ -365,18 +369,19 @@ function SettingsPageContent({
                   >
                     App Port
                   </label>
-                  <select
+                  <input
                     id="app-port"
+                    type="text"
+                    inputMode="numeric"
                     value={appPortDisplay}
                     onChange={(e) => setPendingAppPort(e.target.value)}
-                    className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  >
-                    {SUPPORTED_PLANMYPEAK_APP_PORTS.map((port) => (
-                      <option key={port} value={String(port)}>
-                        {port}
-                      </option>
-                    ))}
-                  </select>
+                    aria-invalid={parsedAppPort === null}
+                    className={`w-full rounded border bg-white px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 ${
+                      parsedAppPort === null
+                        ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                        : 'border-amber-300 focus:border-amber-500 focus:ring-amber-500'
+                    }`}
+                  />
                 </div>
                 <div className="flex-1">
                   <label
@@ -385,18 +390,19 @@ function SettingsPageContent({
                   >
                     Supabase Port
                   </label>
-                  <select
+                  <input
                     id="supabase-port"
+                    type="text"
+                    inputMode="numeric"
                     value={supabasePortDisplay}
                     onChange={(e) => setPendingSupabasePort(e.target.value)}
-                    className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  >
-                    {SUPPORTED_PLANMYPEAK_SUPABASE_PORTS.map((port) => (
-                      <option key={port} value={String(port)}>
-                        {port}
-                      </option>
-                    ))}
-                  </select>
+                    aria-invalid={parsedSupabasePort === null}
+                    className={`w-full rounded border bg-white px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 ${
+                      parsedSupabasePort === null
+                        ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                        : 'border-amber-300 focus:border-amber-500 focus:ring-amber-500'
+                    }`}
+                  />
                 </div>
                 <button
                   type="button"
@@ -407,6 +413,11 @@ function SettingsPageContent({
                   {isSaving ? 'Saving...' : 'Save'}
                 </button>
               </div>
+              {(parsedAppPort === null || parsedSupabasePort === null) && (
+                <p className="mt-1 text-[10px] text-red-600">
+                  Enter a port number between 1 and 65535.
+                </p>
+              )}
             </div>
           )}
         </div>

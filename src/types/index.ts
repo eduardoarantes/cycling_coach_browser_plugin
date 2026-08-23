@@ -15,15 +15,16 @@ import type {
   PlanMyPeakCoach,
   PlanMyPeakIngestAthleteGroupsResponse,
 } from '@/schemas/planMyPeakApi.schema';
+import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 import type {
-  PlanMyPeakCreatePlanNoteRequest,
-  PlanMyPeakCreateTrainingPlanRequest,
-  PlanMyPeakWorkout,
-} from '@/types/planMyPeak.types';
+  PlanMyPeakCreatePlanEntryRequest,
+  PlanMyPeakCreatePlanRequest,
+} from '@/background/api/planMyPeak';
 import type {
   IntervalsFolderResponse,
   IntervalsPlanConflictAction,
 } from '@/types/intervalsicu.types';
+import type { SiteControlRequest } from '@/types/siteControl.types';
 
 /**
  * Message types for chrome.runtime messaging
@@ -64,12 +65,29 @@ export interface GetPlanMyPeakLibrariesMessage {
 export interface CreatePlanMyPeakLibraryMessage {
   type: 'CREATE_PLANMYPEAK_LIBRARY';
   name: string;
-  sourceId?: string | null;
+  description?: string | null;
 }
 
 export interface DeletePlanMyPeakLibraryMessage {
   type: 'DELETE_PLANMYPEAK_LIBRARY';
   libraryId: string;
+}
+
+/** List workouts, optionally scoped to a library and/or a provider. */
+export interface GetPlanMyPeakWorkoutsMessage {
+  type: 'GET_PLANMYPEAK_WORKOUTS';
+  libraryId?: string;
+  provider?: string;
+  providerWorkoutId?: string;
+}
+
+/**
+ * Remove one workout. Used when reconciling a library on Replace, since a
+ * library holding workouts cannot be deleted and recreated.
+ */
+export interface DeletePlanMyPeakWorkoutMessage {
+  type: 'DELETE_PLANMYPEAK_WORKOUT';
+  workoutId: string;
 }
 
 /**
@@ -81,21 +99,68 @@ export interface ExportWorkoutsToPlanMyPeakLibraryMessage {
   libraryId: string;
 }
 
-export interface GetPlanMyPeakWorkoutBySourceIdMessage {
-  type: 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID';
-  sourceId: string;
-  libraryId?: string;
+/**
+ * Look a workout up by its TrainingPeaks id before writing it. Rarely needed,
+ * since the workout POST is itself an upsert.
+ */
+export interface GetPlanMyPeakWorkoutByProviderIdMessage {
+  type: 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID';
+  providerWorkoutId: string;
 }
 
-export interface CreatePlanMyPeakTrainingPlanMessage {
-  type: 'CREATE_PLANMYPEAK_TRAINING_PLAN';
-  payload: PlanMyPeakCreateTrainingPlanRequest;
+/** List the coach's TrainingPeaks plan folders, which carry their plan ids. */
+export interface GetTrainingPlanFoldersMessage {
+  type: 'GET_TRAINING_PLAN_FOLDERS';
 }
 
-export interface CreatePlanMyPeakTrainingPlanNoteMessage {
-  type: 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE';
+/** List the coach's training-plan libraries (creates their default if absent). */
+export interface GetPlanMyPeakPlanLibrariesMessage {
+  type: 'GET_PLANMYPEAK_PLAN_LIBRARIES';
+}
+
+export interface CreatePlanMyPeakPlanLibraryMessage {
+  type: 'CREATE_PLANMYPEAK_PLAN_LIBRARY';
+  name: string;
+  description?: string | null;
+}
+
+/** Create or update a plan, matched on provider identity. 201 created, 200 updated. */
+export interface UpsertPlanMyPeakPlanMessage {
+  type: 'UPSERT_PLANMYPEAK_PLAN';
+  payload: PlanMyPeakCreatePlanRequest;
+}
+
+/** Shorten or rename a plan. Shortening past a scheduled week is a 409. */
+export interface UpdatePlanMyPeakPlanMessage {
+  type: 'UPDATE_PLANMYPEAK_PLAN';
   planId: string;
-  payload: PlanMyPeakCreatePlanNoteRequest;
+  payload: Partial<PlanMyPeakCreatePlanRequest>;
+}
+
+/** Read a plan with its schedule, for reconciling against the source. */
+export interface GetPlanMyPeakPlanMessage {
+  type: 'GET_PLANMYPEAK_PLAN';
+  planId: string;
+}
+
+export interface GetPlanMyPeakPlansMessage {
+  type: 'GET_PLANMYPEAK_PLANS';
+  libraryId?: string;
+  provider?: string;
+  providerPlanId?: string;
+}
+
+/** Schedule or move one session. 201 scheduled, 200 moved. */
+export interface UpsertPlanMyPeakPlanEntryMessage {
+  type: 'UPSERT_PLANMYPEAK_PLAN_ENTRY';
+  planId: string;
+  payload: PlanMyPeakCreatePlanEntryRequest;
+}
+
+export interface DeletePlanMyPeakPlanEntryMessage {
+  type: 'DELETE_PLANMYPEAK_PLAN_ENTRY';
+  planId: string;
+  entryId: string;
 }
 
 /**
@@ -247,6 +312,8 @@ export type TrainingPlanExportProgressPhase =
   | 'folder'
   | 'classicWorkouts'
   | 'rxWorkouts'
+  | 'plan'
+  | 'entries'
   | 'notes'
   | 'events'
   | 'complete';
@@ -320,6 +387,19 @@ export interface ClearDebugLogsMessage {
   type: 'CLEAR_DEBUG_LOGS';
 }
 
+/**
+ * Envelope carrying a validated PlanMyPeak site-control request from the
+ * content-script bridge to the background worker.
+ *
+ * The page names a site-control request type, never a `RuntimeMessage` type, so
+ * the page-reachable surface stays limited to `SiteControlRequestType` and does
+ * not grow when handlers are added to the router below.
+ */
+export interface SiteControlRequestMessage {
+  type: 'SITE_CONTROL_REQUEST';
+  request: SiteControlRequest;
+}
+
 export type RuntimeMessage =
   | TokenFoundMessage
   | MyPeakAuthFoundMessage
@@ -331,9 +411,18 @@ export type RuntimeMessage =
   | CreatePlanMyPeakLibraryMessage
   | DeletePlanMyPeakLibraryMessage
   | ExportWorkoutsToPlanMyPeakLibraryMessage
-  | GetPlanMyPeakWorkoutBySourceIdMessage
-  | CreatePlanMyPeakTrainingPlanMessage
-  | CreatePlanMyPeakTrainingPlanNoteMessage
+  | GetPlanMyPeakWorkoutByProviderIdMessage
+  | DeletePlanMyPeakWorkoutMessage
+  | GetPlanMyPeakWorkoutsMessage
+  | GetTrainingPlanFoldersMessage
+  | GetPlanMyPeakPlanLibrariesMessage
+  | CreatePlanMyPeakPlanLibraryMessage
+  | UpsertPlanMyPeakPlanMessage
+  | UpdatePlanMyPeakPlanMessage
+  | GetPlanMyPeakPlanMessage
+  | GetPlanMyPeakPlansMessage
+  | UpsertPlanMyPeakPlanEntryMessage
+  | DeletePlanMyPeakPlanEntryMessage
   | ImportAthleteGroupsToPlanMyPeakMessage
   | GetPlanMyPeakCoachMessage
   | GetUserMessage
@@ -357,7 +446,8 @@ export type RuntimeMessage =
   | HasIntervalsApiKeyMessage
   | ClearIntervalsApiKeyMessage
   | GetDebugLogsMessage
-  | ClearDebugLogsMessage;
+  | ClearDebugLogsMessage
+  | SiteControlRequestMessage;
 
 export interface FindIntervalsPlanFolderByNameResponse {
   exists: boolean;

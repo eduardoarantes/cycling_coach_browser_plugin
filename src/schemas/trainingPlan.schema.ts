@@ -86,6 +86,28 @@ export const TrainingPlanSchema = z.object({
 export type TrainingPlan = z.infer<typeof TrainingPlanSchema>;
 
 /**
+ * A TrainingPeaks plan folder, from /planfolder/v1/folder/all.
+ *
+ * The folder is the grouping shown in the TrainingPeaks plan list ("Off the
+ * Shelf"). Membership lives on the folder as `planIds` rather than on the plan,
+ * so a plan's folder is found by searching folders for one containing its id.
+ */
+export const PlanFolderSchema = z.object({
+  folderId: z.string(),
+  folderName: z.string(),
+  ownerId: z.number(),
+  planIds: z.array(z.number()),
+});
+
+export type PlanFolder = z.infer<typeof PlanFolderSchema>;
+
+export const PlanFoldersApiResponseSchema = z.array(PlanFolderSchema);
+
+export type PlanFoldersApiResponse = z.infer<
+  typeof PlanFoldersApiResponseSchema
+>;
+
+/**
  * Schema for training plans list API response
  * The API returns an array of training plan objects directly
  */

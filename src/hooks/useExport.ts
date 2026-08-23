@@ -9,7 +9,7 @@ import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
 import type { IntervalsIcuExportConfig } from '@/types/intervalsicu.types';
 import type { ExportResult as ExportResultType } from '@/export/adapters/base';
 import type { ExportDestination } from '@/types/export.types';
-import type { TrainingPlanExportProgressDialogState } from '@/popup/components/export/ExportDialog';
+import type { TrainingPlanExportProgressDialogState } from '@/types/export.types';
 import { planMyPeakAdapter } from '@/export/adapters/planMyPeak';
 import { intervalsIcuAdapter } from '@/export/adapters/intervalsicu';
 import { logger } from '@/utils/logger';

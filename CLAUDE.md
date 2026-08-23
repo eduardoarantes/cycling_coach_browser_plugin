@@ -73,7 +73,9 @@ cycling_coach_browser_plugin/
 │   │   └── messageHandler.ts
 │   ├── content/            # Content scripts
 │   │   ├── mainWorldInterceptor.ts
-│   │   └── isolatedWorldBridge.ts
+│   │   ├── isolatedWorldBridge.ts
+│   │   ├── siteControlBridge.ts   # PlanMyPeak site-control channel
+│   │   └── overlay/               # In-page import overlay (lazy-loaded)
 │   ├── popup/              # Extension popup UI
 │   │   ├── components/
 │   │   ├── App.tsx
@@ -642,6 +644,47 @@ if (error) {
   return <ErrorMessage error={error} onRetry={refetch} />;
 }
 ```
+
+---
+
+## PlanMyPeak Site-Control Channel
+
+The PlanMyPeak web app can drive the extension rather than only being an export
+destination: it can detect the extension, read TrainingPeaks libraries,
+workouts and training plans through it, and ask it to open an import overlay
+rendered on the PlanMyPeak page.
+
+Full wire protocol and page-side snippet: `PLANMYPEAK_INTEGRATION.md` →
+"Site-Control Channel". Pattern guidance for other destinations:
+`docs/EXPORT_DESTINATION_INTEGRATION_FLOW.md`.
+
+**Key files**:
+
+- `src/types/siteControl.types.ts` — protocol contract, `PLANMYPEAK_SITE_CONTROL_VERSION`
+- `src/schemas/siteControl.schema.ts` — Zod validation, response builders
+- `src/content/siteControlBridge.ts` — origin gate, page ↔ background relay
+- `src/content/overlay/` — the overlay (shadow DOM, own QueryClient)
+- `src/utils/constants.ts` — `PLANMYPEAK_CONTROL_ORIGINS`, `isPlanMyPeakControlOrigin`
+
+**Invariants — do not weaken these when extending the channel**:
+
+- The page names _site-control_ request types only (`PING`, `GET_LIBRARIES`,
+  `GET_LIBRARY_ITEMS`, `GET_TRAINING_PLANS`, `GET_PLAN_CONTENTS`,
+  `OPEN_IMPORTER`). It can never name a `RuntimeMessage` type, so adding a
+  background handler does not expose it to the page.
+- Origin is checked in the content script _and_ re-checked in the background
+  against `sender.origin`. Adding a request type does not change this.
+- A non-allowlisted origin gets **no response at all**, so a site cannot use
+  the channel to detect the extension. Do not "helpfully" return an error.
+- No credential (TrainingPeaks token, PlanMyPeak token, Supabase key,
+  Intervals.icu key) may appear in any page-bound message, including errors.
+- The always-injected bridge stays dependency-light; the overlay is behind a
+  dynamic `import()`. Do not statically import React into the bridge.
+
+**Overlay imports use the shared path**: `planMyPeakAdapter`, the duplicate
+preflight in `src/export/adapters/planMyPeak/duplicatePreflight.ts`, and the
+progress state in `src/types/export.types.ts` are shared with the popup export
+dialog, so the two surfaces cannot drift.
 
 ---
 

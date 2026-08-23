@@ -28,3 +28,29 @@ export const EXPORT_DESTINATIONS: ExportDestinationInfo[] = [
     available: true,
   },
 ];
+
+/**
+ * Phase-by-phase progress state rendered by the shared export UI.
+ *
+ * Lives here rather than alongside the dialog so the export hooks (and the
+ * PlanMyPeak import overlay, which runs in a content script) can consume it
+ * without depending on popup components.
+ */
+export interface TrainingPlanExportProgressDialogState {
+  overallCurrent: number;
+  overallTotal: number;
+  currentPhaseLabel: string;
+  currentPhaseCurrent: number;
+  currentPhaseTotal: number;
+  currentItemName?: string;
+  message?: string;
+  phases: Array<{
+    id: string;
+    label: string;
+    status: 'pending' | 'started' | 'progress' | 'completed' | 'failed';
+    current: number;
+    total: number;
+    itemName?: string;
+    message?: string;
+  }>;
+}

@@ -417,6 +417,55 @@ Current export dialog UX rule:
 - No PlanMyPeak file export options shown in the dialog
 - Keep parity with Intervals.icu screen layout
 
+## Site-Control Channel and Import Overlay (Destination-Initiated Flow)
+
+Alongside the popup-initiated export flow above, a destination's own web app can
+initiate the flow. `PlanMyPeak` does this today.
+
+### What it is
+
+A versioned, origin-gated request/response channel that lets the PlanMyPeak web
+app detect the extension, read TrainingPeaks libraries/workouts/plans through
+it, and ask it to open an import overlay rendered on the PlanMyPeak page itself.
+
+The wire protocol, request list, and page-side helper snippet are documented in
+`PLANMYPEAK_INTEGRATION.md` under "Site-Control Channel".
+
+### Files
+
+- `src/types/siteControl.types.ts` — protocol contract and version constant
+- `src/schemas/siteControl.schema.ts` — Zod validation and response builders
+- `src/content/siteControlBridge.ts` — origin gate and page ↔ background relay
+- `src/content/overlay/` — the in-page overlay (shadow DOM, lazily imported)
+- `src/utils/constants.ts` — `PLANMYPEAK_CONTROL_ORIGINS`, `isPlanMyPeakControlOrigin`
+- `src/background/messageHandler.ts` — `SITE_CONTROL_REQUEST` routing
+
+### Rules to preserve if another destination adopts this pattern
+
+1. **The page names destination-specific request types, never `RuntimeMessage`
+   types.** The indirection is what keeps the page-reachable surface an explicit
+   list that does not grow when handlers are added to the background router.
+2. **Check the origin twice** — in the content script and again in the
+   background against `sender.origin`, which the page cannot forge.
+3. **Answer non-allowlisted origins with silence**, not an error, so an
+   arbitrary site cannot use the channel to detect the extension.
+4. **No credential ever crosses into the page** — not in data, not in errors,
+   not in notifications.
+5. **Keep the always-injected bridge dependency-light** and load the overlay
+   with a dynamic `import()`, so pages that never open it pay nothing.
+6. **Reuse the shared import path.** The overlay runs the same adapter,
+   duplicate preflight (`Replace` / `Append` / `Ignore Upload`), and progress
+   reporting as the export dialog. Extract shared logic into UI-free helpers
+   (see `src/export/adapters/planMyPeak/duplicatePreflight.ts`) rather than
+   reimplementing it per surface.
+
+### Overlay isolation
+
+The overlay mounts one host element with a shadow root and adopts its stylesheet
+there, so its styles never reach host-page elements and host-page styles never
+alter it. Closing it removes the host element and restores the page's scroll
+setting to exactly its previous value.
+
 ## Suggested Extension Point for Future Integrations
 
 When multiple destinations begin to need similar pre-export remote setup (library selection, folder selection, conflict rules), create a shared pre-export section contract instead of adding ad hoc destination cards.

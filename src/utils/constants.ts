@@ -13,6 +13,7 @@ export type TrainingPeaksEnvironment = 'production' | 'sandbox';
 export interface TrainingPeaksEnvironmentConfig {
   apiBaseUrl: string;
   appUrl: string;
+  rxApiBaseUrl: string;
 }
 
 export const TRAININGPEAKS_ENVIRONMENTS: Record<
@@ -22,10 +23,12 @@ export const TRAININGPEAKS_ENVIRONMENTS: Record<
   production: {
     apiBaseUrl: 'https://tpapi.trainingpeaks.com',
     appUrl: 'https://app.trainingpeaks.com',
+    rxApiBaseUrl: 'https://api.peakswaresb.com',
   },
   sandbox: {
     apiBaseUrl: 'https://tpapi.sandbox.trainingpeaks.com',
     appUrl: 'https://app.sandbox.trainingpeaks.com',
+    rxApiBaseUrl: 'https://api.uat.peakswaresb.com',
   },
 };
 
@@ -91,22 +94,33 @@ export const IS_LOCAL_PLANMYPEAK_TARGET = PLANMYPEAK_TARGET === 'local';
 /**
  * Default ports for local PlanMyPeak development.
  * These can be overridden via chrome.storage in local builds.
- * Supported port sets: 3002/54341 (default) and 3006/54361
+ * Any TCP port is accepted: local-target builds request localhost and
+ * 127.0.0.1 without a port in the manifest, which matches every port.
  * Note: the app runs over https locally; Supabase runs over http.
  */
 export const DEFAULT_PLANMYPEAK_APP_PORT = 3002;
 export const DEFAULT_PLANMYPEAK_SUPABASE_PORT = 54341;
-export const SUPPORTED_PLANMYPEAK_APP_PORTS = [3002, 3004, 3006] as const;
-export const SUPPORTED_PLANMYPEAK_SUPABASE_PORTS = [54341, 54361] as const;
 
-export function isSupportedPlanMyPeakAppPort(port: number): boolean {
-  return (SUPPORTED_PLANMYPEAK_APP_PORTS as readonly number[]).includes(port);
+/**
+ * Whether a value is a usable TCP port number.
+ */
+export function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
 }
 
-export function isSupportedPlanMyPeakSupabasePort(port: number): boolean {
-  return (SUPPORTED_PLANMYPEAK_SUPABASE_PORTS as readonly number[]).includes(
-    port
-  );
+/**
+ * Parse a user-entered port string, returning null when it is not a port.
+ *
+ * Rejects anything that is not purely digits so values such as `3002abc`,
+ * which `parseInt` would happily read as `3002`, do not slip through.
+ */
+export function parsePort(value: string): number | null {
+  if (!/^\d+$/.test(value.trim())) {
+    return null;
+  }
+
+  const port = Number(value.trim());
+  return isValidPort(port) ? port : null;
 }
 
 /**
@@ -123,6 +137,109 @@ export const PLANMYPEAK_APP_URL = IS_LOCAL_PLANMYPEAK_TARGET
 export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
   ? `localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
   : 'portal.planmypeak.com';
+
+/**
+ * PlanMyPeak production origin.
+ */
+export const PLANMYPEAK_PRODUCTION_ORIGIN = 'https://portal.planmypeak.com';
+
+/**
+ * Loopback hosts a local-target build serves PlanMyPeak from.
+ *
+ * The port is deliberately not part of this list: the dev app port is
+ * user-configurable, so any port on these hosts is accepted. That mirrors the
+ * content-script matches vite injects for local-target builds, which are
+ * port-less and therefore match every port (see vite.config.ts). Schemes vary
+ * by setup — 3002 is served over https locally, other ports over http — so
+ * both are allowed.
+ */
+const LOCAL_PLANMYPEAK_HOSTS: readonly string[] = ['localhost', '127.0.0.1'];
+
+/**
+ * Origins allowed to drive the extension through the site-control channel.
+ *
+ * Production builds allow exactly one origin. Local-target builds additionally
+ * accept any port on {@link LOCAL_PLANMYPEAK_HOSTS}, which this list cannot
+ * enumerate — use {@link isPlanMyPeakControlOrigin} for the actual gate. The
+ * default local origin is listed so the value stays useful for display and for
+ * callers that want a representative example.
+ */
+export const PLANMYPEAK_CONTROL_ORIGINS: readonly string[] =
+  IS_LOCAL_PLANMYPEAK_TARGET
+    ? [
+        PLANMYPEAK_PRODUCTION_ORIGIN,
+        `https://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`,
+        `https://127.0.0.1:${DEFAULT_PLANMYPEAK_APP_PORT}`,
+      ]
+    : [PLANMYPEAK_PRODUCTION_ORIGIN];
+
+/**
+ * Whether an origin is a loopback dev origin this build may be driven from.
+ *
+ * Only ever true in local-target builds. The hostname is compared exactly, so
+ * lookalikes such as `https://localhost.evil.test` are rejected; only the port
+ * is left open, because the dev port is configurable at runtime.
+ */
+function isLocalPlanMyPeakControlOrigin(origin: string): boolean {
+  if (!IS_LOCAL_PLANMYPEAK_TARGET) {
+    return false;
+  }
+
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+
+  // `new URL` tolerates a path, but an origin must not carry one.
+  if (origin !== url.origin) {
+    return false;
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return false;
+  }
+
+  return LOCAL_PLANMYPEAK_HOSTS.includes(url.hostname);
+}
+
+/**
+ * Exact-match check for a site-control origin.
+ *
+ * Matching is exact by design: substring or suffix matching would accept
+ * lookalikes such as `https://portal.planmypeak.com.evil.test`. Loopback dev
+ * origins are the one relaxation, and only in local-target builds, where the
+ * port is configurable — see {@link isLocalPlanMyPeakControlOrigin}.
+ */
+export function isPlanMyPeakControlOrigin(
+  origin: string | null | undefined
+): boolean {
+  if (!origin) {
+    return false;
+  }
+
+  return (
+    PLANMYPEAK_CONTROL_ORIGINS.includes(origin) ||
+    isLocalPlanMyPeakControlOrigin(origin)
+  );
+}
+
+/**
+ * Resolve a URL to its origin, returning null for values that are not valid
+ * absolute URLs. Used to derive an origin from `sender.tab.url`.
+ */
+export function originFromUrl(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * PlanMyPeak auth validation base URL (uses default port, actual port may be configured in local builds).
@@ -160,10 +277,12 @@ export const MYPEAK_APP_URL = PLANMYPEAK_APP_URL;
 export const MYPEAK_SUPABASE_URL = PLANMYPEAK_AUTH_BASE_URL;
 
 /**
- * TrainingPeaks RxBuilder (structured strength) API base URL
- * Uses a different domain from the classic API
+ * TrainingPeaks RxBuilder (structured strength) API base URL (production
+ * default). Uses a different domain from the classic API. Prefer
+ * getTrainingPeaksRxApiBaseUrl() so sandbox requests hit the UAT host.
  */
-export const RX_API_BASE_URL = 'https://api.peakswaresb.com';
+export const RX_API_BASE_URL =
+  TRAININGPEAKS_ENVIRONMENTS.production.rxApiBaseUrl;
 
 /**
  * Intervals.icu API base URL

@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "PlanMyPeak Importer",
-  "version": "1.12.6",
+  "version": "1.12.45",
   "description": "Access your workout libraries and training plans directly from your browser",
   "permissions": ["storage", "tabs", "notifications"],
   "host_permissions": [
     "https://tpapi.trainingpeaks.com/*",
     "https://tpapi.sandbox.trainingpeaks.com/*",
     "https://api.peakswaresb.com/*",
+    "https://api.uat.peakswaresb.com/*",
     "https://app.trainingpeaks.com/*",
     "https://app.sandbox.trainingpeaks.com/*",
     "https://portal.planmypeak.com/*",
@@ -45,6 +46,12 @@
       ],
       "js": ["src/content/isolatedWorldBridge.ts"],
       "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": ["https://portal.planmypeak.com/*"],
+      "js": ["src/content/siteControlBridge.ts"],
+      "run_at": "document_idle",
       "world": "ISOLATED"
     }
   ],

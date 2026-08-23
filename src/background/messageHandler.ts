@@ -21,21 +21,40 @@ import type {
   AthleteGroup,
   ApiResponse,
 } from '@/types/api.types';
+import type { PlanFolder } from '@/schemas/trainingPlan.schema';
 import type {
+  PlanMyPeakPlanLibrary,
+  PlanMyPeakPlanSummary,
+  PlanMyPeakPlanDetail,
+  PlanMyPeakPlanEntry,
   PlanMyPeakLibrary,
   PlanMyPeakWorkoutLibraryItem,
   PlanMyPeakIngestAthleteGroupsResponse,
   PlanMyPeakCoach,
 } from '@/schemas/planMyPeakApi.schema';
 import type {
-  PlanMyPeakCreatePlanNoteRequest,
-  PlanMyPeakCreateTrainingPlanRequest,
   PlanMyPeakSaveTrainingPlanResponse,
   PlanMyPeakTrainingPlanNote,
   PlanMyPeakWorkout,
 } from '@/types/planMyPeak.types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS, createApiHeaders } from '@/utils/constants';
+import {
+  STORAGE_KEYS,
+  createApiHeaders,
+  isPlanMyPeakControlOrigin,
+  originFromUrl,
+} from '@/utils/constants';
+import {
+  isAuthenticated as isTrainingPeaksAuthenticated,
+  isTokenExpired as isTrainingPeaksTokenExpired,
+} from '@/services/authService';
+import { isAuthenticated as isPlanMyPeakAuthenticated } from '@/services/myPeakAuthService';
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  parseSiteControlRequest,
+} from '@/schemas/siteControl.schema';
+import { PLANMYPEAK_SITE_CONTROL_VERSION } from '@/types/siteControl.types';
 import { getPlanMyPeakAppUrl } from '@/services/portConfigService';
 import {
   getTrainingPeaksApiBaseUrl,
@@ -46,6 +65,7 @@ import {
   fetchLibraries,
   fetchLibraryItems,
   fetchTrainingPlans,
+  fetchTrainingPlanFolders,
   fetchPlanWorkouts,
   fetchPlanNotes,
   fetchPlanEvents,
@@ -54,12 +74,24 @@ import {
 } from './api/trainingPeaks';
 import {
   fetchPlanMyPeakLibraries,
-  fetchPlanMyPeakWorkoutBySourceId,
+  fetchPlanMyPeakWorkoutByProviderId,
   createPlanMyPeakLibrary,
   deletePlanMyPeakLibrary,
-  createPlanMyPeakTrainingPlan,
-  createPlanMyPeakTrainingPlanNote,
+  deletePlanMyPeakWorkout,
+  fetchPlanMyPeakWorkouts,
+  upsertPlanMyPeakPlan,
+  upsertPlanMyPeakPlanEntry,
+  deletePlanMyPeakPlanEntry,
+  updatePlanMyPeakPlan,
+  fetchPlanMyPeakPlan,
+  fetchPlanMyPeakPlans,
+  fetchPlanMyPeakPlanLibraries,
+  createPlanMyPeakPlanLibrary,
   exportWorkoutsToPlanMyPeakLibrary,
+  type PlanMyPeakUploadSummary,
+  type PlanMyPeakCreatePlanRequest,
+  type PlanMyPeakCreatePlanEntryRequest,
+  type PlanMyPeakUpsertResult,
   ingestTrainingPeaksAthleteGroups,
   fetchPlanMyPeakCoach,
 } from './api/planMyPeak';
@@ -87,6 +119,14 @@ import type {
   IntervalsTrainingPlanExportResult,
   IntervalsWorkoutResponse,
 } from '@/types/intervalsicu.types';
+import type { SiteControlRequestMessage } from '@/types';
+import type {
+  SiteControlError,
+  SiteControlPingResult,
+  SiteControlPlanContentsResult,
+  SiteControlResponse,
+} from '@/types/siteControl.types';
+import type { ApiError } from '@/schemas/api.schema';
 
 type MessageResponse =
   | { success: true }
@@ -116,7 +156,8 @@ type MessageResponse =
   | ApiResponse<PlanMyPeakTrainingPlanNote>
   | ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>
   | ApiResponse<PlanMyPeakCoach>
-  | ApiResponse<null>;
+  | ApiResponse<null>
+  | SiteControlResponse;
 
 /**
  * Handle TOKEN_FOUND message from content script
@@ -416,10 +457,10 @@ async function handleGetPlanMyPeakLibraries(): Promise<
  */
 async function handleCreatePlanMyPeakLibrary(
   name: string,
-  sourceId?: string | null
+  description?: string | null
 ): Promise<ApiResponse<PlanMyPeakLibrary>> {
   logger.debug('Handling CREATE_PLANMYPEAK_LIBRARY message:', name);
-  return await createPlanMyPeakLibrary(name, sourceId);
+  return await createPlanMyPeakLibrary(name, description);
 }
 
 async function handleImportAthleteGroupsToPlanMyPeak(
@@ -451,13 +492,35 @@ async function handleDeletePlanMyPeakLibrary(
 }
 
 /**
+ * Handle GET_PLANMYPEAK_WORKOUTS message from popup
+ */
+async function handleGetPlanMyPeakWorkouts(filters: {
+  libraryId?: string;
+  provider?: string;
+  providerWorkoutId?: string;
+}): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
+  logger.debug('Handling GET_PLANMYPEAK_WORKOUTS message:', filters);
+  return await fetchPlanMyPeakWorkouts(filters);
+}
+
+/**
+ * Handle DELETE_PLANMYPEAK_WORKOUT message from popup
+ */
+async function handleDeletePlanMyPeakWorkout(
+  workoutId: string
+): Promise<ApiResponse<null>> {
+  logger.debug('Handling DELETE_PLANMYPEAK_WORKOUT message:', workoutId);
+  return await deletePlanMyPeakWorkout(workoutId);
+}
+
+/**
  * Handle EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message from popup
  * Uploads transformed workouts to a PlanMyPeak library
  */
 async function handleExportWorkoutsToPlanMyPeakLibrary(
   workouts: PlanMyPeakWorkout[],
   libraryId: string
-): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
+): Promise<ApiResponse<PlanMyPeakUploadSummary>> {
   logger.debug(
     'Handling EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message:',
     workouts.length,
@@ -468,51 +531,100 @@ async function handleExportWorkoutsToPlanMyPeakLibrary(
 }
 
 /**
- * Handle GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID message from popup
- * Finds a PlanMyPeak workout by source_id (optionally constrained to a library)
+ * Handle GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID message from popup
+ * Finds a PlanMyPeak workout by its TrainingPeaks id (optionally scoped to a library)
  */
-async function handleGetPlanMyPeakWorkoutBySourceId(
-  sourceId: string,
-  libraryId?: string
+async function handleGetPlanMyPeakWorkoutByProviderId(
+  providerWorkoutId: string
 ): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem | null>> {
   logger.debug(
-    'Handling GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID message:',
-    sourceId,
-    'library:',
-    libraryId ?? '(any)'
+    'Handling GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID message:',
+    providerWorkoutId
   );
-  return await fetchPlanMyPeakWorkoutBySourceId(sourceId, libraryId);
+  return await fetchPlanMyPeakWorkoutByProviderId(providerWorkoutId);
 }
 
 /**
- * Handle CREATE_PLANMYPEAK_TRAINING_PLAN message from popup
- * Creates a training plan template in PlanMyPeak
+ * Handle GET_TRAINING_PLAN_FOLDERS message from popup.
+ * Folders are how TrainingPeaks groups plans; each carries the ids it holds.
  */
-async function handleCreatePlanMyPeakTrainingPlan(
-  payload: PlanMyPeakCreateTrainingPlanRequest
-): Promise<ApiResponse<PlanMyPeakSaveTrainingPlanResponse>> {
-  logger.debug(
-    'Handling CREATE_PLANMYPEAK_TRAINING_PLAN message:',
-    payload.metadata.name
-  );
-  return await createPlanMyPeakTrainingPlan(payload);
+async function handleGetTrainingPlanFolders(): Promise<
+  ApiResponse<PlanFolder[]>
+> {
+  logger.debug('Handling GET_TRAINING_PLAN_FOLDERS message');
+  return await fetchTrainingPlanFolders();
 }
 
-/**
- * Handle CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE message from popup
- * Adds a note to a specific week/day in a PlanMyPeak training plan
- */
-async function handleCreatePlanMyPeakTrainingPlanNote(
+/** Training-plan library and plan operations, all thin pass-throughs. */
+async function handleGetPlanMyPeakPlanLibraries(): Promise<
+  ApiResponse<PlanMyPeakPlanLibrary[]>
+> {
+  logger.debug('Handling GET_PLANMYPEAK_PLAN_LIBRARIES message');
+  return await fetchPlanMyPeakPlanLibraries();
+}
+
+async function handleCreatePlanMyPeakPlanLibrary(
+  name: string,
+  description?: string | null
+): Promise<ApiResponse<PlanMyPeakPlanLibrary>> {
+  logger.debug('Handling CREATE_PLANMYPEAK_PLAN_LIBRARY message:', name);
+  return await createPlanMyPeakPlanLibrary(name, description);
+}
+
+async function handleUpsertPlanMyPeakPlan(
+  payload: PlanMyPeakCreatePlanRequest
+): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanSummary>>> {
+  logger.debug('Handling UPSERT_PLANMYPEAK_PLAN message:', payload.name);
+  return await upsertPlanMyPeakPlan(payload);
+}
+
+async function handleUpdatePlanMyPeakPlan(
   planId: string,
-  payload: PlanMyPeakCreatePlanNoteRequest
-): Promise<ApiResponse<PlanMyPeakTrainingPlanNote>> {
+  payload: Partial<PlanMyPeakCreatePlanRequest>
+): Promise<ApiResponse<PlanMyPeakPlanSummary>> {
+  logger.debug('Handling UPDATE_PLANMYPEAK_PLAN message:', planId);
+  return await updatePlanMyPeakPlan(planId, payload);
+}
+
+async function handleGetPlanMyPeakPlan(
+  planId: string
+): Promise<ApiResponse<PlanMyPeakPlanDetail>> {
+  logger.debug('Handling GET_PLANMYPEAK_PLAN message:', planId);
+  return await fetchPlanMyPeakPlan(planId);
+}
+
+async function handleGetPlanMyPeakPlans(filters: {
+  libraryId?: string;
+  provider?: string;
+  providerPlanId?: string;
+}): Promise<ApiResponse<PlanMyPeakPlanSummary[]>> {
+  logger.debug('Handling GET_PLANMYPEAK_PLANS message:', filters);
+  return await fetchPlanMyPeakPlans(filters);
+}
+
+async function handleUpsertPlanMyPeakPlanEntry(
+  planId: string,
+  payload: PlanMyPeakCreatePlanEntryRequest
+): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanEntry>>> {
   logger.debug(
-    'Handling CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE message:',
+    'Handling UPSERT_PLANMYPEAK_PLAN_ENTRY message:',
     planId,
-    payload.week_number,
-    payload.day_of_week
+    payload.weekNumber,
+    payload.dayOfWeek
   );
-  return await createPlanMyPeakTrainingPlanNote(planId, payload);
+  return await upsertPlanMyPeakPlanEntry(planId, payload);
+}
+
+async function handleDeletePlanMyPeakPlanEntry(
+  planId: string,
+  entryId: string
+): Promise<ApiResponse<null>> {
+  logger.debug(
+    'Handling DELETE_PLANMYPEAK_PLAN_ENTRY message:',
+    planId,
+    entryId
+  );
+  return await deletePlanMyPeakPlanEntry(planId, entryId);
 }
 
 /**
@@ -758,6 +870,198 @@ async function handleClearDebugLogs(): Promise<{ success: true }> {
 }
 
 /**
+ * Site-control error codes that mean "the coach is not signed in", as opposed
+ * to a genuine upstream failure.
+ */
+const AUTH_REQUIRED_API_CODES = new Set([
+  'NO_TOKEN',
+  'UNAUTHORIZED',
+  'INVALID_TOKEN',
+]);
+
+/**
+ * Translate an internal API error into the page-facing error shape.
+ *
+ * Only the human-readable message crosses over; codes are mapped onto the
+ * site-control vocabulary so internal error taxonomy is not leaked to the page.
+ */
+function toSiteControlError(error: ApiError): SiteControlError {
+  return {
+    code: AUTH_REQUIRED_API_CODES.has(error.code ?? '')
+      ? 'AUTH_REQUIRED'
+      : 'API_ERROR',
+    message: error.message,
+  };
+}
+
+/**
+ * Adapt an `ApiResponse<T>` from an existing handler into a site-control
+ * response, preserving the distinction between auth and upstream failures.
+ */
+function toSiteControlResponse<T>(
+  requestId: string,
+  response: ApiResponse<T>
+): SiteControlResponse {
+  if (response.success) {
+    return createSuccessResponse(requestId, response.data);
+  }
+
+  return createErrorResponse(requestId, toSiteControlError(response.error));
+}
+
+/**
+ * Build the PING result.
+ *
+ * Reports readiness only — never a token, key, or user identifier. A stored but
+ * expired TrainingPeaks token counts as not authenticated, so the page does not
+ * offer an import that would fail at the first request.
+ */
+async function buildSiteControlPingResult(): Promise<SiteControlPingResult> {
+  const [trainingPeaksHasToken, trainingPeaksExpired, planMyPeakHasToken] =
+    await Promise.all([
+      isTrainingPeaksAuthenticated(),
+      isTrainingPeaksTokenExpired(),
+      isPlanMyPeakAuthenticated(),
+    ]);
+
+  return {
+    protocolVersion: PLANMYPEAK_SITE_CONTROL_VERSION,
+    extensionVersion: chrome.runtime.getManifest().version,
+    trainingPeaks: {
+      authenticated: trainingPeaksHasToken && !trainingPeaksExpired,
+    },
+    planMyPeak: { authenticated: planMyPeakHasToken },
+  };
+}
+
+/**
+ * Fetch the four legs of a training plan in one round trip.
+ *
+ * The page always needs them together, and a partially-loaded plan would render
+ * as a complete one, so any failing leg fails the whole request.
+ */
+async function handleSiteControlPlanContents(
+  requestId: string,
+  planId: number
+): Promise<SiteControlResponse> {
+  const [workouts, notes, events, rxWorkouts] = await Promise.all([
+    handleGetPlanWorkouts(planId),
+    handleGetPlanNotes(planId),
+    handleGetPlanEvents(planId),
+    handleGetRxBuilderWorkouts(planId),
+  ]);
+
+  const failed = [workouts, notes, events, rxWorkouts].find(
+    (leg) => !leg.success
+  );
+  if (failed && !failed.success) {
+    return createErrorResponse(requestId, toSiteControlError(failed.error));
+  }
+
+  if (
+    !workouts.success ||
+    !notes.success ||
+    !events.success ||
+    !rxWorkouts.success
+  ) {
+    return createErrorResponse(requestId, {
+      code: 'API_ERROR',
+      message: 'Failed to load training plan contents',
+    });
+  }
+
+  const contents: SiteControlPlanContentsResult = {
+    planId,
+    workouts: workouts.data,
+    notes: notes.data,
+    events: events.data,
+    rxWorkouts: rxWorkouts.data,
+  };
+
+  return createSuccessResponse(requestId, contents);
+}
+
+/**
+ * Handle a site-control request relayed by the PlanMyPeak content-script bridge.
+ *
+ * The bridge already gates on origin, but this check is the one that actually
+ * protects the handlers: `sender` is set by the browser and cannot be forged by
+ * the page. Requests that did not come from a content script in a tab on an
+ * allowlisted origin are refused before any data access.
+ */
+async function handleSiteControlRequest(
+  message: SiteControlRequestMessage,
+  sender: chrome.runtime.MessageSender
+): Promise<SiteControlResponse> {
+  // Re-validate the request itself: the envelope reaching the background must
+  // stand on its own rather than trusting that the bridge checked it.
+  const parsed = parseSiteControlRequest(message.request);
+  if (parsed.outcome === 'ignore') {
+    return createErrorResponse('', {
+      code: 'INVALID_REQUEST',
+      message: 'Malformed site-control request',
+    });
+  }
+  if (parsed.outcome === 'error') {
+    return createErrorResponse(parsed.requestId, parsed.error);
+  }
+
+  const request = parsed.request;
+  const origin = sender.origin ?? originFromUrl(sender.tab?.url);
+
+  if (!sender.tab || !isPlanMyPeakControlOrigin(origin)) {
+    logger.warn('Rejected site-control request from unauthorized sender');
+    return createErrorResponse(request.requestId, {
+      code: 'FORBIDDEN_ORIGIN',
+      message: 'Origin is not allowed to control this extension',
+    });
+  }
+
+  logger.debug('Handling site-control request:', request.type);
+
+  switch (request.type) {
+    case 'PING':
+      return createSuccessResponse(
+        request.requestId,
+        await buildSiteControlPingResult()
+      );
+
+    case 'GET_LIBRARIES':
+      return toSiteControlResponse(
+        request.requestId,
+        await handleGetLibraries()
+      );
+
+    case 'GET_LIBRARY_ITEMS':
+      return toSiteControlResponse(
+        request.requestId,
+        await handleGetLibraryItems(request.payload.libraryId)
+      );
+
+    case 'GET_TRAINING_PLANS':
+      return toSiteControlResponse(
+        request.requestId,
+        await handleGetTrainingPlans()
+      );
+
+    case 'GET_PLAN_CONTENTS':
+      return await handleSiteControlPlanContents(
+        request.requestId,
+        request.payload.planId
+      );
+
+    case 'OPEN_IMPORTER':
+      // The overlay lives in the page context, so the bridge handles this
+      // request without a round trip. Reaching the background means something
+      // bypassed the bridge.
+      return createErrorResponse(request.requestId, {
+        code: 'INTERNAL_ERROR',
+        message: 'OPEN_IMPORTER is handled in the page context',
+      });
+  }
+}
+
+/**
  * Main message router
  */
 export async function handleMessage(
@@ -804,7 +1108,7 @@ export async function handleMessage(
     case 'CREATE_PLANMYPEAK_LIBRARY':
       return await handleCreatePlanMyPeakLibrary(
         message.name,
-        message.sourceId
+        message.description
       );
 
     case 'DELETE_PLANMYPEAK_LIBRARY':
@@ -816,19 +1120,59 @@ export async function handleMessage(
         message.libraryId
       );
 
-    case 'GET_PLANMYPEAK_WORKOUT_BY_SOURCE_ID':
-      return await handleGetPlanMyPeakWorkoutBySourceId(
-        message.sourceId,
-        message.libraryId
+    case 'GET_PLANMYPEAK_WORKOUTS':
+      return await handleGetPlanMyPeakWorkouts({
+        libraryId: message.libraryId,
+        provider: message.provider,
+        providerWorkoutId: message.providerWorkoutId,
+      });
+
+    case 'DELETE_PLANMYPEAK_WORKOUT':
+      return await handleDeletePlanMyPeakWorkout(message.workoutId);
+
+    case 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID':
+      return await handleGetPlanMyPeakWorkoutByProviderId(
+        message.providerWorkoutId
       );
 
-    case 'CREATE_PLANMYPEAK_TRAINING_PLAN':
-      return await handleCreatePlanMyPeakTrainingPlan(message.payload);
+    case 'GET_TRAINING_PLAN_FOLDERS':
+      return await handleGetTrainingPlanFolders();
 
-    case 'CREATE_PLANMYPEAK_TRAINING_PLAN_NOTE':
-      return await handleCreatePlanMyPeakTrainingPlanNote(
+    case 'GET_PLANMYPEAK_PLAN_LIBRARIES':
+      return await handleGetPlanMyPeakPlanLibraries();
+
+    case 'CREATE_PLANMYPEAK_PLAN_LIBRARY':
+      return await handleCreatePlanMyPeakPlanLibrary(
+        message.name,
+        message.description
+      );
+
+    case 'UPSERT_PLANMYPEAK_PLAN':
+      return await handleUpsertPlanMyPeakPlan(message.payload);
+
+    case 'UPDATE_PLANMYPEAK_PLAN':
+      return await handleUpdatePlanMyPeakPlan(message.planId, message.payload);
+
+    case 'GET_PLANMYPEAK_PLAN':
+      return await handleGetPlanMyPeakPlan(message.planId);
+
+    case 'GET_PLANMYPEAK_PLANS':
+      return await handleGetPlanMyPeakPlans({
+        libraryId: message.libraryId,
+        provider: message.provider,
+        providerPlanId: message.providerPlanId,
+      });
+
+    case 'UPSERT_PLANMYPEAK_PLAN_ENTRY':
+      return await handleUpsertPlanMyPeakPlanEntry(
         message.planId,
         message.payload
+      );
+
+    case 'DELETE_PLANMYPEAK_PLAN_ENTRY':
+      return await handleDeletePlanMyPeakPlanEntry(
+        message.planId,
+        message.entryId
       );
 
     case 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK':
@@ -911,6 +1255,9 @@ export async function handleMessage(
 
     case 'CLEAR_DEBUG_LOGS':
       return await handleClearDebugLogs();
+
+    case 'SITE_CONTROL_REQUEST':
+      return await handleSiteControlRequest(message, sender);
 
     default:
       logger.warn('Unknown message type received');

@@ -156,13 +156,11 @@ export function PlanMyPeakLibrariesPanel({
                         {library.id}
                       </p>
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      {library.is_system ? (
-                        <span className="px-2 py-0.5 text-[10px] bg-blue-100 text-blue-800 rounded-full">
-                          System
-                        </span>
-                      ) : null}
-                      {library.is_default ? (
+                    <div className="flex gap-1 flex-shrink-0 items-center">
+                      <span className="px-2 py-0.5 text-[10px] bg-gray-100 text-gray-700 rounded-full">
+                        {library.workoutCount}
+                      </span>
+                      {library.isDefault ? (
                         <span className="px-2 py-0.5 text-[10px] bg-amber-100 text-amber-800 rounded-full">
                           Default
                         </span>

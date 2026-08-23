@@ -224,6 +224,168 @@ That code path is what the popup and export flows actually use.
 
 ---
 
+## Site-Control Channel (PlanMyPeak → Extension)
+
+The PlanMyPeak web app can drive the extension directly: detect that it is
+installed, read the coach's TrainingPeaks libraries, workouts and training
+plans through it, and open the import overlay on the page.
+
+### Transport
+
+The page posts a message on its own window; a content script
+(`src/content/siteControlBridge.ts`), injected only on PlanMyPeak origins,
+validates it and relays it to the background worker. Responses come back the
+same way. The web app needs no knowledge of the extension ID.
+
+### Rules the channel enforces
+
+- **Origin.** Only origins in `PLANMYPEAK_CONTROL_ORIGINS` are served —
+  `https://portal.planmypeak.com` in production, plus the local dev origins in
+  local-target builds. Checked in the content script _and_ re-checked in the
+  background against `sender.origin`, which the page cannot forge.
+- **Silence for everyone else.** A non-allowlisted origin gets _no response at
+  all_, not an error. Treat "no response within your timeout" as "extension not
+  available" — this is the supported way to feature-detect.
+- **Top-level only.** An allowlisted portal embedded as a frame inside another
+  site is not treated as a control surface.
+- **Closed request list.** The page names _site-control_ request types, never
+  internal `RuntimeMessage` types. Anything outside the list below is refused.
+- **No credentials, ever.** No response, notification, or error message
+  contains a TrainingPeaks token, PlanMyPeak token, Supabase key, or
+  Intervals.icu API key.
+
+### Envelope
+
+Page → extension:
+
+```ts
+{
+  source: 'planmypeak-site-control',
+  version: 1,               // PLANMYPEAK_SITE_CONTROL_VERSION
+  requestId: string,        // your id, echoed back verbatim
+  type: SiteControlRequestType,
+  payload: object,          // may be omitted for no-argument requests
+}
+```
+
+Extension → page:
+
+```ts
+{ source: 'planmypeak-extension', version: 1, requestId, ok: true,  data }
+{ source: 'planmypeak-extension', version: 1, requestId, ok: false, error: { code, message } }
+```
+
+Error codes: `INVALID_REQUEST`, `UNSUPPORTED_REQUEST_TYPE`,
+`UNSUPPORTED_VERSION`, `AUTH_REQUIRED`, `API_ERROR`, `INTERNAL_ERROR`.
+`AUTH_REQUIRED` means the coach is not signed in to TrainingPeaks — prompt them
+rather than retrying.
+
+### Request types
+
+| Type                 | Payload                                   | `data` on success                                                                                        |
+| -------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `PING`               | —                                         | `{ protocolVersion, extensionVersion, trainingPeaks: { authenticated }, planMyPeak: { authenticated } }` |
+| `GET_LIBRARIES`      | —                                         | `Library[]`                                                                                              |
+| `GET_LIBRARY_ITEMS`  | `{ libraryId: number }`                   | `LibraryItem[]`                                                                                          |
+| `GET_TRAINING_PLANS` | —                                         | `TrainingPlan[]`                                                                                         |
+| `GET_PLAN_CONTENTS`  | `{ planId: number }`                      | `{ planId, workouts, notes, events, rxWorkouts }`                                                        |
+| `OPEN_IMPORTER`      | `{ libraryId?: number, planId?: number }` | `{ opened: boolean, focused: boolean }`                                                                  |
+
+`GET_PLAN_CONTENTS` fetches all four legs of a plan in one round trip and fails
+as a whole if any leg fails, so a partially-loaded plan never renders as a
+complete one. `OPEN_IMPORTER` focuses an already-open overlay rather than
+mounting a second one (`focused: true`).
+
+### Import completion notification
+
+When an import started from an `OPEN_IMPORTER` request finishes, the extension
+posts an unsolicited event carrying counts only:
+
+```ts
+{
+  source: 'planmypeak-extension',
+  version: 1,
+  type: 'IMPORT_COMPLETED',
+  requestId,                                  // the OPEN_IMPORTER request id
+  payload: { ok: boolean, importedCount: number, failedCount: number },
+}
+```
+
+Use it to refresh the portal's own view of the coach's libraries.
+
+### Page-side helper
+
+```js
+const SITE_CONTROL_VERSION = 1;
+
+function callExtension(type, payload = {}, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    const requestId = crypto.randomUUID();
+
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      // No response means the extension is not installed, or this origin is
+      // not allowlisted. Both are "not available".
+      resolve(null);
+    }, timeoutMs);
+
+    function onMessage(event) {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.source !== 'planmypeak-extension') return;
+      if (data.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      resolve(data);
+    }
+
+    window.addEventListener('message', onMessage);
+    window.postMessage(
+      {
+        source: 'planmypeak-site-control',
+        version: SITE_CONTROL_VERSION,
+        requestId,
+        type,
+        payload,
+      },
+      window.location.origin
+    );
+  });
+}
+
+// Feature-detect before showing an "Import from TrainingPeaks" affordance.
+const ping = await callExtension('PING');
+const available = ping?.ok === true;
+const canImport = available && ping.data.trainingPeaks.authenticated;
+
+// Open the importer, optionally pre-selecting a library.
+if (available) {
+  await callExtension('OPEN_IMPORTER', { libraryId: 1234 }, 8000);
+}
+
+// Listen for the result.
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (
+    data?.source === 'planmypeak-extension' &&
+    data.type === 'IMPORT_COMPLETED'
+  ) {
+    refreshLibraries(data.payload);
+  }
+});
+```
+
+### The import overlay
+
+`OPEN_IMPORTER` mounts a React overlay into a shadow root on the PlanMyPeak
+page (`src/content/overlay/`). It is loaded with a dynamic `import()`, so pages
+that never open it do not pay for React or the export machinery. Imports run
+through the same PlanMyPeak adapter, duplicate preflight
+(`Replace` / `Append` / `Ignore Upload`) and progress reporting as the popup, so
+overlay imports and popup imports produce equivalent PlanMyPeak content.
+
+---
+
 ## Real API Integration (Future)
 
 When PlanMyPeak expands its API surface, extend `src/background/api/planMyPeak.ts`:

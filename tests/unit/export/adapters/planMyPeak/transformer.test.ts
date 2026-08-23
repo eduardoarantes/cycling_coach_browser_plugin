@@ -48,6 +48,270 @@ describe('transformToPlanMyPeak', () => {
 
   const defaultConfig: PlanMyPeakExportConfig = {};
 
+  describe('disciplines stored without a structure', () => {
+    it('should send an empty segment list for a rest day', () => {
+      const restDay: LibraryItem = {
+        ...baseLibraryItem,
+        workoutTypeId: 7,
+        itemName: 'REST DAY',
+        structure: null,
+      };
+
+      const result = transformToPlanMyPeak(restDay, defaultConfig);
+
+      expect(result.discipline).toBe('rest_day');
+      expect(result.structure.structure).toEqual([]);
+      // The wrapper is still required, just empty.
+      expect(result.structure.primaryIntensityMetric).toBe('percentOfFtp');
+    });
+
+    it('should treat a TrainingPeaks note as the note discipline', () => {
+      const note: LibraryItem = {
+        ...baseLibraryItem,
+        exerciseLibraryItemType: 'Note',
+        itemName: 'Travel day',
+        structure: null,
+      };
+
+      const result = transformToPlanMyPeak(note, defaultConfig);
+
+      // The item's own type wins: TrainingPeaks files notes under a workout type
+      // id that would otherwise read as a training session.
+      expect(result.discipline).toBe('note');
+      expect(result.structure.structure).toEqual([]);
+    });
+
+    it('should keep a strength session as real structure, not prose', () => {
+      // PlanMyPeak models load as a `resistance` target carrying a weight unit,
+      // so "5x5 back squat at 100kg" survives as data rather than collapsing
+      // into a description a coach has to read.
+      const strength: LibraryItem = {
+        ...baseLibraryItem,
+        workoutTypeId: 9,
+        itemName: '5x5 Back Squat',
+        structure: {
+          primaryIntensityMetric: 'resistance',
+          primaryLengthMetric: 'repetitions',
+          structure: [
+            {
+              type: 'repetition',
+              length: { unit: 'repetition', value: 5 },
+              steps: [
+                {
+                  name: 'Back squat',
+                  intensityClass: 'active',
+                  length: { unit: 'repetition', value: 5 },
+                  openDuration: false,
+                  targets: [
+                    { minValue: 100, maxValue: 100, unit: 'kilograms' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const result = transformToPlanMyPeak(strength, defaultConfig);
+
+      expect(result.discipline).toBe('strength');
+      expect(result.structure.primaryLengthMetric).toBe('repetitions');
+      expect(result.structure.structure).toHaveLength(1);
+      expect(result.structure.structure[0].steps[0].targets[0]).toMatchObject({
+        type: 'resistance',
+        minValue: 100,
+        maxValue: 100,
+        unit: 'kilograms',
+      });
+    });
+
+    it('should express a percent-of-1RM prescription as load', () => {
+      const strength: LibraryItem = {
+        ...baseLibraryItem,
+        workoutTypeId: 9,
+        structure: {
+          primaryIntensityMetric: 'resistance',
+          primaryLengthMetric: 'repetitions',
+          structure: [
+            {
+              type: 'step',
+              length: { unit: 'repetition', value: 1 },
+              steps: [
+                {
+                  name: 'Deadlift',
+                  intensityClass: 'active',
+                  length: { unit: 'repetition', value: 3 },
+                  openDuration: false,
+                  targets: [
+                    { minValue: 80, maxValue: 85, unit: 'percentOf1RM' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const result = transformToPlanMyPeak(strength, defaultConfig);
+
+      expect(result.structure.structure[0].steps[0].targets[0]).toMatchObject({
+        type: 'resistance',
+        unit: 'percentOf1RM',
+      });
+    });
+
+    it.each([
+      ['kilograms', 'kilograms'],
+      ['kg', 'kilograms'],
+      ['pounds', 'pounds'],
+      ['lbs', 'pounds'],
+      ['percentOf1RM', 'percentOf1RM'],
+      ['percentOfOneRepMax', 'percentOf1RM'],
+    ])(
+      'should emit the canonical unit for a TrainingPeaks %s target',
+      (tpUnit, expected) => {
+        // The aliases are what we *accept* from TrainingPeaks; what we emit is
+        // always one of PlanMyPeak's three. A unit outside its vocabulary is a
+        // 400 on the create, so this is the whole workout riding on the mapping,
+        // not just the field.
+        const strength: LibraryItem = {
+          ...baseLibraryItem,
+          workoutTypeId: 9,
+          structure: {
+            primaryIntensityMetric: 'resistance',
+            primaryLengthMetric: 'repetitions',
+            structure: [
+              {
+                type: 'step',
+                length: { unit: 'repetition', value: 1 },
+                steps: [
+                  {
+                    name: 'Lift',
+                    intensityClass: 'active',
+                    length: { unit: 'repetition', value: 5 },
+                    openDuration: false,
+                    targets: [{ minValue: 60, maxValue: 70, unit: tpUnit }],
+                  },
+                ],
+              },
+            ],
+          },
+        };
+
+        const result = transformToPlanMyPeak(strength, defaultConfig);
+        const target = result.structure.structure[0].steps[0].targets[0];
+
+        expect(target.type).toBe('resistance');
+        expect(target.unit).toBe(expected);
+      }
+    );
+
+    it('should fall back to an empty structure only when the targets are unusable', () => {
+      // The fallback is a last resort, not the default for strength: it applies
+      // when nothing in the structure can be expressed at all.
+      const strength: LibraryItem = {
+        ...baseLibraryItem,
+        workoutTypeId: 9,
+        itemName: 'Circuit',
+        description: 'Coach notes only',
+        structure: {
+          primaryIntensityMetric: 'somethingUnmappable',
+          primaryLengthMetric: 'duration',
+          structure: [],
+        },
+      };
+
+      const result = transformToPlanMyPeak(strength, defaultConfig);
+
+      expect(result.structure.structure).toEqual([]);
+      expect(result.detailed_description).toContain('Coach notes only');
+    });
+
+    it('should keep an RPE-prescribed workout as structure', () => {
+      // PlanMyPeak accepts `rpe` as a primary intensity metric, so a workout
+      // written by feel is structured rather than skipped as unsupported.
+      const rpeWorkout: LibraryItem = {
+        ...baseLibraryItem,
+        itemName: 'Set Your Threshold and Zones',
+        structure: {
+          primaryIntensityMetric: 'rpe',
+          primaryLengthMetric: 'duration',
+          structure: [
+            {
+              type: 'step',
+              length: { unit: 'repetition', value: 1 },
+              steps: [
+                {
+                  name: 'Steady',
+                  intensityClass: 'active',
+                  length: { unit: 'minute', value: 20 },
+                  openDuration: false,
+                  targets: [{ minValue: 5, maxValue: 6, unit: 'rpe' }],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const result = transformToPlanMyPeak(rpeWorkout, defaultConfig);
+
+      expect(result.structure.primaryIntensityMetric).toBe('rpe');
+      expect(result.structure.structure).toHaveLength(1);
+    });
+
+    it('should read a bare target as an effort rating under an RPE workout', () => {
+      // TrainingPeaks omits the unit on effort steps and leaves the scale to the
+      // structure's primary metric, so a bare {minValue, maxValue} is a rating,
+      // not an unmappable target.
+      const rpeWorkout: LibraryItem = {
+        ...baseLibraryItem,
+        itemName: 'Set Your Threshold and Zones',
+        structure: {
+          primaryIntensityMetric: 'rpe',
+          primaryLengthMetric: 'duration',
+          structure: [
+            {
+              type: 'step',
+              length: { unit: 'repetition', value: 1 },
+              steps: [
+                {
+                  name: 'Warm up',
+                  intensityClass: 'warmUp',
+                  length: { unit: 'minute', value: 5 },
+                  openDuration: false,
+                  targets: [{ minValue: 1, maxValue: 5 }],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const result = transformToPlanMyPeak(rpeWorkout, defaultConfig);
+      const target = result.structure.structure[0].steps[0].targets[0];
+
+      expect(target).toMatchObject({
+        type: 'rpe',
+        minValue: 1,
+        maxValue: 5,
+        unit: 'scale10',
+      });
+    });
+
+    it('should still refuse a training session that prescribes nothing', () => {
+      // A bike workout with no structure cannot be performed, so this is the one
+      // case that must keep failing rather than being sent empty.
+      const emptyRide: LibraryItem = {
+        ...baseLibraryItem,
+        workoutTypeId: 2,
+        structure: null,
+      };
+
+      expect(() => transformToPlanMyPeak(emptyRide, defaultConfig)).toThrow();
+    });
+  });
+
   describe('basic transformation', () => {
     it('should transform workout name', () => {
       const result = transformToPlanMyPeak(baseLibraryItem, defaultConfig);

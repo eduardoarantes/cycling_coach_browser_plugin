@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useUser } from '@/hooks/useUser';
 import { usePortConfig } from '@/hooks/usePortConfig';
+import { parsePort } from '@/utils/constants';
 import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
 import { openMyPeakTab } from '@/utils/myPeakTab';
 import {
@@ -112,16 +113,16 @@ export function AuthStatus(): ReactElement {
 
   const handleAppPortChange = async (value: string): Promise<void> => {
     setAppPortInput(value);
-    const port = parseInt(value, 10);
-    if (!isNaN(port) && port > 0 && port < 65536) {
+    const port = parsePort(value);
+    if (port !== null) {
       await setAppPort(port);
     }
   };
 
   const handleSupabasePortChange = async (value: string): Promise<void> => {
     setSupabasePortInput(value);
-    const port = parseInt(value, 10);
-    if (!isNaN(port) && port > 0 && port < 65536) {
+    const port = parsePort(value);
+    if (port !== null) {
       await setSupabasePort(port);
     }
   };
@@ -163,12 +164,11 @@ export function AuthStatus(): ReactElement {
               </label>
               <input
                 id="app-port"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={appPortDisplay}
                 onChange={(e) => void handleAppPortChange(e.target.value)}
                 className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                min={1}
-                max={65535}
               />
             </div>
             <div className="flex-1">
@@ -180,12 +180,11 @@ export function AuthStatus(): ReactElement {
               </label>
               <input
                 id="supabase-port"
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={supabasePortDisplay}
                 onChange={(e) => void handleSupabasePortChange(e.target.value)}
                 className="w-full rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                min={1}
-                max={65535}
               />
             </div>
           </div>

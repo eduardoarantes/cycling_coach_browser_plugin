@@ -27,7 +27,8 @@ export type PlanMyPeakTargetUnit =
   | 'milesPerHour'
   | 'kilograms'
   | 'pounds'
-  | 'percentOf1RM';
+  | 'percentOf1RM'
+  | 'scale10';
 
 /**
  * PlanMyPeak workout intensity target
@@ -77,7 +78,15 @@ export type PlanMyPeakTarget =
       type: 'resistance';
       minValue: number;
       maxValue: number;
+      /** Strength load: absolute weight, or a share of the athlete's 1RM. */
       unit?: 'kilograms' | 'pounds' | 'percentOf1RM';
+    }
+  | {
+      type: 'rpe';
+      minValue: number;
+      maxValue: number;
+      /** Rate of perceived exertion, prescribed on a ten-point scale. */
+      unit?: 'scale10';
     };
 
 /**
@@ -126,8 +135,9 @@ export interface PlanMyPeakStructure {
     | 'percentOfThresholdPace'
     | 'pace'
     | 'speed'
-    | 'resistance';
-  primaryLengthMetric: 'duration' | 'distance';
+    | 'resistance'
+    | 'rpe';
+  primaryLengthMetric: 'duration' | 'distance' | 'repetitions';
   structure: PlanMyPeakStructureBlock[];
 }
 
@@ -174,11 +184,33 @@ export type IntensityLevel = 'easy' | 'moderate' | 'hard' | 'very_hard';
 /**
  * Complete PlanMyPeak workout object
  */
+/** The twelve disciplines PlanMyPeak accepts. */
+export type PlanMyPeakWorkoutType =
+  | 'bike'
+  | 'mountain_bike'
+  | 'run'
+  | 'swim'
+  | 'walk'
+  | 'strength'
+  | 'cross_train'
+  | 'cross_country_ski'
+  | 'rowing'
+  | 'race'
+  | 'rest_day'
+  | 'note'
+  | 'other';
+
 export interface PlanMyPeakWorkout {
   id: string;
   name: string;
   detailed_description: string | null;
   sport_type: PlanMyPeakSportType;
+  /**
+   * PlanMyPeak discipline sent on the wire (`workoutType`), resolved from the
+   * TrainingPeaks type id. Distinct from `type`, which is TrainingPeaks' own
+   * training classification and travels in provider metadata.
+   */
+  discipline: PlanMyPeakWorkoutType;
   type: WorkoutType;
   intensity: IntensityLevel;
   suitable_phases: TrainingPhase[];
@@ -190,6 +222,29 @@ export interface PlanMyPeakWorkout {
   source_file: string;
   source_format: 'json';
   signature: string;
+  /**
+   * TrainingPeaks' own id for this workout (`exerciseLibraryItemId`), sent as
+   * PlanMyPeak's `providerWorkoutId`. Deliberately the upstream id rather than a
+   * hash of the content: a hash changes when a coach edits the workout in
+   * TrainingPeaks, which would create a second PlanMyPeak record instead of
+   * updating the existing one.
+   */
+  provider_workout_id: string;
+  /**
+   * TrainingPeaks' own item type, carried so the stored workout records what TP
+   * actually said. We read it to detect notes, and its real vocabulary is not
+   * documented anywhere we can check — recording it means any import reveals the
+   * values in use rather than leaving the mapping an untested guess.
+   */
+  provider_item_type: string | null;
+  /**
+   * TrainingPeaks' own planned load, passed through so a heart-rate workout has
+   * a load at all — PlanMyPeak derives IF and TSS from normalized power, which
+   * an HR-prescribed workout does not have. A ratio (0.72), never a percentage.
+   * Both are null unless TrainingPeaks supplied both.
+   */
+  provider_intensity_factor: number | null;
+  provider_tss: number | null;
   /** External source marker used for import dedupe (e.g. TP:<sha256>) */
   source_id?: string | null;
 }
