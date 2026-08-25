@@ -8,6 +8,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useOverlayImport } from '@/content/overlay/useOverlayImport';
 import {
   EMPTY_SELECTION,
+  toggleGroup,
   toggleLibrary,
   type OverlaySelection,
 } from '@/content/overlay/selection';
@@ -310,10 +311,77 @@ describe('useOverlayImport', () => {
     await waitFor(() => expect(onCompleted).toHaveBeenCalledTimes(1));
     const payload = onCompleted.mock.calls[0][0];
     expect(Object.keys(payload).sort()).toEqual([
+      'byKind',
       'failedCount',
       'importedCount',
       'ok',
     ]);
+  });
+
+  it('should break the counts down by kind', async () => {
+    mockLibrariesResponse([]);
+    const onCompleted = vi.fn();
+    const { result } = renderHook(() => useOverlayImport(onCompleted));
+
+    await act(async () => {
+      await result.current.startImport({
+        selection: selectionWithLibrary(),
+        loadedItems: loaded(),
+      });
+    });
+
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledTimes(1));
+    expect(onCompleted.mock.calls[0][0].byKind).toEqual({
+      libraries: { imported: 2, failed: 0 },
+      plans: { imported: 0, failed: 0 },
+      groups: { imported: 0, failed: 0 },
+    });
+  });
+
+  it('should keep workouts and groups in separate buckets', async () => {
+    vi.spyOn(chrome.runtime, 'sendMessage').mockImplementation(
+      (message: unknown) => {
+        const typed = message as { type: string };
+        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+          return Promise.resolve({ success: true, data: [] });
+        }
+        if (typed.type === 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK') {
+          return Promise.resolve({
+            success: true,
+            data: { groupsProcessed: 3 },
+          });
+        }
+        return Promise.resolve({ success: true, data: [] });
+      }
+    );
+
+    const onCompleted = vi.fn();
+    const { result } = renderHook(() => useOverlayImport(onCompleted));
+
+    const mixed = toggleGroup(selectionWithLibrary(), {
+      id: 7,
+      coachId: 9,
+      name: 'Squad A',
+      athleteIds: [1, 2],
+      isDefault: false,
+    });
+
+    await act(async () => {
+      await result.current.startImport({
+        selection: mixed,
+        loadedItems: loaded(),
+      });
+    });
+
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledTimes(1));
+    const payload = onCompleted.mock.calls[0][0];
+
+    // The total sums two different units and is meaningless on its own - this
+    // is exactly why the breakdown exists.
+    expect(payload.importedCount).toBe(5);
+    expect(payload.byKind.libraries).toEqual({ imported: 2, failed: 0 });
+    expect(payload.byKind.groups).toEqual({ imported: 3, failed: 0 });
+    expect(payload.byKind.plans).toEqual({ imported: 0, failed: 0 });
   });
 
   it('should reset back to a clean state', async () => {

@@ -31,7 +31,10 @@ import {
 } from '@/export/adapters/planMyPeak/duplicatePreflight';
 import { logger } from '@/utils/logger';
 import { selectedItemsForLibrary, type OverlaySelection } from './selection';
-import type { SiteControlImportCompletedPayload } from '@/types/siteControl.types';
+import type {
+  SiteControlImportByKind,
+  SiteControlImportCompletedPayload,
+} from '@/types/siteControl.types';
 
 export type OverlayImportPhase =
   | 'idle'
@@ -40,7 +43,11 @@ export type OverlayImportPhase =
   | 'importing'
   | 'result';
 
+/** Which kind of thing an import item covered, so counts stay in their own unit. */
+export type OverlayImportKind = 'library' | 'plan' | 'group';
+
 export interface OverlayImportItemResult {
+  kind: OverlayImportKind;
   /** Library or plan name as it appears in TrainingPeaks */
   name: string;
   ok: boolean;
@@ -143,6 +150,39 @@ function initialProgress(
       total: 1,
     })),
   };
+}
+
+/**
+ * Split the results into per-kind counts.
+ *
+ * The totals alone cannot be rendered honestly across kinds: workouts and
+ * groups are different units, so summing them produces a number in no unit at
+ * all. `failed` counts containers, matching `failedCount`.
+ */
+function summarizeByKind(
+  items: ReadonlyArray<OverlayImportItemResult>
+): SiteControlImportByKind {
+  const byKind: SiteControlImportByKind = {
+    libraries: { imported: 0, failed: 0 },
+    plans: { imported: 0, failed: 0 },
+    groups: { imported: 0, failed: 0 },
+  };
+
+  const bucketFor = {
+    library: byKind.libraries,
+    plan: byKind.plans,
+    group: byKind.groups,
+  } as const;
+
+  for (const item of items) {
+    const bucket = bucketFor[item.kind];
+    bucket.imported += item.importedCount;
+    if (!item.ok) {
+      bucket.failed += 1;
+    }
+  }
+
+  return byKind;
 }
 
 export interface UseOverlayImportReturn {
@@ -266,6 +306,7 @@ export function useOverlayImport(
 
           destinations.push(result.fileName);
           items.push({
+            kind: 'library',
             name: library.libraryName,
             ok: true,
             importedCount: result.itemsExported,
@@ -276,6 +317,7 @@ export function useOverlayImport(
             error instanceof Error ? error.message : 'Unknown import error';
           logger.error('[ImportOverlay] Library import failed:', message);
           items.push({
+            kind: 'library',
             name: library.libraryName,
             ok: false,
             importedCount: 0,
@@ -315,6 +357,7 @@ export function useOverlayImport(
 
           destinations.push(result.fileName);
           items.push({
+            kind: 'plan',
             name: plan.planName,
             ok: true,
             importedCount: result.itemsExported,
@@ -325,6 +368,7 @@ export function useOverlayImport(
             error instanceof Error ? error.message : 'Unknown import error';
           logger.error('[ImportOverlay] Plan import failed:', message);
           items.push({
+            kind: 'plan',
             name: plan.planName,
             ok: false,
             importedCount: 0,
@@ -348,6 +392,7 @@ export function useOverlayImport(
           const importedGroups = result.groupsProcessed ?? groups.length;
 
           items.push({
+            kind: 'group',
             name: groupsLabel,
             ok: true,
             importedCount: importedGroups,
@@ -358,6 +403,7 @@ export function useOverlayImport(
             error instanceof Error ? error.message : 'Unknown import error';
           logger.error('[ImportOverlay] Athlete group import failed:', message);
           items.push({
+            kind: 'group',
             name: groupsLabel,
             ok: false,
             importedCount: 0,
@@ -387,6 +433,7 @@ export function useOverlayImport(
         ok: finalOutcome.ok,
         importedCount: finalOutcome.importedCount,
         failedCount: finalOutcome.failedCount,
+        byKind: summarizeByKind(items),
       });
     },
     [onImportCompleted]

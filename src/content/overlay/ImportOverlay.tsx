@@ -187,6 +187,18 @@ export function ImportOverlay({
     [selection, loadedItems]
   );
 
+  // The footer summarises the whole selection, which is what Import acts on.
+  // Without a per-tab count, a coach on one tab cannot see that another tab
+  // holds a selection — the footer would describe something not on screen.
+  const selectedCountByTab: Record<OverlayTab, number> = useMemo(
+    () => ({
+      libraries: selection.libraries.size,
+      plans: selection.plans.size,
+      groups: selection.groups.size,
+    }),
+    [selection]
+  );
+
   const connectionsReady =
     isTrainingPeaksAuthenticated && isPlanMyPeakAuthenticated;
   const isBusy = phase === 'checking' || phase === 'importing';
@@ -278,21 +290,40 @@ export function ImportOverlay({
               ) : null}
 
               <div className="flex gap-1 border-b border-gray-200">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    aria-pressed={activeTab === tab.id}
-                    className={
-                      activeTab === tab.id
-                        ? 'border-b-2 border-blue-600 px-3 py-2 text-sm font-medium text-blue-700'
-                        : 'px-3 py-2 text-sm text-gray-600 hover:text-gray-800'
-                    }
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                {TABS.map((tab) => {
+                  const selectedOnTab = selectedCountByTab[tab.id];
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      aria-pressed={activeTab === tab.id}
+                      // Import acts on every tab's selection, so a selection
+                      // made elsewhere has to be legible from the tab in view.
+                      aria-label={
+                        selectedOnTab > 0
+                          ? `${tab.label}, ${selectedOnTab} selected`
+                          : tab.label
+                      }
+                      className={
+                        activeTab === tab.id
+                          ? 'border-b-2 border-blue-600 px-3 py-2 text-sm font-medium text-blue-700'
+                          : 'px-3 py-2 text-sm text-gray-600 hover:text-gray-800'
+                      }
+                    >
+                      {tab.label}
+                      {selectedOnTab > 0 ? (
+                        <span
+                          aria-hidden="true"
+                          className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-semibold text-blue-700"
+                        >
+                          {selectedOnTab}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
 
               {activeTab === 'libraries' ? (

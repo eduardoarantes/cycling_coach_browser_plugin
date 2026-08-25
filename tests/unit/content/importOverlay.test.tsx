@@ -229,4 +229,28 @@ describe('ImportOverlay', () => {
       screen.getByText('1 athlete group (2 athletes)')
     ).toBeInTheDocument();
   });
+
+  it('should show a selection made on another tab', () => {
+    renderOverlay();
+
+    fireEvent.click(screen.getByLabelText('Select library Base Training'));
+    fireEvent.click(screen.getByRole('button', { name: /^Training Plans/ }));
+
+    // Import acts on every tab's selection, so the library picked on the
+    // Libraries tab has to stay visible from the Training Plans tab.
+    expect(
+      screen.getByRole('button', { name: 'Libraries, 1 selected' })
+    ).toBeInTheDocument();
+  });
+
+  it('should not label a tab with a count when nothing is selected on it', () => {
+    renderOverlay();
+
+    expect(
+      screen.getByRole('button', { name: 'Libraries' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Athlete Groups' })
+    ).toBeInTheDocument();
+  });
 });

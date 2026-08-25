@@ -374,9 +374,29 @@ posts an unsolicited event carrying counts only:
   version: 1,
   type: 'IMPORT_COMPLETED',
   requestId,                                  // the OPEN_IMPORTER request id
-  payload: { ok: boolean, importedCount: number, failedCount: number },
+  payload: {
+    ok: boolean,
+    importedCount: number,          // total across kinds
+    failedCount: number,            // failed containers across kinds
+    byKind: {
+      libraries: { imported: number, failed: number },  // imported = workouts
+      plans:     { imported: number, failed: number },  // imported = workouts
+      groups:    { imported: number, failed: number },  // imported = groups
+    },
+  },
 }
 ```
+
+**The two totals are in different units.** `importedCount` counts workouts (and
+groups, for groups), while `failedCount` counts failed _containers_ — a library
+of fifty workouts that fails entirely is `failedCount: 1`, not 50. Never render
+them as a comparable pair.
+
+**Prefer `byKind` whenever the selection could span kinds.** The overlay's tabs
+stay switchable and the selection accumulates across them, so a coach can reach
+a mixed selection from any single-kind `OPEN_IMPORTER` — at which point
+`importedCount` sums workouts and groups into a total in no unit at all.
+`byKind` is additive, so fall back to the totals when it is absent.
 
 Use it to refresh the portal's own view of the coach's libraries.
 

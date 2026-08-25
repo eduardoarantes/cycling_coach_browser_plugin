@@ -257,10 +257,45 @@ export interface SiteControlResultMap {
  */
 export const SITE_CONTROL_IMPORT_COMPLETED = 'IMPORT_COMPLETED';
 
+/**
+ * Imported and failed counts for one kind of thing.
+ *
+ * `imported` is in that kind's own natural unit — workouts for libraries and
+ * plans, groups for groups. `failed` counts failed *containers*: a library of
+ * fifty workouts that fails entirely is one failure, not fifty.
+ */
+export interface SiteControlImportKindCounts {
+  imported: number;
+  failed: number;
+}
+
+/**
+ * Per-kind breakdown of an import.
+ *
+ * `importedCount` alone cannot be rendered honestly when a coach selected more
+ * than one kind: it sums workouts and groups into a total in no unit at all.
+ * A mixed selection is two clicks from any single-kind `OPEN_IMPORTER`, since
+ * the overlay's tabs stay switchable and the selection accumulates across them,
+ * so this is a reachable state rather than a theoretical one.
+ */
+export interface SiteControlImportByKind {
+  libraries: SiteControlImportKindCounts;
+  plans: SiteControlImportKindCounts;
+  groups: SiteControlImportKindCounts;
+}
+
 export interface SiteControlImportCompletedPayload {
   ok: boolean;
+  /**
+   * Total across every kind. Kept unchanged for compatibility, but note it is
+   * only meaningful when a single kind was imported — prefer `byKind` when the
+   * selection could have spanned more than one.
+   */
   importedCount: number;
+  /** Failed containers across every kind — libraries, plans, and the groups batch. */
   failedCount: number;
+  /** Additive: absent on builds older than this field. */
+  byKind: SiteControlImportByKind;
 }
 
 export interface SiteControlImportCompletedEvent {
