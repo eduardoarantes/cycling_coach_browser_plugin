@@ -1050,6 +1050,43 @@ async function handleSiteControlPlanContents(
 }
 
 /**
+ * Fetch the libraries the page may offer, owned by the signed-in coach.
+ *
+ * Every surface inside the extension shows owned libraries only (`useLibraries`
+ * filters on `ownerId`), and the import overlay browses that same filtered
+ * list. Returning the raw TrainingPeaks response here would let the page list
+ * libraries the overlay cannot show: a coach clicking one would get an importer
+ * with nothing selected and no explanation, because the pre-selection silently
+ * finds no match. Filtering to the same rule keeps the page's list and what the
+ * importer can actually act on in agreement.
+ *
+ * The owner is resolved from the captured session rather than supplied by the
+ * page, for the same reason `GET_ATHLETE_GROUPS` takes no coach id.
+ */
+async function handleSiteControlLibraries(
+  requestId: string
+): Promise<SiteControlResponse> {
+  const [user, libraries] = await Promise.all([
+    handleGetUser(),
+    handleGetLibraries(),
+  ]);
+
+  if (!libraries.success) {
+    return createErrorResponse(requestId, toSiteControlError(libraries.error));
+  }
+
+  if (!user.success) {
+    return createErrorResponse(requestId, toSiteControlError(user.error));
+  }
+
+  const owned = libraries.data.filter(
+    (library) => library.ownerId === user.data.userId
+  );
+
+  return createSuccessResponse(requestId, owned);
+}
+
+/**
  * Fetch the signed-in coach's athlete groups for the page.
  *
  * The coach id is resolved here from the captured TrainingPeaks session rather
@@ -1116,10 +1153,7 @@ async function handleSiteControlRequest(
       );
 
     case 'GET_LIBRARIES':
-      return toSiteControlResponse(
-        request.requestId,
-        await handleGetLibraries()
-      );
+      return await handleSiteControlLibraries(request.requestId);
 
     case 'GET_LIBRARY_ITEMS':
       return toSiteControlResponse(

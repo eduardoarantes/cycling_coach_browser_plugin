@@ -68,6 +68,12 @@ describe('messageHandler site-control routing', () => {
     vi.spyOn(authService, 'isAuthenticated').mockResolvedValue(true);
     vi.spyOn(authService, 'isTokenExpired').mockResolvedValue(false);
     vi.spyOn(myPeakAuthService, 'isAuthenticated').mockResolvedValue(true);
+    // Several handlers resolve the acting user from the session rather than
+    // from the request, so a signed-in coach is the default for every test.
+    vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+      success: true,
+      data: { userId: 42 } as never,
+    });
   });
 
   afterEach(() => {
@@ -350,19 +356,69 @@ describe('messageHandler site-control routing', () => {
   });
 
   describe('TrainingPeaks reads', () => {
+    const OWNED = {
+      exerciseLibraryId: 1,
+      libraryName: 'My Library',
+      ownerId: 42,
+    };
+    const NOT_OWNED = {
+      exerciseLibraryId: 2,
+      libraryName: 'Default Library',
+      ownerId: 999,
+    };
+
     it('should return libraries', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: true,
+        data: { userId: 42 } as never,
+      });
       vi.spyOn(trainingPeaksApi, 'fetchLibraries').mockResolvedValue({
         success: true,
-        data: [{ exerciseLibraryId: 1, libraryName: 'Base' }] as never,
+        data: [OWNED] as never,
       });
 
       const response = await send(request('GET_LIBRARIES'));
 
       expect(response.ok).toBe(true);
       if (!response.ok) return;
-      expect(response.data).toEqual([
-        { exerciseLibraryId: 1, libraryName: 'Base' },
-      ]);
+      expect(response.data).toEqual([OWNED]);
+    });
+
+    it('should return only the libraries the coach owns', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: true,
+        data: { userId: 42 } as never,
+      });
+      vi.spyOn(trainingPeaksApi, 'fetchLibraries').mockResolvedValue({
+        success: true,
+        data: [OWNED, NOT_OWNED] as never,
+      });
+
+      const response = await send(request('GET_LIBRARIES'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+
+      // The overlay browses the same owned-only list, so offering the page a
+      // library it cannot select would be a dead end for the coach.
+      expect(response.data).toEqual([OWNED]);
+    });
+
+    it('should fail rather than list every library when the owner is unknown', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: false,
+        error: { message: 'Not authenticated', code: 'NO_TOKEN' },
+      });
+      vi.spyOn(trainingPeaksApi, 'fetchLibraries').mockResolvedValue({
+        success: true,
+        data: [OWNED, NOT_OWNED] as never,
+      });
+
+      const response = await send(request('GET_LIBRARIES'));
+
+      expect(response.ok).toBe(false);
+      if (response.ok) return;
+      expect(response.error.code).toBe('AUTH_REQUIRED');
     });
 
     it('should return library items for the requested library', async () => {
