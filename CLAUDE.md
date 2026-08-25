@@ -668,6 +668,23 @@ Full wire protocol and page-side snippet: `PLANMYPEAK_INTEGRATION.md` →
 - `src/services/planMyPeakConfigService.ts` — PlanMyPeak environment
   (production / staging / local) and the app URLs derived from it
 
+**Fail closed on correctness, fail soft on presentation.** Two checks on this
+channel look identical in code and must behave oppositely. `planMyPeak.coachId`
+blocks the import when unknown, because being wrong writes one coach's data into
+another's account and nothing downstream would catch it. A missing entry in
+`PING.supports` degrades instead — a page whose plan grouping is unavailable
+shows a flat list rather than hiding the import, because being wrong there costs
+some headings. Decide which kind a new check is before choosing its failure
+mode.
+
+**One idea, one implementation.** Four bugs in this channel came from the same
+root: the popup and the overlay each implementing the same idea. Non-owned
+libraries reaching the page, the two surfaces naming tabs differently, plans
+listed flat in one and grouped in the other, and nearly a fifth in the grouping
+rule itself. The fix that holds is extracting the logic UI-free and pointing
+both surfaces at it — `groupPlansByFolder`, `duplicatePreflight`,
+`planMyPeakAdapter` — not fixing each surface as it is reported.
+
 **Invariants — do not weaken these when extending the channel**:
 
 - The page names _site-control_ request types only (`PING`, `GET_LIBRARIES`,
