@@ -86,6 +86,45 @@ describe('parseSiteControlRequest', () => {
       expect(result.request.payload.groups).toBe(true);
     });
 
+    it('should parse OPEN_IMPORTER carrying an opening-tab hint', () => {
+      for (const tab of ['libraries', 'plans', 'groups']) {
+        const result = parseSiteControlRequest(
+          envelope({ type: 'OPEN_IMPORTER', payload: { tab } })
+        );
+
+        expect(result.outcome).toBe('ok');
+        if (result.outcome !== 'ok') return;
+        if (result.request.type !== 'OPEN_IMPORTER') return;
+        expect(result.request.payload.tab).toBe(tab);
+      }
+    });
+
+    it('should reject a tab hint naming something that is not a tab', () => {
+      const result = parseSiteControlRequest(
+        envelope({ type: 'OPEN_IMPORTER', payload: { tab: 'workouts' } })
+      );
+
+      expect(result.outcome).toBe('error');
+      if (result.outcome !== 'error') return;
+      expect(result.error.code).toBe('INVALID_REQUEST');
+    });
+
+    it('should ignore an unrecognised payload key rather than refuse the request', () => {
+      const result = parseSiteControlRequest(
+        envelope({
+          type: 'OPEN_IMPORTER',
+          payload: { libraryId: 3, somethingWeDoNotKnow: 'x' },
+        })
+      );
+
+      // A page may send a key a build predates. Refusing would make every
+      // additive payload field a breaking change for older extensions.
+      expect(result.outcome).toBe('ok');
+      if (result.outcome !== 'ok') return;
+      if (result.request.type !== 'OPEN_IMPORTER') return;
+      expect(result.request.payload).toEqual({ libraryId: 3 });
+    });
+
     it('should reject a non-boolean groups flag', () => {
       const result = parseSiteControlRequest(
         envelope({ type: 'OPEN_IMPORTER', payload: { groups: 'yes' } })

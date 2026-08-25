@@ -15,7 +15,10 @@ import type { Library } from '@/types/api.types';
 import type { LibraryItem } from '@/schemas/library.schema';
 import type { TrainingPlan } from '@/schemas/trainingPlan.schema';
 import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
-import type { SiteControlImportCompletedPayload } from '@/types/siteControl.types';
+import type {
+  SiteControlImportCompletedPayload,
+  SiteControlImporterTab,
+} from '@/types/siteControl.types';
 import {
   EMPTY_SELECTION,
   isSelectionEmpty,
@@ -55,6 +58,33 @@ const TABS: ReadonlyArray<{ id: OverlayTab; label: string }> = [
   { id: 'groups', label: 'Athlete Groups' },
 ];
 
+/**
+ * Which tab the overlay opens on.
+ *
+ * A pre-selected target always wins: it names something specific the coach is
+ * here for, and opening away from it would hide a selection they did not make
+ * themselves. `initialTab` is only a hint for when the page knows the context
+ * but has nothing to pre-select — a button on its plans page, say — and
+ * without it the coach would land on Workout Libraries regardless of where
+ * they pressed.
+ */
+function resolveInitialTab({
+  preselectGroups,
+  preselectedPlanId,
+  preselectedLibraryId,
+  initialTab,
+}: {
+  preselectGroups: boolean;
+  preselectedPlanId: number | null;
+  preselectedLibraryId: number | null;
+  initialTab: SiteControlImporterTab | null;
+}): OverlayTab {
+  if (preselectGroups) return 'groups';
+  if (preselectedPlanId !== null) return 'plans';
+  if (preselectedLibraryId !== null) return 'libraries';
+  return initialTab ?? 'libraries';
+}
+
 export interface ImportOverlayProps {
   /** Incremented by the bridge to re-focus an already-open overlay */
   focusNonce: number;
@@ -62,6 +92,8 @@ export interface ImportOverlayProps {
   preselectedPlanId: number | null;
   /** Open on the athlete-groups tab, as the page asked */
   preselectGroups: boolean;
+  /** Tab to open on when nothing is pre-selected */
+  initialTab: SiteControlImporterTab | null;
   onImportCompleted?: (payload: SiteControlImportCompletedPayload) => void;
   onClose: () => void;
 }
@@ -71,14 +103,19 @@ export function ImportOverlay({
   preselectedLibraryId,
   preselectedPlanId,
   preselectGroups,
+  initialTab,
   onImportCompleted,
   onClose,
 }: ImportOverlayProps): ReactElement {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<OverlayTab>(() => {
-    if (preselectGroups) return 'groups';
-    return preselectedPlanId !== null ? 'plans' : 'libraries';
-  });
+  const [activeTab, setActiveTab] = useState<OverlayTab>(() =>
+    resolveInitialTab({
+      preselectGroups,
+      preselectedPlanId,
+      preselectedLibraryId,
+      initialTab,
+    })
+  );
   const [selection, setSelection] = useState<OverlaySelection>(EMPTY_SELECTION);
   const [expandedLibraryId, setExpandedLibraryId] = useState<number | null>(
     preselectedLibraryId

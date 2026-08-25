@@ -114,6 +114,16 @@ export interface SiteControlGetPlanContentsPayload {
  */
 export type SiteControlGetAthleteGroupsPayload = Record<string, never>;
 
+/** The overlay's tabs, as the page may name them. */
+export const SITE_CONTROL_IMPORTER_TABS = [
+  'libraries',
+  'plans',
+  'groups',
+] as const;
+
+export type SiteControlImporterTab =
+  (typeof SITE_CONTROL_IMPORTER_TABS)[number];
+
 export interface SiteControlOpenImporterPayload {
   /** Pre-select this TrainingPeaks library when the overlay opens */
   libraryId?: number;
@@ -121,6 +131,16 @@ export interface SiteControlOpenImporterPayload {
   planId?: number;
   /** Open the overlay on its athlete-groups tab */
   groups?: boolean;
+  /**
+   * Which tab to open on when nothing is pre-selected.
+   *
+   * A hint, not an instruction: a pre-selected library, plan or group already
+   * says which tab the coach needs, and that always wins. It exists for the
+   * case where the page knows the context — a button on the plans page — but
+   * has nothing specific to pre-select, so the coach would otherwise land on
+   * a tab they did not ask for.
+   */
+  tab?: SiteControlImporterTab;
 }
 
 /** Maps each request type to its payload shape. */

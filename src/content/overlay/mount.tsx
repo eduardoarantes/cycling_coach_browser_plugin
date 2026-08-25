@@ -13,7 +13,10 @@ import { StrictMode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import overlayStyles from '@/styles/overlay.css?inline';
 import { ImportOverlay } from './ImportOverlay';
-import type { SiteControlImportCompletedPayload } from '@/types/siteControl.types';
+import type {
+  SiteControlImportCompletedPayload,
+  SiteControlImporterTab,
+} from '@/types/siteControl.types';
 
 /** Well-known id so a second mount attempt can find an existing overlay. */
 export const OVERLAY_HOST_ID = 'pmp-tp-importer-root';
@@ -25,6 +28,8 @@ export interface OverlayOptions {
   preselectedPlanId?: number | null;
   /** Open the overlay on its athlete-groups tab */
   preselectGroups?: boolean;
+  /** Tab to open on when nothing is pre-selected; a pre-selection wins over it */
+  initialTab?: SiteControlImporterTab | null;
   /** Called once an import finishes, so the bridge can notify the page */
   onImportCompleted?: (payload: SiteControlImportCompletedPayload) => void;
 }
@@ -75,6 +80,7 @@ function render(): void {
           preselectedLibraryId={options.preselectedLibraryId ?? null}
           preselectedPlanId={options.preselectedPlanId ?? null}
           preselectGroups={options.preselectGroups ?? false}
+          initialTab={options.initialTab ?? null}
           onImportCompleted={options.onImportCompleted}
           onClose={unmountOverlay}
         />

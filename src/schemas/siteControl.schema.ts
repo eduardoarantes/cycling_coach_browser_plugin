@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import {
   PLANMYPEAK_SITE_CONTROL_VERSION,
+  SITE_CONTROL_IMPORTER_TABS,
   SITE_CONTROL_PAGE_SOURCE,
   isSiteControlRequestType,
 } from '@/types/siteControl.types';
@@ -88,6 +89,7 @@ export const SiteControlRequestSchema = z.discriminatedUnion('type', [
         libraryId: IdSchema.optional(),
         planId: IdSchema.optional(),
         groups: z.boolean().optional(),
+        tab: z.enum(SITE_CONTROL_IMPORTER_TABS).optional(),
       })
       .default({}),
   }),

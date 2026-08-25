@@ -285,16 +285,16 @@ rather than retrying.
 
 ### Request types
 
-| Type                          | Payload                                                     | `data` on success                                                                                                           |
-| ----------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `PING`                        | —                                                           | `{ protocolVersion, extensionVersion, supports, trainingPeaks: { authenticated }, planMyPeak: { authenticated, coachId } }` |
-| `GET_LIBRARIES`               | —                                                           | `Library[]`                                                                                                                 |
-| `GET_LIBRARY_ITEMS`           | `{ libraryId: number }`                                     | `LibraryItem[]`                                                                                                             |
-| `GET_TRAINING_PLANS`          | —                                                           | `TrainingPlan[]`                                                                                                            |
-| `GET_TRAINING_PLAN_LIBRARIES` | —                                                           | `{ id, name, planIds }[]`                                                                                                   |
-| `GET_PLAN_CONTENTS`           | `{ planId: number }`                                        | `{ planId, workouts, notes, events, rxWorkouts }`                                                                           |
-| `GET_ATHLETE_GROUPS`          | —                                                           | `AthleteGroup[]`                                                                                                            |
-| `OPEN_IMPORTER`               | `{ libraryId?: number, planId?: number, groups?: boolean }` | `{ opened: boolean, focused: boolean }`                                                                                     |
+| Type                          | Payload                                  | `data` on success                                                                                                           |
+| ----------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `PING`                        | —                                        | `{ protocolVersion, extensionVersion, supports, trainingPeaks: { authenticated }, planMyPeak: { authenticated, coachId } }` |
+| `GET_LIBRARIES`               | —                                        | `Library[]`                                                                                                                 |
+| `GET_LIBRARY_ITEMS`           | `{ libraryId: number }`                  | `LibraryItem[]`                                                                                                             |
+| `GET_TRAINING_PLANS`          | —                                        | `TrainingPlan[]`                                                                                                            |
+| `GET_TRAINING_PLAN_LIBRARIES` | —                                        | `{ id, name, planIds }[]`                                                                                                   |
+| `GET_PLAN_CONTENTS`           | `{ planId: number }`                     | `{ planId, workouts, notes, events, rxWorkouts }`                                                                           |
+| `GET_ATHLETE_GROUPS`          | —                                        | `AthleteGroup[]`                                                                                                            |
+| `OPEN_IMPORTER`               | `{ libraryId?, planId?, groups?, tab? }` | `{ opened: boolean, focused: boolean }`                                                                                     |
 
 `GET_PLAN_CONTENTS` fetches all four legs of a plan in one round trip and fails
 as a whole if any leg fails, so a partially-loaded plan never renders as a
@@ -302,6 +302,19 @@ complete one. `OPEN_IMPORTER` focuses an already-open overlay rather than
 mounting a second one (`focused: true`); `opened` is `true` in both cases, so
 read success from `ok` and treat `focused` as informational.
 `OPEN_IMPORTER` with `groups: true` opens the overlay on its athlete-groups tab.
+
+`tab` (`'libraries' | 'plans' | 'groups'`) says which tab to open on **when
+nothing is pre-selected**. It is a hint, not an instruction: a pre-selected
+library, plan or group already names what the coach is here for and always
+wins over it. Use it when the page knows the context but has nothing specific
+to pre-select — an "Import from TrainingPeaks" button on a plans page — so the
+coach does not land on Workout Libraries regardless of where they pressed.
+
+Precedence: `groups` → `planId` → `libraryId` → `tab` → Workout Libraries.
+
+Unrecognised payload keys are **ignored, never rejected**, so sending `tab` to
+a build that predates it degrades to the default tab rather than failing the
+request. That holds for any additive payload field.
 
 `GET_ATHLETE_GROUPS` takes no arguments on purpose: the coach whose groups are
 returned is resolved in the background from the captured TrainingPeaks session,

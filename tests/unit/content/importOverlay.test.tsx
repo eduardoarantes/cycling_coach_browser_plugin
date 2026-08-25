@@ -132,7 +132,8 @@ function renderOverlayWith(
         focusNonce={0}
         preselectedLibraryId={overrides.preselectedLibraryId ?? null}
         preselectedPlanId={overrides.preselectedPlanId ?? null}
-        preselectGroups={false}
+        preselectGroups={overrides.preselectGroups ?? false}
+        initialTab={overrides.initialTab ?? null}
         onClose={onClose}
       />
     </QueryClientProvider>
@@ -157,6 +158,7 @@ function renderOverlay(onClose = vi.fn()): { onClose: () => void } {
         preselectedLibraryId={null}
         preselectedPlanId={null}
         preselectGroups={false}
+        initialTab={null}
         onClose={onClose}
       />
     )
@@ -376,5 +378,53 @@ describe('ImportOverlay', () => {
     // An empty panel would read as a failure to load rather than as a library
     // the coach made and never filled.
     expect(screen.getByText('No plans in this library.')).toBeInTheDocument();
+  });
+
+  it('should open on the tab the page asked for when nothing is pre-selected', () => {
+    renderOverlayWith({ initialTab: 'plans' });
+
+    // A coach who pressed Import on the plans page should not land on
+    // Workout Libraries just because the page had nothing to pre-select.
+    expect(screen.getByText('Custom Plans')).toBeInTheDocument();
+  });
+
+  it('should open on the athlete groups tab when the page asks for it', () => {
+    renderOverlayWith({ initialTab: 'groups' });
+
+    expect(
+      screen.getByLabelText('Select athlete group Squad A')
+    ).toBeInTheDocument();
+  });
+
+  it('should let a pre-selected plan win over a conflicting tab hint', () => {
+    renderOverlayWith({ preselectedPlanId: 22, initialTab: 'libraries' });
+
+    // The pre-selection names something specific; opening elsewhere would
+    // hide a selection the coach did not make.
+    expect(screen.getByText('Off the Shelf Plan')).toBeInTheDocument();
+  });
+
+  it('should let a pre-selected library win over a conflicting tab hint', () => {
+    renderOverlayWith({ preselectedLibraryId: 1, initialTab: 'groups' });
+
+    expect(
+      screen.getByLabelText('Select library Base Training')
+    ).toBeInTheDocument();
+  });
+
+  it('should let a groups pre-selection win over a conflicting tab hint', () => {
+    renderOverlayWith({ preselectGroups: true, initialTab: 'plans' });
+
+    expect(
+      screen.getByLabelText('Select athlete group Squad A')
+    ).toBeInTheDocument();
+  });
+
+  it('should still default to workout libraries with no hint and no target', () => {
+    renderOverlayWith({});
+
+    expect(
+      screen.getByLabelText('Select library Base Training')
+    ).toBeInTheDocument();
   });
 });
