@@ -22,6 +22,7 @@ import type {
 } from '@/schemas/trainingPlan.schema';
 import type { RxBuilderWorkout } from '@/schemas/rxBuilder.schema';
 import type { LibraryItem } from '@/schemas/library.schema';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
 
 /**
  * Protocol version carried by every envelope in both directions.
@@ -46,7 +47,9 @@ export const SITE_CONTROL_REQUEST_TYPES = [
   'GET_LIBRARIES',
   'GET_LIBRARY_ITEMS',
   'GET_TRAINING_PLANS',
+  'GET_TRAINING_PLAN_LIBRARIES',
   'GET_PLAN_CONTENTS',
+  'GET_ATHLETE_GROUPS',
   'OPEN_IMPORTER',
 ] as const;
 
@@ -72,15 +75,72 @@ export interface SiteControlGetLibraryItemsPayload {
 
 export type SiteControlGetTrainingPlansPayload = Record<string, never>;
 
+/**
+ * `GET_TRAINING_PLAN_LIBRARIES` takes no arguments: the libraries returned are
+ * the signed-in coach's, resolved from the captured session.
+ */
+export type SiteControlGetTrainingPlanLibrariesPayload = Record<string, never>;
+
+/**
+ * A TrainingPeaks plan library, as TrainingPeaks models it.
+ *
+ * Membership lives here as `planIds` rather than on the plan, so a plan's
+ * library is found by looking its id up across libraries. This mirrors the API
+ * rather than synthesising a per-plan field, which keeps `TrainingPlan` the
+ * verbatim TrainingPeaks shape.
+ *
+ * Group with the same rule the extension uses, or the two surfaces will
+ * disagree: take libraries in order, skip a plan already claimed by an earlier
+ * one so it appears exactly once, and put plans in no library into an
+ * "Ungrouped" bucket rather than hiding them.
+ */
+export interface SiteControlTrainingPlanLibrary {
+  id: string;
+  name: string;
+  /** Plan ids in this library; may be empty for a library a coach made but never filled */
+  planIds: number[];
+}
+
 export interface SiteControlGetPlanContentsPayload {
   planId: number;
 }
+
+/**
+ * `GET_ATHLETE_GROUPS` takes no arguments on purpose.
+ *
+ * The coach whose groups are returned is resolved in the background from the
+ * captured TrainingPeaks session, never from a page-supplied id, so an
+ * allowlisted page cannot read another coach's groups by guessing one.
+ */
+export type SiteControlGetAthleteGroupsPayload = Record<string, never>;
+
+/** The overlay's tabs, as the page may name them. */
+export const SITE_CONTROL_IMPORTER_TABS = [
+  'libraries',
+  'plans',
+  'groups',
+] as const;
+
+export type SiteControlImporterTab =
+  (typeof SITE_CONTROL_IMPORTER_TABS)[number];
 
 export interface SiteControlOpenImporterPayload {
   /** Pre-select this TrainingPeaks library when the overlay opens */
   libraryId?: number;
   /** Pre-select this TrainingPeaks training plan when the overlay opens */
   planId?: number;
+  /** Open the overlay on its athlete-groups tab */
+  groups?: boolean;
+  /**
+   * Which tab to open on when nothing is pre-selected.
+   *
+   * A hint, not an instruction: a pre-selected library, plan or group already
+   * says which tab the coach needs, and that always wins. It exists for the
+   * case where the page knows the context — a button on the plans page — but
+   * has nothing specific to pre-select, so the coach would otherwise land on
+   * a tab they did not ask for.
+   */
+  tab?: SiteControlImporterTab;
 }
 
 /** Maps each request type to its payload shape. */
@@ -89,7 +149,9 @@ export interface SiteControlPayloadMap {
   GET_LIBRARIES: SiteControlGetLibrariesPayload;
   GET_LIBRARY_ITEMS: SiteControlGetLibraryItemsPayload;
   GET_TRAINING_PLANS: SiteControlGetTrainingPlansPayload;
+  GET_TRAINING_PLAN_LIBRARIES: SiteControlGetTrainingPlanLibrariesPayload;
   GET_PLAN_CONTENTS: SiteControlGetPlanContentsPayload;
+  GET_ATHLETE_GROUPS: SiteControlGetAthleteGroupsPayload;
   OPEN_IMPORTER: SiteControlOpenImporterPayload;
 }
 
@@ -165,8 +227,46 @@ export type SiteControlResponse<TData = unknown> =
 export interface SiteControlPingResult {
   protocolVersion: number;
   extensionVersion: string;
+  /**
+   * Request types this build actually serves.
+   *
+   * Additive within a protocol version, so the page feature-detects with
+   * `supports?.includes(...)` rather than comparing versions. Older builds omit
+   * the field entirely, which reads as "does not support it" — the correct
+   * answer for every type added after them.
+   */
+  supports: SiteControlRequestType[];
   trainingPeaks: { authenticated: boolean };
-  planMyPeak: { authenticated: boolean };
+  planMyPeak: {
+    /**
+     * Whether a PlanMyPeak credential is stored.
+     *
+     * Asymmetric on purpose: `false` is reliable (nothing can be written),
+     * `true` only means a token exists — it may be expired, revoked, or issued
+     * to a different coach. Never read it as a guarantee that a write will
+     * land, or that it will land in the expected account.
+     */
+    authenticated: boolean;
+    /**
+     * Opaque id of the PlanMyPeak coach the extension is acting as, or `null`
+     * when it could not be resolved.
+     *
+     * The extension's PlanMyPeak session and the page's are independent and can
+     * belong to different coaches — a real case on shared machines and under
+     * admin impersonation. The page compares this against its own signed-in
+     * coach and refuses the import when they differ, which is the only way to
+     * catch a wrong-account write: everything downstream is scoped to the
+     * token's coach, so the write would otherwise succeed silently into the
+     * wrong account.
+     *
+     * `null` means unknown, not "matches" — a page gating on this must
+     * fail closed.
+     *
+     * An account id is not a credential: it identifies whose data is in play
+     * and cannot be used to authenticate. No token or key is exposed here.
+     */
+    coachId: string | null;
+  };
 }
 
 /**
@@ -194,7 +294,9 @@ export interface SiteControlResultMap {
   GET_LIBRARIES: Library[];
   GET_LIBRARY_ITEMS: LibraryItem[];
   GET_TRAINING_PLANS: TrainingPlan[];
+  GET_TRAINING_PLAN_LIBRARIES: SiteControlTrainingPlanLibrary[];
   GET_PLAN_CONTENTS: SiteControlPlanContentsResult;
+  GET_ATHLETE_GROUPS: AthleteGroup[];
   OPEN_IMPORTER: SiteControlOpenImporterResult;
 }
 
@@ -204,10 +306,45 @@ export interface SiteControlResultMap {
  */
 export const SITE_CONTROL_IMPORT_COMPLETED = 'IMPORT_COMPLETED';
 
+/**
+ * Imported and failed counts for one kind of thing.
+ *
+ * `imported` is in that kind's own natural unit — workouts for libraries and
+ * plans, groups for groups. `failed` counts failed *containers*: a library of
+ * fifty workouts that fails entirely is one failure, not fifty.
+ */
+export interface SiteControlImportKindCounts {
+  imported: number;
+  failed: number;
+}
+
+/**
+ * Per-kind breakdown of an import.
+ *
+ * `importedCount` alone cannot be rendered honestly when a coach selected more
+ * than one kind: it sums workouts and groups into a total in no unit at all.
+ * A mixed selection is two clicks from any single-kind `OPEN_IMPORTER`, since
+ * the overlay's tabs stay switchable and the selection accumulates across them,
+ * so this is a reachable state rather than a theoretical one.
+ */
+export interface SiteControlImportByKind {
+  libraries: SiteControlImportKindCounts;
+  plans: SiteControlImportKindCounts;
+  groups: SiteControlImportKindCounts;
+}
+
 export interface SiteControlImportCompletedPayload {
   ok: boolean;
+  /**
+   * Total across every kind. Kept unchanged for compatibility, but note it is
+   * only meaningful when a single kind was imported — prefer `byKind` when the
+   * selection could have spanned more than one.
+   */
   importedCount: number;
+  /** Failed containers across every kind — libraries, plans, and the groups batch. */
   failedCount: number;
+  /** Additive: absent on builds older than this field. */
+  byKind: SiteControlImportByKind;
 }
 
 export interface SiteControlImportCompletedEvent {

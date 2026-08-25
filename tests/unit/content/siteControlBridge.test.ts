@@ -257,4 +257,15 @@ describe('siteControlBridge OPEN_IMPORTER', () => {
     expect(response.requestId).toBe('req-1');
     expect(response.source).toBe(SITE_CONTROL_EXTENSION_SOURCE);
   });
+
+  it('should answer an OPEN_IMPORTER request asking for the groups tab', async () => {
+    await handleSiteControlPageMessage(
+      pageEvent(envelope({ type: 'OPEN_IMPORTER', payload: { groups: true } }))
+    );
+
+    const [response] = postedResponses(postMessageSpy);
+    expect(response).toBeDefined();
+    expect(response.ok).toBe(true);
+    expect(sendMessageSpy).not.toHaveBeenCalled();
+  });
 });

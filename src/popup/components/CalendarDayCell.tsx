@@ -197,7 +197,7 @@ function ClassicWorkoutBadge({
                   <div>
                     <span className="text-gray-600">TSS:</span>
                     <span className="ml-1 font-semibold text-blue-600">
-                      {workout.tssPlanned}
+                      {Math.round(workout.tssPlanned)}
                     </span>
                   </div>
                 )}

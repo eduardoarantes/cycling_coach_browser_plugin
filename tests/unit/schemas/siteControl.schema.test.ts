@@ -74,6 +74,81 @@ describe('parseSiteControlRequest', () => {
       expect(withSelection.outcome).toBe('ok');
       expect(withoutSelection.outcome).toBe('ok');
     });
+
+    it('should parse OPEN_IMPORTER asking for the groups tab', () => {
+      const result = parseSiteControlRequest(
+        envelope({ type: 'OPEN_IMPORTER', payload: { groups: true } })
+      );
+
+      expect(result.outcome).toBe('ok');
+      if (result.outcome !== 'ok') return;
+      if (result.request.type !== 'OPEN_IMPORTER') return;
+      expect(result.request.payload.groups).toBe(true);
+    });
+
+    it('should parse OPEN_IMPORTER carrying an opening-tab hint', () => {
+      for (const tab of ['libraries', 'plans', 'groups']) {
+        const result = parseSiteControlRequest(
+          envelope({ type: 'OPEN_IMPORTER', payload: { tab } })
+        );
+
+        expect(result.outcome).toBe('ok');
+        if (result.outcome !== 'ok') return;
+        if (result.request.type !== 'OPEN_IMPORTER') return;
+        expect(result.request.payload.tab).toBe(tab);
+      }
+    });
+
+    it('should reject a tab hint naming something that is not a tab', () => {
+      const result = parseSiteControlRequest(
+        envelope({ type: 'OPEN_IMPORTER', payload: { tab: 'workouts' } })
+      );
+
+      expect(result.outcome).toBe('error');
+      if (result.outcome !== 'error') return;
+      expect(result.error.code).toBe('INVALID_REQUEST');
+    });
+
+    it('should ignore an unrecognised payload key rather than refuse the request', () => {
+      const result = parseSiteControlRequest(
+        envelope({
+          type: 'OPEN_IMPORTER',
+          payload: { libraryId: 3, somethingWeDoNotKnow: 'x' },
+        })
+      );
+
+      // A page may send a key a build predates. Refusing would make every
+      // additive payload field a breaking change for older extensions.
+      expect(result.outcome).toBe('ok');
+      if (result.outcome !== 'ok') return;
+      if (result.request.type !== 'OPEN_IMPORTER') return;
+      expect(result.request.payload).toEqual({ libraryId: 3 });
+    });
+
+    it('should reject a non-boolean groups flag', () => {
+      const result = parseSiteControlRequest(
+        envelope({ type: 'OPEN_IMPORTER', payload: { groups: 'yes' } })
+      );
+
+      expect(result.outcome).toBe('error');
+      if (result.outcome !== 'error') return;
+      expect(result.error.code).toBe('INVALID_REQUEST');
+    });
+
+    it('should parse GET_ATHLETE_GROUPS, which takes no arguments', () => {
+      const withEmptyPayload = parseSiteControlRequest(
+        envelope({ type: 'GET_ATHLETE_GROUPS', payload: {} })
+      );
+      const withNoPayloadKey = parseSiteControlRequest({
+        source: SITE_CONTROL_PAGE_SOURCE,
+        version: PLANMYPEAK_SITE_CONTROL_VERSION,
+        requestId: 'req-1',
+        type: 'GET_ATHLETE_GROUPS',
+      });
+
+      expect(withEmptyPayload.outcome).toBe('ok');
+      expect(withNoPayloadKey.outcome).toBe('ok');
+    });
   });
 
   describe('messages that are not ours', () => {

@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { PlanMyPeakEnvironmentIndicator } from '@/popup/components/PlanMyPeakEnvironmentIndicator';
 
 describe('PlanMyPeakEnvironmentIndicator', () => {
-  it('shows a localhost banner when the local target is active', () => {
+  it('shows a localhost banner when the local environment is active', () => {
     render(
       <PlanMyPeakEnvironmentIndicator
-        isVisible={true}
+        environment="local"
         hostLabel="localhost:3006"
       />
     );
@@ -14,15 +14,31 @@ describe('PlanMyPeakEnvironmentIndicator', () => {
     expect(screen.getByText('Local PlanMyPeak Target')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'This build targets localhost:3006 instead of portal.planmypeak.com.'
+        'This extension targets localhost:3006 instead of portal.planmypeak.com.'
       )
     ).toBeInTheDocument();
   });
 
-  it('renders nothing when the local target is not active', () => {
+  it('shows a staging banner when the staging environment is active', () => {
+    render(
+      <PlanMyPeakEnvironmentIndicator
+        environment="staging"
+        hostLabel="staging.app.planmypeak.com"
+      />
+    );
+
+    expect(screen.getByText('Staging PlanMyPeak Target')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This extension targets staging.app.planmypeak.com instead of portal.planmypeak.com.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('renders nothing on production', () => {
     const { container } = render(
       <PlanMyPeakEnvironmentIndicator
-        isVisible={false}
+        environment="production"
         hostLabel="portal.planmypeak.com"
       />
     );

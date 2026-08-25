@@ -18,9 +18,8 @@ import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
 import { useConnectionSettings } from '@/hooks/useConnectionSettings';
 import { useLibraries } from '@/hooks/useLibraries';
-import { usePortConfig } from '@/hooks/usePortConfig';
+import { usePlanMyPeakEnvironment } from '@/hooks/usePlanMyPeakEnvironment';
 import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
-import { IS_LOCAL_PLANMYPEAK_TARGET } from '@/utils/constants';
 
 function App(): ReactElement {
   const [activeView, setActiveView] = useState<'main' | 'settings'>('main');
@@ -43,13 +42,9 @@ function App(): ReactElement {
     setPlanMyPeakEnabled,
     setIntervalsEnabled,
   } = useConnectionSettings();
-  const { appPort } = usePortConfig();
+  const { environment: planMyPeakEnvironment, hostLabel: planMyPeakHostLabel } =
+    usePlanMyPeakEnvironment();
   const canAccessTrainingPeaksData = isTrainingPeaksAuthenticated;
-
-  // Build dynamic host label for local environment indicator
-  const planMyPeakHostLabel = IS_LOCAL_PLANMYPEAK_TARGET
-    ? `localhost:${appPort}`
-    : 'planmypeak.com';
 
   // TrainingPeaks data should be visible as soon as TP authentication is ready.
   const { data: libraries } = useLibraries({
@@ -130,7 +125,7 @@ function App(): ReactElement {
       </div>
 
       <PlanMyPeakEnvironmentIndicator
-        isVisible={IS_LOCAL_PLANMYPEAK_TARGET}
+        environment={planMyPeakEnvironment}
         hostLabel={planMyPeakHostLabel}
       />
 
@@ -146,6 +141,7 @@ function App(): ReactElement {
       ) : (
         <>
           <ConnectionHealthSummary
+            onOpenSettings={() => setActiveView('settings')}
             isTrainingPeaksAuthenticated={isTrainingPeaksAuthenticated}
             isPlanMyPeakEnabled={isPlanMyPeakEnabled}
             isPlanMyPeakAuthenticated={isPlanMyPeakAuthenticated}

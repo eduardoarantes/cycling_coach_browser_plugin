@@ -39,7 +39,7 @@ npm run test:unit
 
 Useful commands:
 
-- `npm run dev`: local PlanMyPeak target on `localhost:3006`
+- `npm run dev`: local PlanMyPeak target on `https://localhost:3002` (port configurable in Settings → Local Dev Ports)
 - `npm run dev:prod`: dev server against production targets
 - `npm run build:bundle`: build without changing the version number
 - `npm run build`: build and bump patch version

@@ -9,15 +9,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
+import { usePlanMyPeakAccountMatch } from '@/hooks/usePlanMyPeakAccountMatch';
 import { getTrainingPeaksAppUrl } from '@/services/trainingPeaksConfigService';
 import type { Library } from '@/types/api.types';
 import type { LibraryItem } from '@/schemas/library.schema';
 import type { TrainingPlan } from '@/schemas/trainingPlan.schema';
-import type { SiteControlImportCompletedPayload } from '@/types/siteControl.types';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
+import type {
+  SiteControlImportCompletedPayload,
+  SiteControlImporterTab,
+} from '@/types/siteControl.types';
 import {
   EMPTY_SELECTION,
   isSelectionEmpty,
   summarizeSelection,
+  toggleGroup,
   toggleLibrary,
   togglePlan,
   toggleWorkout,
@@ -27,18 +33,67 @@ import { useOverlayImport } from './useOverlayImport';
 import { ConnectionGate } from './components/ConnectionGate';
 import { LibraryBrowser } from './components/LibraryBrowser';
 import { PlanBrowser } from './components/PlanBrowser';
+import { GroupBrowser } from './components/GroupBrowser';
+import { AccountMismatchGate } from './components/AccountMismatchGate';
 import { SelectionSummary } from './components/SelectionSummary';
 import { DuplicatePanel } from './components/DuplicatePanel';
 import { ImportProgress } from './components/ImportProgress';
 import { ImportResult } from './components/ImportResult';
 
-type OverlayTab = 'libraries' | 'plans';
+type OverlayTab = 'libraries' | 'plans' | 'groups';
+
+/**
+ * Tab labels name the kind of container explicitly.
+ *
+ * Two things in this product are called a library — a workout library holds
+ * workouts, a plan library holds plans — so a bare "Libraries" next to
+ * "Training Plans" reads as though plans have no libraries.
+ *
+ * These match the popup's tabs exactly (`TabNavigation`): the overlay and the
+ * popup show the same data, so they must not name it differently.
+ */
+const TABS: ReadonlyArray<{ id: OverlayTab; label: string }> = [
+  { id: 'libraries', label: 'Workout Libraries' },
+  { id: 'plans', label: 'Plans Library' },
+  { id: 'groups', label: 'Athlete Groups' },
+];
+
+/**
+ * Which tab the overlay opens on.
+ *
+ * A pre-selected target always wins: it names something specific the coach is
+ * here for, and opening away from it would hide a selection they did not make
+ * themselves. `initialTab` is only a hint for when the page knows the context
+ * but has nothing to pre-select — a button on its plans page, say — and
+ * without it the coach would land on Workout Libraries regardless of where
+ * they pressed.
+ */
+function resolveInitialTab({
+  preselectGroups,
+  preselectedPlanId,
+  preselectedLibraryId,
+  initialTab,
+}: {
+  preselectGroups: boolean;
+  preselectedPlanId: number | null;
+  preselectedLibraryId: number | null;
+  initialTab: SiteControlImporterTab | null;
+}): OverlayTab {
+  if (preselectGroups) return 'groups';
+  if (preselectedPlanId !== null) return 'plans';
+  if (preselectedLibraryId !== null) return 'libraries';
+  return initialTab ?? 'libraries';
+}
 
 export interface ImportOverlayProps {
   /** Incremented by the bridge to re-focus an already-open overlay */
   focusNonce: number;
   preselectedLibraryId: number | null;
   preselectedPlanId: number | null;
+  /** Open on the athlete-groups tab, as the page asked */
+  preselectGroups: boolean;
+  /** Tab to open on when nothing is pre-selected */
+  initialTab: SiteControlImporterTab | null;
   onImportCompleted?: (payload: SiteControlImportCompletedPayload) => void;
   onClose: () => void;
 }
@@ -47,12 +102,19 @@ export function ImportOverlay({
   focusNonce,
   preselectedLibraryId,
   preselectedPlanId,
+  preselectGroups,
+  initialTab,
   onImportCompleted,
   onClose,
 }: ImportOverlayProps): ReactElement {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<OverlayTab>(
-    preselectedPlanId !== null ? 'plans' : 'libraries'
+  const [activeTab, setActiveTab] = useState<OverlayTab>(() =>
+    resolveInitialTab({
+      preselectGroups,
+      preselectedPlanId,
+      preselectedLibraryId,
+      initialTab,
+    })
   );
   const [selection, setSelection] = useState<OverlaySelection>(EMPTY_SELECTION);
   const [expandedLibraryId, setExpandedLibraryId] = useState<number | null>(
@@ -74,6 +136,8 @@ export function ImportOverlay({
     isAuthenticated: isPlanMyPeakAuthenticated,
     refreshAuth: refreshPlanMyPeakAuth,
   } = useMyPeakAuth();
+
+  const accountMatch = usePlanMyPeakAccountMatch();
 
   const {
     phase,
@@ -147,6 +211,10 @@ export function ImportOverlay({
     setSelection((previous) => togglePlan(previous, plan));
   }, []);
 
+  const handleToggleGroup = useCallback((group: AthleteGroup): void => {
+    setSelection((previous) => toggleGroup(previous, group));
+  }, []);
+
   const handleOpenTrainingPeaks = useCallback((): void => {
     void (async () => {
       const url = await getTrainingPeaksAppUrl();
@@ -166,10 +234,30 @@ export function ImportOverlay({
     [selection, loadedItems]
   );
 
+  // The footer summarises the whole selection, which is what Import acts on.
+  // Without a per-tab count, a coach on one tab cannot see that another tab
+  // holds a selection — the footer would describe something not on screen.
+  const selectedCountByTab: Record<OverlayTab, number> = useMemo(
+    () => ({
+      libraries: selection.libraries.size,
+      plans: selection.plans.size,
+      groups: selection.groups.size,
+    }),
+    [selection]
+  );
+
   const connectionsReady =
     isTrainingPeaksAuthenticated && isPlanMyPeakAuthenticated;
   const isBusy = phase === 'checking' || phase === 'importing';
-  const canImport = connectionsReady && !isSelectionEmpty(selection) && !isBusy;
+  // A confirmed account mismatch blocks the import outright: the upload would
+  // succeed against the wrong account rather than fail, so there is nothing
+  // downstream to catch it.
+  const hasAccountMismatch = accountMatch.status === 'mismatch';
+  const canImport =
+    connectionsReady &&
+    !hasAccountMismatch &&
+    !isSelectionEmpty(selection) &&
+    !isBusy;
 
   const handleImport = useCallback((): void => {
     void startImport({ selection, loadedItems });
@@ -196,7 +284,8 @@ export function ImportOverlay({
               Import from TrainingPeaks
             </h2>
             <p className="text-xs text-gray-600">
-              Bring your workout libraries and training plans into PlanMyPeak
+              Bring your workout libraries, training plans and athlete groups
+              into PlanMyPeak
             </p>
           </div>
           <button
@@ -217,6 +306,8 @@ export function ImportOverlay({
             onOpenTrainingPeaks={handleOpenTrainingPeaks}
             onRecheck={handleRecheck}
           />
+
+          <AccountMismatchGate match={accountMatch} />
 
           {preflightError ? (
             <div
@@ -246,30 +337,40 @@ export function ImportOverlay({
               ) : null}
 
               <div className="flex gap-1 border-b border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('libraries')}
-                  aria-pressed={activeTab === 'libraries'}
-                  className={
-                    activeTab === 'libraries'
-                      ? 'border-b-2 border-blue-600 px-3 py-2 text-sm font-medium text-blue-700'
-                      : 'px-3 py-2 text-sm text-gray-600 hover:text-gray-800'
-                  }
-                >
-                  Libraries
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('plans')}
-                  aria-pressed={activeTab === 'plans'}
-                  className={
-                    activeTab === 'plans'
-                      ? 'border-b-2 border-blue-600 px-3 py-2 text-sm font-medium text-blue-700'
-                      : 'px-3 py-2 text-sm text-gray-600 hover:text-gray-800'
-                  }
-                >
-                  Training Plans
-                </button>
+                {TABS.map((tab) => {
+                  const selectedOnTab = selectedCountByTab[tab.id];
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      aria-pressed={activeTab === tab.id}
+                      // Import acts on every tab's selection, so a selection
+                      // made elsewhere has to be legible from the tab in view.
+                      aria-label={
+                        selectedOnTab > 0
+                          ? `${tab.label}, ${selectedOnTab} selected`
+                          : tab.label
+                      }
+                      className={
+                        activeTab === tab.id
+                          ? 'border-b-2 border-blue-600 px-3 py-2 text-sm font-medium text-blue-700'
+                          : 'px-3 py-2 text-sm text-gray-600 hover:text-gray-800'
+                      }
+                    >
+                      {tab.label}
+                      {selectedOnTab > 0 ? (
+                        <span
+                          aria-hidden="true"
+                          className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-semibold text-blue-700"
+                        >
+                          {selectedOnTab}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
 
               {activeTab === 'libraries' ? (
@@ -283,7 +384,7 @@ export function ImportOverlay({
                   onToggleWorkout={handleToggleWorkout}
                   onItemsLoaded={handleItemsLoaded}
                 />
-              ) : (
+              ) : activeTab === 'plans' ? (
                 <PlanBrowser
                   enabled={isTrainingPeaksAuthenticated}
                   preselectedPlanId={preselectedPlanId}
@@ -291,6 +392,12 @@ export function ImportOverlay({
                   expandedPlanId={expandedPlanId}
                   onExpand={setExpandedPlanId}
                   onTogglePlan={handleTogglePlan}
+                />
+              ) : (
+                <GroupBrowser
+                  enabled={isTrainingPeaksAuthenticated}
+                  selection={selection}
+                  onToggleGroup={handleToggleGroup}
                 />
               )}
             </>

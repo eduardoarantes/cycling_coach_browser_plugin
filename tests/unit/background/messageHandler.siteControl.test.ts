@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { handleMessage } from '@/background/messageHandler';
 import * as trainingPeaksApi from '@/background/api/trainingPeaks';
+import * as planMyPeakApi from '@/background/api/planMyPeak';
 import * as authService from '@/services/authService';
 import * as myPeakAuthService from '@/services/myPeakAuthService';
 import type { SiteControlRequestMessage } from '@/types';
@@ -20,9 +21,11 @@ import type {
 import {
   PLANMYPEAK_SITE_CONTROL_VERSION,
   SITE_CONTROL_PAGE_SOURCE,
+  SITE_CONTROL_REQUEST_TYPES,
 } from '@/types/siteControl.types';
 
 vi.mock('@/background/api/trainingPeaks');
+vi.mock('@/background/api/planMyPeak');
 
 const ALLOWED_ORIGIN = 'https://portal.planmypeak.com';
 
@@ -65,6 +68,12 @@ describe('messageHandler site-control routing', () => {
     vi.spyOn(authService, 'isAuthenticated').mockResolvedValue(true);
     vi.spyOn(authService, 'isTokenExpired').mockResolvedValue(false);
     vi.spyOn(myPeakAuthService, 'isAuthenticated').mockResolvedValue(true);
+    // Several handlers resolve the acting user from the session rather than
+    // from the request, so a signed-in coach is the default for every test.
+    vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+      success: true,
+      data: { userId: 42 } as never,
+    });
   });
 
   afterEach(() => {
@@ -197,7 +206,7 @@ describe('messageHandler site-control routing', () => {
       expect(data.protocolVersion).toBe(PLANMYPEAK_SITE_CONTROL_VERSION);
       expect(data.extensionVersion).toBe('1.0.0');
       expect(data.trainingPeaks).toEqual({ authenticated: true });
-      expect(data.planMyPeak).toEqual({ authenticated: true });
+      expect(data.planMyPeak.authenticated).toBe(true);
     });
 
     it('should report TrainingPeaks as unauthenticated when no token is stored', async () => {
@@ -246,27 +255,170 @@ describe('messageHandler site-control routing', () => {
         'extensionVersion',
         'planMyPeak',
         'protocolVersion',
+        'supports',
         'trainingPeaks',
       ]);
       expect(Object.keys(data.trainingPeaks)).toEqual(['authenticated']);
-      expect(Object.keys(data.planMyPeak)).toEqual(['authenticated']);
+      expect(Object.keys(data.planMyPeak).sort()).toEqual([
+        'authenticated',
+        'coachId',
+      ]);
+    });
+
+    it('should report the coach the extension is acting as', async () => {
+      vi.spyOn(myPeakAuthService, 'isAuthenticated').mockResolvedValue(true);
+      vi.spyOn(myPeakAuthService, 'getAuthToken').mockResolvedValue('tok-a');
+      vi.spyOn(planMyPeakApi, 'fetchPlanMyPeakCoach').mockResolvedValue({
+        success: true,
+        data: { id: 'coach-a' } as never,
+      });
+
+      const response = await send(request('PING'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      const data = response.data as SiteControlPingResult;
+      expect(data.planMyPeak.coachId).toBe('coach-a');
+    });
+
+    it('should report a null coach id rather than guessing when the lookup fails', async () => {
+      vi.spyOn(myPeakAuthService, 'isAuthenticated').mockResolvedValue(true);
+      // A distinct token: the coach cache is keyed by token, so this cannot be
+      // answered from another test's successful lookup.
+      vi.spyOn(myPeakAuthService, 'getAuthToken').mockResolvedValue('tok-fail');
+      vi.spyOn(planMyPeakApi, 'fetchPlanMyPeakCoach').mockResolvedValue({
+        success: false,
+        error: { message: 'unreachable' },
+      });
+
+      const response = await send(request('PING'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      const data = response.data as SiteControlPingResult;
+      // Unknown, never "matches" — a page gating on this must fail closed.
+      expect(data.planMyPeak.coachId).toBeNull();
+    });
+
+    it('should not look up a coach when no PlanMyPeak token is stored', async () => {
+      vi.spyOn(myPeakAuthService, 'isAuthenticated').mockResolvedValue(false);
+      const lookup = vi.spyOn(planMyPeakApi, 'fetchPlanMyPeakCoach');
+
+      const response = await send(request('PING'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      const data = response.data as SiteControlPingResult;
+      expect(data.planMyPeak.coachId).toBeNull();
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('should never expose a credential alongside the coach id', async () => {
+      vi.spyOn(myPeakAuthService, 'isAuthenticated').mockResolvedValue(true);
+      vi.spyOn(myPeakAuthService, 'getAuthToken').mockResolvedValue('tok-pii');
+      vi.spyOn(planMyPeakApi, 'fetchPlanMyPeakCoach').mockResolvedValue({
+        success: true,
+        data: {
+          id: 'coach-a',
+          email: 'coach@example.com',
+          firstName: 'Coach',
+        } as never,
+      });
+
+      const response = await send(request('PING'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      const data = response.data as SiteControlPingResult;
+
+      // Only the opaque id crosses into the page — never the email or name the
+      // coach profile also carries.
+      expect(Object.keys(data.planMyPeak).sort()).toEqual([
+        'authenticated',
+        'coachId',
+      ]);
+      expect(JSON.stringify(data)).not.toContain('coach@example.com');
+      expect(JSON.stringify(data)).not.toContain('tok-a');
+    });
+
+    it('should advertise exactly the request types it serves', async () => {
+      const response = await send(request('PING'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      const data = response.data as SiteControlPingResult;
+
+      // The advertised list is the closed request union itself, so a type added
+      // to the protocol cannot be silently left undiscoverable by the page.
+      expect(data.supports).toEqual([...SITE_CONTROL_REQUEST_TYPES]);
+      expect(data.supports).toContain('GET_ATHLETE_GROUPS');
     });
   });
 
   describe('TrainingPeaks reads', () => {
+    const OWNED = {
+      exerciseLibraryId: 1,
+      libraryName: 'My Library',
+      ownerId: 42,
+    };
+    const NOT_OWNED = {
+      exerciseLibraryId: 2,
+      libraryName: 'Default Library',
+      ownerId: 999,
+    };
+
     it('should return libraries', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: true,
+        data: { userId: 42 } as never,
+      });
       vi.spyOn(trainingPeaksApi, 'fetchLibraries').mockResolvedValue({
         success: true,
-        data: [{ exerciseLibraryId: 1, libraryName: 'Base' }] as never,
+        data: [OWNED] as never,
       });
 
       const response = await send(request('GET_LIBRARIES'));
 
       expect(response.ok).toBe(true);
       if (!response.ok) return;
-      expect(response.data).toEqual([
-        { exerciseLibraryId: 1, libraryName: 'Base' },
-      ]);
+      expect(response.data).toEqual([OWNED]);
+    });
+
+    it('should return only the libraries the coach owns', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: true,
+        data: { userId: 42 } as never,
+      });
+      vi.spyOn(trainingPeaksApi, 'fetchLibraries').mockResolvedValue({
+        success: true,
+        data: [OWNED, NOT_OWNED] as never,
+      });
+
+      const response = await send(request('GET_LIBRARIES'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+
+      // The overlay browses the same owned-only list, so offering the page a
+      // library it cannot select would be a dead end for the coach.
+      expect(response.data).toEqual([OWNED]);
+    });
+
+    it('should fail rather than list every library when the owner is unknown', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: false,
+        error: { message: 'Not authenticated', code: 'NO_TOKEN' },
+      });
+      vi.spyOn(trainingPeaksApi, 'fetchLibraries').mockResolvedValue({
+        success: true,
+        data: [OWNED, NOT_OWNED] as never,
+      });
+
+      const response = await send(request('GET_LIBRARIES'));
+
+      expect(response.ok).toBe(false);
+      if (response.ok) return;
+      expect(response.error.code).toBe('AUTH_REQUIRED');
     });
 
     it('should return library items for the requested library', async () => {
@@ -387,6 +539,133 @@ describe('messageHandler site-control routing', () => {
       expect(response.ok).toBe(false);
       if (response.ok) return;
       expect(response.error.code).toBe('AUTH_REQUIRED');
+    });
+  });
+
+  describe('GET_TRAINING_PLAN_LIBRARIES', () => {
+    it('should return libraries in TrainingPeaks shape, membership included', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchTrainingPlanFolders').mockResolvedValue({
+        success: true,
+        data: [
+          {
+            folderId: 'f1',
+            folderName: 'Custom Plans',
+            ownerId: 9,
+            planIds: [21, 22],
+          },
+        ] as never,
+      });
+
+      const response = await send(request('GET_TRAINING_PLAN_LIBRARIES'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+
+      // planIds is what lets the page group by the same rule we do, rather
+      // than a synthesised per-plan field.
+      expect(response.data).toEqual([
+        { id: 'f1', name: 'Custom Plans', planIds: [21, 22] },
+      ]);
+    });
+
+    it('should keep a library a coach made but never filled', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchTrainingPlanFolders').mockResolvedValue({
+        success: true,
+        data: [
+          { folderId: 'f2', folderName: 'Empty', ownerId: 9, planIds: [] },
+        ] as never,
+      });
+
+      const response = await send(request('GET_TRAINING_PLAN_LIBRARIES'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      expect(response.data).toEqual([{ id: 'f2', name: 'Empty', planIds: [] }]);
+    });
+
+    it('should map a missing token to AUTH_REQUIRED', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchTrainingPlanFolders').mockResolvedValue({
+        success: false,
+        error: { message: 'Not authenticated', code: 'NO_TOKEN' },
+      });
+
+      const response = await send(request('GET_TRAINING_PLAN_LIBRARIES'));
+
+      expect(response.ok).toBe(false);
+      if (response.ok) return;
+      expect(response.error.code).toBe('AUTH_REQUIRED');
+    });
+  });
+
+  describe('GET_ATHLETE_GROUPS', () => {
+    const GROUP = {
+      id: 11,
+      coachId: 99,
+      name: 'Squad A',
+      athleteIds: [1, 2],
+      isDefault: false,
+    };
+
+    it('should resolve the coach from the session, not from the page', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: true,
+        data: { userId: 99 } as never,
+      });
+      vi.spyOn(trainingPeaksApi, 'fetchAthleteGroups').mockResolvedValue({
+        success: true,
+        data: [GROUP] as never,
+      });
+
+      // A page-supplied coachId must be ignored: the payload schema does not
+      // accept one, and the id used comes from the authenticated user.
+      const response = await send(
+        request('GET_ATHLETE_GROUPS', { coachId: 12345 })
+      );
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      expect(response.data).toEqual([GROUP]);
+      expect(trainingPeaksApi.fetchAthleteGroups).toHaveBeenCalledWith(99);
+      expect(trainingPeaksApi.fetchAthleteGroups).not.toHaveBeenCalledWith(
+        12345
+      );
+    });
+
+    it('should report AUTH_REQUIRED when the coach cannot be resolved', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: false,
+        error: { message: 'Not authenticated', code: 'NO_TOKEN' },
+      });
+      vi.spyOn(trainingPeaksApi, 'fetchAthleteGroups').mockResolvedValue({
+        success: true,
+        data: [] as never,
+      });
+
+      const response = await send(request('GET_ATHLETE_GROUPS'));
+
+      expect(response.ok).toBe(false);
+      if (response.ok) return;
+      expect(response.error.code).toBe('AUTH_REQUIRED');
+      // No group lookup should happen without a resolved coach.
+      expect(trainingPeaksApi.fetchAthleteGroups).not.toHaveBeenCalled();
+    });
+
+    it('should surface a groups lookup failure as API_ERROR', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchUser').mockResolvedValue({
+        success: true,
+        data: { userId: 99 } as never,
+      });
+      vi.spyOn(trainingPeaksApi, 'fetchAthleteGroups').mockResolvedValue({
+        success: false,
+        error: { message: 'groups unavailable', code: 'API_ERROR' },
+      });
+
+      const response = await send(request('GET_ATHLETE_GROUPS'));
+
+      expect(response.ok).toBe(false);
+      if (response.ok) return;
+      expect(response.error.code).toBe('API_ERROR');
+      expect(response.error.message).toBe('groups unavailable');
     });
   });
 

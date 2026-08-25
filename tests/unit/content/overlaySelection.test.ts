@@ -10,6 +10,9 @@ import {
   isWorkoutSelected,
   selectedItemsForLibrary,
   summarizeSelection,
+  isGroupSelected,
+  selectedAthleteCount,
+  toggleGroup,
   toggleLibrary,
   togglePlan,
   toggleWorkout,
@@ -17,6 +20,24 @@ import {
 } from '@/content/overlay/selection';
 import type { LibraryItem } from '@/schemas/library.schema';
 import type { TrainingPlan } from '@/schemas/trainingPlan.schema';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
+
+const GROUP_A: AthleteGroup = {
+  id: 10,
+  coachId: 99,
+  name: 'Squad A',
+  athleteIds: [1, 2, 3],
+  isDefault: false,
+};
+
+const GROUP_B: AthleteGroup = {
+  id: 11,
+  coachId: 99,
+  name: 'Squad B',
+  // Overlaps with Squad A: athlete 3 is in both.
+  athleteIds: [3, 4],
+  isDefault: false,
+};
 
 const LIBRARY = { libraryId: 1, libraryName: 'Base Training' };
 
@@ -260,5 +281,58 @@ describe('overlay selection', () => {
       expect(summary.libraryCount).toBe(1);
       expect(summary.planCount).toBe(1);
     });
+  });
+});
+
+describe('athlete group selection', () => {
+  it('should select and deselect a group', () => {
+    const selected = toggleGroup(EMPTY_SELECTION, GROUP_A);
+    expect(isGroupSelected(selected, GROUP_A.id)).toBe(true);
+    expect(selected.groups.get(GROUP_A.id)?.groupName).toBe('Squad A');
+
+    const cleared = toggleGroup(selected, GROUP_A);
+    expect(isGroupSelected(cleared, GROUP_A.id)).toBe(false);
+  });
+
+  it('should treat a groups-only selection as non-empty', () => {
+    expect(isSelectionEmpty(EMPTY_SELECTION)).toBe(true);
+    expect(isSelectionEmpty(toggleGroup(EMPTY_SELECTION, GROUP_A))).toBe(false);
+  });
+
+  it('should keep the full group, as the ingest endpoint needs it', () => {
+    const selected = toggleGroup(EMPTY_SELECTION, GROUP_A);
+    expect(selected.groups.get(GROUP_A.id)?.group).toEqual(GROUP_A);
+  });
+
+  it('should count each athlete once across overlapping groups', () => {
+    const selected = toggleGroup(
+      toggleGroup(EMPTY_SELECTION, GROUP_A),
+      GROUP_B
+    );
+
+    // 1, 2, 3, 4 — athlete 3 belongs to both groups and must not be counted
+    // twice, or the summary would overstate what the import touches.
+    expect(selectedAthleteCount(selected)).toBe(4);
+  });
+
+  it('should report groups and athletes in the summary', () => {
+    const selected = toggleGroup(
+      toggleGroup(EMPTY_SELECTION, GROUP_A),
+      GROUP_B
+    );
+    const summary = summarizeSelection(selected, new Map());
+
+    expect(summary.groupCount).toBe(2);
+    expect(summary.athleteCount).toBe(4);
+    expect(summary.libraryCount).toBe(0);
+    expect(summary.planCount).toBe(0);
+  });
+
+  it('should leave library and plan selection untouched', () => {
+    const withLibrary = toggleLibrary(EMPTY_SELECTION, LIBRARY);
+    const withGroup = toggleGroup(withLibrary, GROUP_A);
+
+    expect(withGroup.libraries.size).toBe(1);
+    expect(withGroup.groups.size).toBe(1);
   });
 });

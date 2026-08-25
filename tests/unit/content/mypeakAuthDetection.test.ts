@@ -23,6 +23,14 @@ describe('mypeakAuthDetection', () => {
       ).toBe(true);
     });
 
+    it('should match the staging app origin (api/backend traffic)', () => {
+      expect(
+        isMyPeakSupabaseRequest(
+          'https://staging.app.planmypeak.com/api/backend/athletes'
+        )
+      ).toBe(true);
+    });
+
     it('should match local Supabase auth endpoints on any localhost port', () => {
       expect(
         isMyPeakSupabaseRequest('http://127.0.0.1:54331/auth/v1/user')

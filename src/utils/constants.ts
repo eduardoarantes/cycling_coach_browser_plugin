@@ -124,24 +124,111 @@ export function parsePort(value: string): number | null {
 }
 
 /**
- * PlanMyPeak app URL (uses default port, actual port may be configured in local builds).
- * Local uses the local app, production uses the deployed site.
- */
-export const PLANMYPEAK_APP_URL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? `https://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
-  : 'https://portal.planmypeak.com';
-
-/**
- * Short PlanMyPeak host label for UI copy (uses default port).
- */
-export const PLANMYPEAK_HOST_LABEL = IS_LOCAL_PLANMYPEAK_TARGET
-  ? `localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`
-  : 'portal.planmypeak.com';
-
-/**
  * PlanMyPeak production origin.
  */
 export const PLANMYPEAK_PRODUCTION_ORIGIN = 'https://portal.planmypeak.com';
+
+/**
+ * PlanMyPeak staging origin.
+ *
+ * Staging is a first-party PlanMyPeak deployment used for QA. It is always a
+ * permitted host and site-control origin, so any build can be pointed at it
+ * from Settings without a rebuild; which deployment the extension actually
+ * talks to is the runtime selection below.
+ */
+export const PLANMYPEAK_STAGING_ORIGIN = 'https://staging.app.planmypeak.com';
+
+/**
+ * PlanMyPeak environment (which deployment the extension talks to).
+ *
+ * Switchable at runtime via the Settings panel and stored in chrome.storage.
+ * `local` is only selectable in local-target builds, which are the only ones
+ * whose manifest carries loopback host permissions.
+ */
+export type PlanMyPeakEnvironment = 'production' | 'staging' | 'local';
+
+export interface PlanMyPeakEnvironmentConfig {
+  /** Web app base URL. The local port is resolved at runtime from storage. */
+  appUrl: string;
+  /** Short host label for UI copy. */
+  hostLabel: string;
+  /** Display name used by the environment selector. */
+  label: string;
+}
+
+export const PLANMYPEAK_ENVIRONMENTS: Record<
+  PlanMyPeakEnvironment,
+  PlanMyPeakEnvironmentConfig
+> = {
+  production: {
+    appUrl: PLANMYPEAK_PRODUCTION_ORIGIN,
+    hostLabel: 'portal.planmypeak.com',
+    label: 'Production',
+  },
+  staging: {
+    appUrl: PLANMYPEAK_STAGING_ORIGIN,
+    hostLabel: 'staging.app.planmypeak.com',
+    label: 'Staging',
+  },
+  local: {
+    appUrl: `https://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`,
+    hostLabel: `localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`,
+    label: 'Local',
+  },
+};
+
+export function isPlanMyPeakEnvironment(
+  value: string | undefined
+): value is PlanMyPeakEnvironment {
+  return value === 'production' || value === 'staging' || value === 'local';
+}
+
+/**
+ * Environment used until the user picks one: the local app in local-target
+ * builds, the portal everywhere else.
+ */
+export const DEFAULT_PLANMYPEAK_ENVIRONMENT: PlanMyPeakEnvironment =
+  IS_LOCAL_PLANMYPEAK_TARGET ? 'local' : 'production';
+
+/**
+ * Environments this build can actually reach.
+ *
+ * `local` is omitted from production bundles because their manifest has no
+ * loopback host permissions or content-script matches, so selecting it would
+ * silently break auth capture and the site-control channel.
+ */
+export const AVAILABLE_PLANMYPEAK_ENVIRONMENTS: readonly PlanMyPeakEnvironment[] =
+  IS_LOCAL_PLANMYPEAK_TARGET
+    ? ['local', 'staging', 'production']
+    : ['production', 'staging'];
+
+/**
+ * Whether an environment can be selected in this build.
+ * Guards stored values too: a bundle rebuilt for production must not keep
+ * running against a `local` selection left in storage by a local build.
+ */
+export function isAvailablePlanMyPeakEnvironment(
+  value: string | undefined
+): value is PlanMyPeakEnvironment {
+  return (
+    isPlanMyPeakEnvironment(value) &&
+    AVAILABLE_PLANMYPEAK_ENVIRONMENTS.includes(value)
+  );
+}
+
+/**
+ * PlanMyPeak app URL for the build's default environment (local uses the
+ * default port). Prefer the runtime helpers in planMyPeakConfigService, which
+ * honour the selected environment and configured port.
+ */
+export const PLANMYPEAK_APP_URL =
+  PLANMYPEAK_ENVIRONMENTS[DEFAULT_PLANMYPEAK_ENVIRONMENT].appUrl;
+
+/**
+ * Short PlanMyPeak host label for the build's default environment.
+ */
+export const PLANMYPEAK_HOST_LABEL =
+  PLANMYPEAK_ENVIRONMENTS[DEFAULT_PLANMYPEAK_ENVIRONMENT].hostLabel;
 
 /**
  * Loopback hosts a local-target build serves PlanMyPeak from.
@@ -158,7 +245,9 @@ const LOCAL_PLANMYPEAK_HOSTS: readonly string[] = ['localhost', '127.0.0.1'];
 /**
  * Origins allowed to drive the extension through the site-control channel.
  *
- * Production builds allow exactly one origin. Local-target builds additionally
+ * Every build allows the two first-party PlanMyPeak deployments — the portal
+ * and staging — regardless of which one is currently selected in Settings, so
+ * switching environments needs no rebuild. Local-target builds additionally
  * accept any port on {@link LOCAL_PLANMYPEAK_HOSTS}, which this list cannot
  * enumerate — use {@link isPlanMyPeakControlOrigin} for the actual gate. The
  * default local origin is listed so the value stays useful for display and for
@@ -168,10 +257,11 @@ export const PLANMYPEAK_CONTROL_ORIGINS: readonly string[] =
   IS_LOCAL_PLANMYPEAK_TARGET
     ? [
         PLANMYPEAK_PRODUCTION_ORIGIN,
+        PLANMYPEAK_STAGING_ORIGIN,
         `https://localhost:${DEFAULT_PLANMYPEAK_APP_PORT}`,
         `https://127.0.0.1:${DEFAULT_PLANMYPEAK_APP_PORT}`,
       ]
-    : [PLANMYPEAK_PRODUCTION_ORIGIN];
+    : [PLANMYPEAK_PRODUCTION_ORIGIN, PLANMYPEAK_STAGING_ORIGIN];
 
 /**
  * Whether an origin is a loopback dev origin this build may be driven from.
@@ -245,6 +335,8 @@ export function originFromUrl(url: string | null | undefined): string | null {
  * PlanMyPeak auth validation base URL (uses default port, actual port may be configured in local builds).
  * Development hits the local Supabase instance directly.
  * Production validates via the Supabase cloud instance the rewritten portal authenticates against.
+ * Not environment-aware: token validation goes through the app's own
+ * `/api/backend/coaches/me`, so no Supabase host is needed for staging.
  */
 export const PLANMYPEAK_AUTH_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
   ? `http://localhost:${DEFAULT_PLANMYPEAK_SUPABASE_PORT}`
@@ -314,6 +406,7 @@ export const STORAGE_KEYS = {
   CONNECTION_ENABLE_INTERVALS: 'connection_enable_intervals',
   PLANMYPEAK_APP_PORT: 'planmypeak_app_port',
   PLANMYPEAK_SUPABASE_PORT: 'planmypeak_supabase_port',
+  PLANMYPEAK_ENVIRONMENT: 'planmypeak_environment',
   TRAININGPEAKS_ENVIRONMENT: 'trainingpeaks_environment',
 } as const;
 

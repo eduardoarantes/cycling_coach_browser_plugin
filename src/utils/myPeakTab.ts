@@ -2,7 +2,7 @@
  * Utility functions for interacting with the PlanMyPeak app tab
  */
 
-import { getPlanMyPeakAppUrl } from '@/services/portConfigService';
+import { getPlanMyPeakAppUrl } from '@/services/planMyPeakConfigService';
 import { logger } from './logger';
 
 export async function openMyPeakTab(): Promise<void> {

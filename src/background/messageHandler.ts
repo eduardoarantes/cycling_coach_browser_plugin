@@ -48,14 +48,20 @@ import {
   isAuthenticated as isTrainingPeaksAuthenticated,
   isTokenExpired as isTrainingPeaksTokenExpired,
 } from '@/services/authService';
-import { isAuthenticated as isPlanMyPeakAuthenticated } from '@/services/myPeakAuthService';
+import {
+  isAuthenticated as isPlanMyPeakAuthenticated,
+  getAuthToken as getPlanMyPeakAuthToken,
+} from '@/services/myPeakAuthService';
 import {
   createErrorResponse,
   createSuccessResponse,
   parseSiteControlRequest,
 } from '@/schemas/siteControl.schema';
-import { PLANMYPEAK_SITE_CONTROL_VERSION } from '@/types/siteControl.types';
-import { getPlanMyPeakAppUrl } from '@/services/portConfigService';
+import {
+  PLANMYPEAK_SITE_CONTROL_VERSION,
+  SITE_CONTROL_REQUEST_TYPES,
+} from '@/types/siteControl.types';
+import { getPlanMyPeakAppUrl } from '@/services/planMyPeakConfigService';
 import {
   getTrainingPeaksApiBaseUrl,
   getTrainingPeaksAppUrl,
@@ -124,6 +130,7 @@ import type {
   SiteControlError,
   SiteControlPingResult,
   SiteControlPlanContentsResult,
+  SiteControlTrainingPlanLibrary,
   SiteControlResponse,
 } from '@/types/siteControl.types';
 import type { ApiError } from '@/schemas/api.schema';
@@ -378,8 +385,8 @@ async function handleValidateMyPeakToken(): Promise<{
  * routes (server-side) rather than calling Supabase from the browser, so this
  * needs no Supabase anon key. A `200` from `/api/backend/coaches/me` confirms
  * the bearer token is a valid logged-in session; a `401` clears the stored
- * token. `getPlanMyPeakAppUrl()` resolves to the portal in production and to the
- * local app in local builds.
+ * token. `getPlanMyPeakAppUrl()` resolves to whichever environment is selected
+ * in Settings — the portal, staging, or the local dev app.
  */
 async function validateMyPeakTokenViaAppBackend(token: string): Promise<{
   valid: boolean;
@@ -910,6 +917,62 @@ function toSiteControlResponse<T>(
 }
 
 /**
+ * How long PING will wait for the coach lookup.
+ *
+ * PING is how the page decides whether the extension exists at all, and a page
+ * that gets no reply concludes it is not installed. The identity lookup must
+ * never be what makes that happen, so it is bounded well inside a page's
+ * detection timeout and degrades to `null` rather than delaying the answer.
+ */
+const PING_COACH_LOOKUP_TIMEOUT_MS = 1200;
+
+/**
+ * Cached coach id, so repeat PINGs on the same page do not each hit the network.
+ *
+ * Keyed by the token it was resolved from, which is what makes it safe: a new
+ * or cleared token simply misses, so the cache can never report a coach the
+ * extension has stopped acting as. It lives in the service worker only and dies
+ * with it.
+ */
+let cachedPlanMyPeakCoachId: { token: string; coachId: string } | null = null;
+
+/**
+ * Resolve which PlanMyPeak coach the extension is currently acting as.
+ *
+ * Returns `null` whenever the answer is not known for certain — an unreachable
+ * API, a timeout, an invalid token. Callers must treat `null` as unknown and
+ * fail closed rather than assuming a match.
+ */
+async function resolvePlanMyPeakCoachId(): Promise<string | null> {
+  try {
+    const token = await getPlanMyPeakAuthToken();
+    if (!token) {
+      return null;
+    }
+
+    // Keyed by the token itself, so a re-auth as a different coach cannot be
+    // answered from the previous coach's cache entry.
+    if (cachedPlanMyPeakCoachId?.token === token) {
+      return cachedPlanMyPeakCoachId.coachId;
+    }
+
+    const coach = await fetchPlanMyPeakCoach({
+      signal: AbortSignal.timeout(PING_COACH_LOOKUP_TIMEOUT_MS),
+    });
+
+    if (!coach.success) {
+      return null;
+    }
+
+    cachedPlanMyPeakCoachId = { token, coachId: coach.data.id };
+    return coach.data.id;
+  } catch (error) {
+    logger.warn('Could not resolve the PlanMyPeak coach id for PING:', error);
+    return null;
+  }
+}
+
+/**
  * Build the PING result.
  *
  * Reports readiness only — never a token, key, or user identifier. A stored but
@@ -927,10 +990,16 @@ async function buildSiteControlPingResult(): Promise<SiteControlPingResult> {
   return {
     protocolVersion: PLANMYPEAK_SITE_CONTROL_VERSION,
     extensionVersion: chrome.runtime.getManifest().version,
+    // Reported so the page can feature-detect a request type instead of
+    // maintaining a table of which extension version added what.
+    supports: [...SITE_CONTROL_REQUEST_TYPES],
     trainingPeaks: {
       authenticated: trainingPeaksHasToken && !trainingPeaksExpired,
     },
-    planMyPeak: { authenticated: planMyPeakHasToken },
+    planMyPeak: {
+      authenticated: planMyPeakHasToken,
+      coachId: planMyPeakHasToken ? await resolvePlanMyPeakCoachId() : null,
+    },
   };
 }
 
@@ -982,6 +1051,92 @@ async function handleSiteControlPlanContents(
 }
 
 /**
+ * Fetch the coach's TrainingPeaks plan libraries for the page.
+ *
+ * Returned in TrainingPeaks' own shape, membership included, so the page groups
+ * plans by the same rule the popup and the overlay do rather than by a
+ * synthesised per-plan field. `TrainingPlan` stays the verbatim TrainingPeaks
+ * response.
+ */
+async function handleSiteControlTrainingPlanLibraries(
+  requestId: string
+): Promise<SiteControlResponse> {
+  const folders = await handleGetTrainingPlanFolders();
+
+  if (!folders.success) {
+    return createErrorResponse(requestId, toSiteControlError(folders.error));
+  }
+
+  const libraries: SiteControlTrainingPlanLibrary[] = folders.data.map(
+    (folder) => ({
+      id: folder.folderId,
+      name: folder.folderName,
+      planIds: folder.planIds,
+    })
+  );
+
+  return createSuccessResponse(requestId, libraries);
+}
+
+/**
+ * Fetch the libraries the page may offer, owned by the signed-in coach.
+ *
+ * Every surface inside the extension shows owned libraries only (`useLibraries`
+ * filters on `ownerId`), and the import overlay browses that same filtered
+ * list. Returning the raw TrainingPeaks response here would let the page list
+ * libraries the overlay cannot show: a coach clicking one would get an importer
+ * with nothing selected and no explanation, because the pre-selection silently
+ * finds no match. Filtering to the same rule keeps the page's list and what the
+ * importer can actually act on in agreement.
+ *
+ * The owner is resolved from the captured session rather than supplied by the
+ * page, for the same reason `GET_ATHLETE_GROUPS` takes no coach id.
+ */
+async function handleSiteControlLibraries(
+  requestId: string
+): Promise<SiteControlResponse> {
+  const [user, libraries] = await Promise.all([
+    handleGetUser(),
+    handleGetLibraries(),
+  ]);
+
+  if (!libraries.success) {
+    return createErrorResponse(requestId, toSiteControlError(libraries.error));
+  }
+
+  if (!user.success) {
+    return createErrorResponse(requestId, toSiteControlError(user.error));
+  }
+
+  const owned = libraries.data.filter(
+    (library) => library.ownerId === user.data.userId
+  );
+
+  return createSuccessResponse(requestId, owned);
+}
+
+/**
+ * Fetch the signed-in coach's athlete groups for the page.
+ *
+ * The coach id is resolved here from the captured TrainingPeaks session rather
+ * than accepted from the page, so an allowlisted origin cannot read another
+ * coach's groups by supplying an id.
+ */
+async function handleSiteControlAthleteGroups(
+  requestId: string
+): Promise<SiteControlResponse> {
+  const user = await handleGetUser();
+  if (!user.success) {
+    return createErrorResponse(requestId, toSiteControlError(user.error));
+  }
+
+  return toSiteControlResponse(
+    requestId,
+    await handleGetAthleteGroups(user.data.userId)
+  );
+}
+
+/**
  * Handle a site-control request relayed by the PlanMyPeak content-script bridge.
  *
  * The bridge already gates on origin, but this check is the one that actually
@@ -1027,10 +1182,7 @@ async function handleSiteControlRequest(
       );
 
     case 'GET_LIBRARIES':
-      return toSiteControlResponse(
-        request.requestId,
-        await handleGetLibraries()
-      );
+      return await handleSiteControlLibraries(request.requestId);
 
     case 'GET_LIBRARY_ITEMS':
       return toSiteControlResponse(
@@ -1044,11 +1196,17 @@ async function handleSiteControlRequest(
         await handleGetTrainingPlans()
       );
 
+    case 'GET_TRAINING_PLAN_LIBRARIES':
+      return await handleSiteControlTrainingPlanLibraries(request.requestId);
+
     case 'GET_PLAN_CONTENTS':
       return await handleSiteControlPlanContents(
         request.requestId,
         request.payload.planId
       );
+
+    case 'GET_ATHLETE_GROUPS':
+      return await handleSiteControlAthleteGroups(request.requestId);
 
     case 'OPEN_IMPORTER':
       // The overlay lives in the page context, so the bridge handles this

@@ -665,13 +665,48 @@ Full wire protocol and page-side snippet: `PLANMYPEAK_INTEGRATION.md` →
 - `src/content/siteControlBridge.ts` — origin gate, page ↔ background relay
 - `src/content/overlay/` — the overlay (shadow DOM, own QueryClient)
 - `src/utils/constants.ts` — `PLANMYPEAK_CONTROL_ORIGINS`, `isPlanMyPeakControlOrigin`
+- `src/services/planMyPeakConfigService.ts` — PlanMyPeak environment
+  (production / staging / local) and the app URLs derived from it
+
+**Fail closed on correctness, fail soft on presentation.** Two checks on this
+channel look identical in code and must behave oppositely. `planMyPeak.coachId`
+blocks the import when unknown, because being wrong writes one coach's data into
+another's account and nothing downstream would catch it. A missing entry in
+`PING.supports` degrades instead — a page whose plan grouping is unavailable
+shows a flat list rather than hiding the import, because being wrong there costs
+some headings. Decide which kind a new check is before choosing its failure
+mode.
+
+**One idea, one implementation.** Four bugs in this channel came from the same
+root: the popup and the overlay each implementing the same idea. Non-owned
+libraries reaching the page, the two surfaces naming tabs differently, plans
+listed flat in one and grouped in the other, and nearly a fifth in the grouping
+rule itself. The fix that holds is extracting the logic UI-free and pointing
+both surfaces at it — `groupPlansByFolder`, `duplicatePreflight`,
+`planMyPeakAdapter` — not fixing each surface as it is reported.
 
 **Invariants — do not weaken these when extending the channel**:
 
 - The page names _site-control_ request types only (`PING`, `GET_LIBRARIES`,
   `GET_LIBRARY_ITEMS`, `GET_TRAINING_PLANS`, `GET_PLAN_CONTENTS`,
-  `OPEN_IMPORTER`). It can never name a `RuntimeMessage` type, so adding a
-  background handler does not expose it to the page.
+  `GET_TRAINING_PLAN_LIBRARIES`, `GET_ATHLETE_GROUPS`, `OPEN_IMPORTER`). It can
+  never name a `RuntimeMessage` type, so adding a background handler does not
+  expose it to the page.
+  `PING` advertises this list as `supports`, so the page feature-detects
+  instead of comparing extension versions.
+- Requests resolve the acting account from stored credentials, never from a
+  page-supplied id: `GET_ATHLETE_GROUPS` takes no `coachId`, so an allowlisted
+  page cannot read another coach's data by guessing one.
+- `PING` reports `planMyPeak.coachId` so the page can refuse an import when the
+  extension is acting as a different coach than the page session. Ingest is
+  scoped to the token's coach, so a wrong-account import succeeds silently —
+  this comparison is the only thing that catches it. `null` means unknown and
+  must fail closed. An account id is not a credential; the coach's email and
+  name still may not cross into the page.
+- Imports are blocked on a confirmed TrainingPeaks/PlanMyPeak account mismatch
+  in **both** surfaces — the popup (`AccountMismatchBanner`) and the overlay
+  (`AccountMismatchGate`). A gate that exists on only one surface is not a gate:
+  the page-driven path runs the same upload code.
 - Origin is checked in the content script _and_ re-checked in the background
   against `sender.origin`. Adding a request type does not change this.
 - A non-allowlisted origin gets **no response at all**, so a site cannot use

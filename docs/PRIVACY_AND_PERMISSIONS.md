@@ -56,22 +56,20 @@ make direct TrainingPeaks API calls from the background worker.
 
 ### PlanMyPeak and Supabase
 
-- `https://planmypeak.com/*`
-- `https://yqaskiwzyhhovthbvmqq.supabase.co/*`
-- `http://localhost:3004/*`
-- `http://127.0.0.1:3004/*`
-- `http://localhost:3006/*`
-- `http://127.0.0.1:3006/*`
-- `http://localhost:54341/*`
-- `http://127.0.0.1:54341/*`
-- `http://localhost:54361/*`
-- `http://127.0.0.1:54361/*`
+- `https://portal.planmypeak.com/*`
+- `https://staging.app.planmypeak.com/*`
+- `https://nwvtltfibnkdogdeeluh.supabase.co/*`
+
+Local development builds additionally request loopback hosts
+(`http://localhost/*`, `https://localhost/*`, and the same for `127.0.0.1`);
+released builds do not.
 
 These permissions support:
 
 - Capturing PlanMyPeak auth from browser traffic
-- Validating PlanMyPeak auth against Supabase
-- Exporting to hosted or locally running PlanMyPeak environments
+- Validating PlanMyPeak auth against the selected PlanMyPeak environment
+- Exporting to the hosted (production or staging) or locally running
+  PlanMyPeak environment the user selects in Settings
 
 ### Intervals.icu
 

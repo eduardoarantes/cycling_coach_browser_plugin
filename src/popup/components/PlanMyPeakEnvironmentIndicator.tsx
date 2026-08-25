@@ -1,15 +1,24 @@
 import type { ReactElement } from 'react';
+import {
+  PLANMYPEAK_ENVIRONMENTS,
+  type PlanMyPeakEnvironment,
+} from '@/utils/constants';
 
 export interface PlanMyPeakEnvironmentIndicatorProps {
-  isVisible: boolean;
+  environment: PlanMyPeakEnvironment;
   hostLabel: string;
 }
 
+/**
+ * Banner shown while the extension is pointed at a non-production PlanMyPeak
+ * deployment (staging or the local dev app), so imports are never mistaken for
+ * production ones. Renders nothing on production.
+ */
 export function PlanMyPeakEnvironmentIndicator({
-  isVisible,
+  environment,
   hostLabel,
 }: PlanMyPeakEnvironmentIndicatorProps): ReactElement | null {
-  if (!isVisible) {
+  if (environment === 'production') {
     return null;
   }
 
@@ -22,10 +31,11 @@ export function PlanMyPeakEnvironmentIndicator({
         />
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-900">
-            Local PlanMyPeak Target
+            {PLANMYPEAK_ENVIRONMENTS[environment].label} PlanMyPeak Target
           </p>
           <p className="text-xs text-amber-800">
-            This build targets {hostLabel} instead of portal.planmypeak.com.
+            This extension targets {hostLabel} instead of{' '}
+            {PLANMYPEAK_ENVIRONMENTS.production.hostLabel}.
           </p>
         </div>
       </div>

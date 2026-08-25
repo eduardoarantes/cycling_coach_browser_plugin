@@ -2,6 +2,12 @@ import type { ReactElement } from 'react';
 import { CONNECTION_HEALTH_MESSAGES } from '@/utils/uiStrings';
 
 export interface ConnectionHealthSummaryProps {
+  /**
+   * Opens the Settings view. Optional so the summary can still be rendered
+   * somewhere with nowhere to navigate to; without it the Settings phrase is
+   * shown as plain text rather than as a control that does nothing.
+   */
+  onOpenSettings?: () => void;
   isTrainingPeaksAuthenticated: boolean;
   isPlanMyPeakEnabled: boolean;
   isPlanMyPeakAuthenticated: boolean;
@@ -53,8 +59,16 @@ function evaluateSummaryStatus(props: ConnectionHealthSummaryProps): {
 export function ConnectionHealthSummary(
   props: ConnectionHealthSummaryProps
 ): ReactElement {
+  const { onOpenSettings } = props;
   const { status, authenticatedCount, enabledCount } =
     evaluateSummaryStatus(props);
+
+  const linkTone =
+    status === 'green'
+      ? 'text-green-900 hover:text-green-950'
+      : status === 'yellow'
+        ? 'text-yellow-900 hover:text-yellow-950'
+        : 'text-red-900 hover:text-red-950';
 
   const tone =
     status === 'green'
@@ -91,9 +105,24 @@ export function ConnectionHealthSummary(
         <div>
           <p className={`text-sm font-semibold ${tone.title}`}>{tone.label}</p>
           <p className={`text-xs ${tone.subtitle}`}>
-            {CONNECTION_HEALTH_MESSAGES.authenticatedCount(
-              authenticatedCount,
-              enabledCount
+            <span>
+              {CONNECTION_HEALTH_MESSAGES.authenticatedCount(
+                authenticatedCount,
+                enabledCount
+              )}
+            </span>{' '}
+            {onOpenSettings ? (
+              // A view switch inside the popup, not a destination with a URL,
+              // so this is a button styled as a link rather than an anchor.
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className={`underline underline-offset-2 ${linkTone}`}
+              >
+                {CONNECTION_HEALTH_MESSAGES.MANAGE_SETTINGS_SUFFIX}
+              </button>
+            ) : (
+              <span>{CONNECTION_HEALTH_MESSAGES.MANAGE_SETTINGS_SUFFIX}</span>
             )}
           </p>
         </div>

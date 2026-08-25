@@ -102,6 +102,8 @@ async function openImporter(
     const { focused } = overlay.mountOverlay({
       preselectedLibraryId: request.payload.libraryId ?? null,
       preselectedPlanId: request.payload.planId ?? null,
+      preselectGroups: request.payload.groups ?? false,
+      initialTab: request.payload.tab ?? null,
       onImportCompleted: (payload) => {
         postToPage(createImportCompletedEvent(request.requestId, payload));
       },

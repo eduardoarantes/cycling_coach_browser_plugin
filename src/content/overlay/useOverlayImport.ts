@@ -15,7 +15,10 @@ import type {
   GetLibraryItemsMessage,
   GetPlanNotesMessage,
   GetPlanWorkoutsMessage,
+  ImportAthleteGroupsToPlanMyPeakMessage,
 } from '@/types';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
+import type { PlanMyPeakIngestAthleteGroupsResponse } from '@/schemas/planMyPeakApi.schema';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
 import type { PlanMyPeakLibrary } from '@/schemas/planMyPeakApi.schema';
 import type { TrainingPlanExportProgressDialogState } from '@/types/export.types';
@@ -28,7 +31,10 @@ import {
 } from '@/export/adapters/planMyPeak/duplicatePreflight';
 import { logger } from '@/utils/logger';
 import { selectedItemsForLibrary, type OverlaySelection } from './selection';
-import type { SiteControlImportCompletedPayload } from '@/types/siteControl.types';
+import type {
+  SiteControlImportByKind,
+  SiteControlImportCompletedPayload,
+} from '@/types/siteControl.types';
 
 export type OverlayImportPhase =
   | 'idle'
@@ -37,7 +43,11 @@ export type OverlayImportPhase =
   | 'importing'
   | 'result';
 
+/** Which kind of thing an import item covered, so counts stay in their own unit. */
+export type OverlayImportKind = 'library' | 'plan' | 'group';
+
 export interface OverlayImportItemResult {
+  kind: OverlayImportKind;
   /** Library or plan name as it appears in TrainingPeaks */
   name: string;
   ok: boolean;
@@ -87,6 +97,29 @@ async function fetchPlanWorkouts(planId: number): Promise<PlanWorkout[]> {
   return response.data;
 }
 
+/**
+ * Send the selected athlete groups to PlanMyPeak.
+ *
+ * Groups go through the ingest endpoint in a single call, unlike libraries and
+ * plans, so the whole selection is one progress item rather than one per group.
+ */
+async function importAthleteGroups(
+  groups: AthleteGroup[]
+): Promise<PlanMyPeakIngestAthleteGroupsResponse> {
+  const response = await chrome.runtime.sendMessage<
+    ImportAthleteGroupsToPlanMyPeakMessage,
+    ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>
+  >({ type: 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK', groups });
+
+  if (!response.success) {
+    throw new Error(
+      response.error.message || 'Failed to import athlete groups'
+    );
+  }
+
+  return response.data;
+}
+
 async function fetchPlanNotes(planId: number): Promise<CalendarNote[]> {
   const response = await chrome.runtime.sendMessage<
     GetPlanNotesMessage,
@@ -117,6 +150,39 @@ function initialProgress(
       total: 1,
     })),
   };
+}
+
+/**
+ * Split the results into per-kind counts.
+ *
+ * The totals alone cannot be rendered honestly across kinds: workouts and
+ * groups are different units, so summing them produces a number in no unit at
+ * all. `failed` counts containers, matching `failedCount`.
+ */
+function summarizeByKind(
+  items: ReadonlyArray<OverlayImportItemResult>
+): SiteControlImportByKind {
+  const byKind: SiteControlImportByKind = {
+    libraries: { imported: 0, failed: 0 },
+    plans: { imported: 0, failed: 0 },
+    groups: { imported: 0, failed: 0 },
+  };
+
+  const bucketFor = {
+    library: byKind.libraries,
+    plan: byKind.plans,
+    group: byKind.groups,
+  } as const;
+
+  for (const item of items) {
+    const bucket = bucketFor[item.kind];
+    bucket.imported += item.importedCount;
+    if (!item.ok) {
+      bucket.failed += 1;
+    }
+  }
+
+  return byKind;
 }
 
 export interface UseOverlayImportReturn {
@@ -150,9 +216,15 @@ export function useOverlayImport(
     ): Promise<void> => {
       const libraries = [...target.selection.libraries.values()];
       const plans = [...target.selection.plans.values()];
+      const groups = [...target.selection.groups.values()];
+      const groupsLabel =
+        groups.length === 1
+          ? `Athlete group: ${groups[0].groupName}`
+          : `${groups.length} athlete groups`;
       const labels = [
         ...libraries.map((library) => library.libraryName),
         ...plans.map((plan) => plan.planName),
+        ...(groups.length > 0 ? [groupsLabel] : []),
       ];
 
       setPhase('importing');
@@ -234,6 +306,7 @@ export function useOverlayImport(
 
           destinations.push(result.fileName);
           items.push({
+            kind: 'library',
             name: library.libraryName,
             ok: true,
             importedCount: result.itemsExported,
@@ -244,6 +317,7 @@ export function useOverlayImport(
             error instanceof Error ? error.message : 'Unknown import error';
           logger.error('[ImportOverlay] Library import failed:', message);
           items.push({
+            kind: 'library',
             name: library.libraryName,
             ok: false,
             importedCount: 0,
@@ -283,6 +357,7 @@ export function useOverlayImport(
 
           destinations.push(result.fileName);
           items.push({
+            kind: 'plan',
             name: plan.planName,
             ok: true,
             importedCount: result.itemsExported,
@@ -293,7 +368,43 @@ export function useOverlayImport(
             error instanceof Error ? error.message : 'Unknown import error';
           logger.error('[ImportOverlay] Plan import failed:', message);
           items.push({
+            kind: 'plan',
             name: plan.planName,
+            ok: false,
+            importedCount: 0,
+            message,
+          });
+          advance(index, 'failed', message);
+        }
+      }
+
+      if (groups.length > 0) {
+        const index = libraries.length + plans.length;
+        advance(index, 'started');
+
+        try {
+          const result = await importAthleteGroups(
+            groups.map((entry) => entry.group)
+          );
+
+          // The endpoint reports what it actually ingested; fall back to the
+          // number sent when it does not, so the count is never zero on success.
+          const importedGroups = result.groupsProcessed ?? groups.length;
+
+          items.push({
+            kind: 'group',
+            name: groupsLabel,
+            ok: true,
+            importedCount: importedGroups,
+          });
+          advance(index, 'completed');
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Unknown import error';
+          logger.error('[ImportOverlay] Athlete group import failed:', message);
+          items.push({
+            kind: 'group',
+            name: groupsLabel,
             ok: false,
             importedCount: 0,
             message,
@@ -322,6 +433,7 @@ export function useOverlayImport(
         ok: finalOutcome.ok,
         importedCount: finalOutcome.importedCount,
         failedCount: finalOutcome.failedCount,
+        byKind: summarizeByKind(items),
       });
     },
     [onImportCompleted]
