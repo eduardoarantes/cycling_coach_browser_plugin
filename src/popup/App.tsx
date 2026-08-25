@@ -141,6 +141,7 @@ function App(): ReactElement {
       ) : (
         <>
           <ConnectionHealthSummary
+            onOpenSettings={() => setActiveView('settings')}
             isTrainingPeaksAuthenticated={isTrainingPeaksAuthenticated}
             isPlanMyPeakEnabled={isPlanMyPeakEnabled}
             isPlanMyPeakAuthenticated={isPlanMyPeakAuthenticated}

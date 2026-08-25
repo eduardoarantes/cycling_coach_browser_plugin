@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ConnectionHealthSummary } from '@/popup/components/ConnectionHealthSummary';
 
 describe('ConnectionHealthSummary', () => {
@@ -18,9 +18,7 @@ describe('ConnectionHealthSummary', () => {
       screen.getByText('All enabled connections authenticated')
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Authenticated 2/2 enabled connections. Manage optional providers in Settings.'
-      )
+      screen.getByText('Authenticated 2/2 enabled connections.')
     ).toBeInTheDocument();
   });
 
@@ -39,9 +37,7 @@ describe('ConnectionHealthSummary', () => {
       screen.getByText('Some enabled connections are not authenticated')
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Authenticated 1/3 enabled connections. Manage optional providers in Settings.'
-      )
+      screen.getByText('Authenticated 1/3 enabled connections.')
     ).toBeInTheDocument();
   });
 
@@ -60,9 +56,78 @@ describe('ConnectionHealthSummary', () => {
       screen.getByText('No enabled connections authenticated')
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Authenticated 0/2 enabled connections. Manage optional providers in Settings.'
-      )
+      screen.getByText('Authenticated 0/2 enabled connections.')
+    ).toBeInTheDocument();
+  });
+
+  it('offers a way into Settings when a connection is unauthenticated', () => {
+    const onOpenSettings = vi.fn();
+
+    render(
+      <ConnectionHealthSummary
+        onOpenSettings={onOpenSettings}
+        isTrainingPeaksAuthenticated={true}
+        isPlanMyPeakEnabled={true}
+        isPlanMyPeakAuthenticated={false}
+        isIntervalsEnabled={true}
+        isIntervalsAuthenticated={false}
+      />
+    );
+
+    // Naming Settings without a way to reach it leaves the reader to find it.
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Manage optional providers in Settings.',
+      })
+    );
+
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the same way in from every status', () => {
+    const onOpenSettings = vi.fn();
+
+    for (const authenticated of [true, false]) {
+      const { unmount } = render(
+        <ConnectionHealthSummary
+          onOpenSettings={onOpenSettings}
+          isTrainingPeaksAuthenticated={authenticated}
+          isPlanMyPeakEnabled={false}
+          isPlanMyPeakAuthenticated={false}
+          isIntervalsEnabled={false}
+          isIntervalsAuthenticated={false}
+        />
+      );
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Manage optional providers in Settings.',
+        })
+      ).toBeInTheDocument();
+
+      unmount();
+    }
+  });
+
+  it('falls back to plain text when there is nowhere to navigate', () => {
+    render(
+      <ConnectionHealthSummary
+        isTrainingPeaksAuthenticated={true}
+        isPlanMyPeakEnabled={true}
+        isPlanMyPeakAuthenticated={false}
+        isIntervalsEnabled={false}
+        isIntervalsAuthenticated={false}
+      />
+    );
+
+    // A control that cannot do anything is worse than prose.
+    expect(
+      screen.queryByRole('button', {
+        name: 'Manage optional providers in Settings.',
+      })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Manage optional providers in Settings.')
     ).toBeInTheDocument();
   });
 });

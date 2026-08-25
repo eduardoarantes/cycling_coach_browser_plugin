@@ -14,9 +14,15 @@ export const CONNECTION_HEALTH_MESSAGES = {
   ALL_AUTHENTICATED: 'All enabled connections authenticated',
   SOME_NOT_AUTHENTICATED: 'Some enabled connections are not authenticated',
   NONE_AUTHENTICATED: 'No enabled connections authenticated',
+  /**
+   * Rendered as its own control rather than appended to the count, so the
+   * Settings it names is somewhere the reader can actually go. Kept as a
+   * separate string for that reason - re-joining it to `authenticatedCount`
+   * would turn the one actionable part of this summary back into prose.
+   */
   MANAGE_SETTINGS_SUFFIX: 'Manage optional providers in Settings.',
   authenticatedCount: (authenticated: number, enabled: number): string =>
-    `Authenticated ${authenticated}/${enabled} enabled connections. ${CONNECTION_HEALTH_MESSAGES.MANAGE_SETTINGS_SUFFIX}`,
+    `Authenticated ${authenticated}/${enabled} enabled connections.`,
 } as const;
 
 /**
