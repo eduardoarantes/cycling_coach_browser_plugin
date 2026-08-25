@@ -367,7 +367,14 @@ same plans differently:
 3. Put plans in no library into an "Ungrouped" bucket rather than hiding them —
    a plan that belongs to nothing must still be reachable.
 
-A library with an empty `planIds` is a real thing a coach made, so show it.
+A library with an empty `planIds` is a real thing a coach made, so show it —
+and say it is empty, rather than rendering a blank section that reads as a
+failure to load.
+
+A library naming a plan id that no plan in `GET_TRAINING_PLANS` matches — one
+deleted upstream, or filtered out — contributes nothing: filter the plans, not
+the ids. A library can therefore come back empty for that reason too, and is
+still kept.
 
 The popup and the import overlay both group through one shared helper
 (`groupPlansByFolder`), which is the rule above.

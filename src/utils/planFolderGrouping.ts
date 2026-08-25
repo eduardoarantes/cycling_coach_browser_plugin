@@ -29,6 +29,12 @@ export interface PlanFolderGroup {
  *
  * A plan claimed by an earlier folder is not repeated in a later one, so a
  * plan appears exactly once even if the API reports it in more than one folder.
+ *
+ * A folder naming a plan id that no plan matches — deleted upstream, or absent
+ * from the list being grouped — contributes nothing, since the plans are what
+ * is filtered rather than the ids. A folder can therefore come back empty, and
+ * is kept: a library a coach made but never filled is a real state, and hiding
+ * it would read as the library vanishing.
  */
 export function groupPlansByFolder(
   plans: ReadonlyArray<TrainingPlan>,

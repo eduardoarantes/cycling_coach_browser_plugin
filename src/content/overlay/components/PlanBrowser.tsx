@@ -209,6 +209,11 @@ export function PlanBrowser({
       <p className="px-1 text-sm font-medium text-gray-800">
         {openFolder.name}
       </p>
+      {openFolder.plans.length === 0 ? (
+        // A library a coach made but never filled is a real state. Saying so
+        // reads as deliberate, where an empty panel reads as a failure to load.
+        <EmptyState label="No plans in this library." />
+      ) : null}
       <ul className="space-y-2">
         {openFolder.plans.map((plan) => {
           const isExpanded = expandedPlanId === plan.planId;

@@ -89,4 +89,26 @@ describe('groupPlansByFolder', () => {
   it('should return nothing for no plans and no folders', () => {
     expect(groupPlansByFolder([], [])).toEqual([]);
   });
+
+  it('should ignore a plan id no plan matches', () => {
+    const groups = groupPlansByFolder(
+      [plan(1)],
+      [folder('f1', 'Custom Plans', [1, 999])]
+    );
+
+    // 999 was deleted upstream or filtered out. Plans are what gets filtered,
+    // not ids, so it contributes nothing rather than a blank row.
+    expect(groups[0].plans.map((p) => p.planId)).toEqual([1]);
+  });
+
+  it('should keep a library whose every plan id is stale', () => {
+    const groups = groupPlansByFolder(
+      [plan(1)],
+      [folder('f1', 'Custom Plans', [1]), folder('f2', 'Stale', [998, 999])]
+    );
+
+    // Still the coach's library, now empty. Hiding it reads as it vanishing.
+    expect(groups.map((g) => g.name)).toEqual(['Custom Plans', 'Stale']);
+    expect(groups[1].plans).toEqual([]);
+  });
 });

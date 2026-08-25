@@ -89,6 +89,7 @@ vi.mock('@/hooks/useTrainingPlanFolders', () => ({
         ownerId: 1,
         planIds: [22],
       },
+      { folderId: 'f3', folderName: 'Empty Library', ownerId: 1, planIds: [] },
     ],
     isLoading: false,
     error: null,
@@ -364,5 +365,16 @@ describe('ImportOverlay', () => {
 
     expect(screen.getByText('Off the Shelf')).toBeInTheDocument();
     expect(screen.queryByText('Off the Shelf Plan')).not.toBeInTheDocument();
+  });
+
+  it('should say why an opened library is empty', () => {
+    renderOverlay();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Plans Library/ }));
+    fireEvent.click(screen.getByText('Empty Library'));
+
+    // An empty panel would read as a failure to load rather than as a library
+    // the coach made and never filled.
+    expect(screen.getByText('No plans in this library.')).toBeInTheDocument();
   });
 });
