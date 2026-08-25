@@ -1,10 +1,21 @@
 /**
  * Browse and select TrainingPeaks training plans, and preview the contents of
  * the plan the coach opens.
+ *
+ * Plans are shown inside their TrainingPeaks plan library, matching the popup's
+ * plan list: a coach who organises plans into libraries needs to find them the
+ * same way on both surfaces. Grouping comes from the shared
+ * `groupPlansByFolder` helper so the two cannot drift.
+ *
+ * Selection survives navigating between libraries — it lives in the overlay
+ * above this component — so plans can be picked from more than one library in a
+ * single import.
  */
 
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useTrainingPlans } from '@/hooks/useTrainingPlans';
+import { useTrainingPlanFolders } from '@/hooks/useTrainingPlanFolders';
+import { groupPlansByFolder } from '@/utils/planFolderGrouping';
 import { usePlanWorkouts } from '@/hooks/usePlanWorkouts';
 import { usePlanNotes } from '@/hooks/usePlanNotes';
 import { usePlanEvents } from '@/hooks/usePlanEvents';
@@ -85,8 +96,38 @@ export function PlanBrowser({
     error,
     refetch,
   } = useTrainingPlans({ enabled });
+  const { data: planFolders } = useTrainingPlanFolders({ enabled });
+
+  // `undefined` means the coach has not navigated yet, so the library holding a
+  // pre-selected plan can stand in. Once they navigate, their choice wins -
+  // including navigating back out, which is an explicit `null`.
+  const [openFolderId, setOpenFolderId] = useState<string | null | undefined>(
+    undefined
+  );
+
+  const folderGroups = useMemo(
+    () => groupPlansByFolder(plans ?? [], planFolders),
+    [plans, planFolders]
+  );
+
+  const preselectedPlanFolderId = useMemo(() => {
+    if (preselectedPlanId === null) return null;
+    return (
+      folderGroups.find((group) =>
+        group.plans.some((plan) => plan.planId === preselectedPlanId)
+      )?.id ?? null
+    );
+  }, [folderGroups, preselectedPlanId]);
+
+  const openFolder = useMemo(() => {
+    const id =
+      openFolderId === undefined ? preselectedPlanFolderId : openFolderId;
+    return folderGroups.find((group) => group.id === id) ?? null;
+  }, [folderGroups, openFolderId, preselectedPlanFolderId]);
 
   // Apply the page's pre-selection once, as soon as the named plan is known.
+  // The library holding it opens by derivation above, so the coach lands on the
+  // plan rather than on a library list with a selection they cannot see.
   const preselectApplied = useRef(false);
   useEffect(() => {
     if (preselectApplied.current) return;
@@ -118,42 +159,92 @@ export function PlanBrowser({
     return <EmptyState label="No TrainingPeaks training plans found." />;
   }
 
-  return (
-    <ul className="space-y-2">
-      {plans.map((plan) => {
-        const isExpanded = expandedPlanId === plan.planId;
+  if (!openFolder) {
+    return (
+      <ul className="space-y-2">
+        {folderGroups.map((group) => {
+          const selectedInGroup = group.plans.filter((plan) =>
+            selection.plans.has(plan.planId)
+          ).length;
 
-        return (
-          <li
-            key={plan.planId}
-            className="rounded-lg border border-gray-200 bg-white"
-          >
-            <div className="flex items-center gap-2 p-3">
-              <input
-                type="checkbox"
-                checked={selection.plans.has(plan.planId)}
-                onChange={() => onTogglePlan(plan)}
-                aria-label={`Select training plan ${plan.title}`}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-800">
-                  {plan.title}
-                </p>
-              </div>
+          return (
+            <li key={group.id}>
               <button
                 type="button"
-                onClick={() => onExpand(isExpanded ? null : plan.planId)}
-                aria-expanded={isExpanded}
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                onClick={() => setOpenFolderId(group.id)}
+                className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-left hover:bg-gray-50"
               >
-                {isExpanded ? 'Hide contents' : 'View contents'}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-800">
+                    {group.name}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {group.plans.length} plan
+                    {group.plans.length === 1 ? '' : 's'}
+                    {selectedInGroup > 0
+                      ? ` · ${selectedInGroup} selected`
+                      : ''}
+                  </p>
+                </div>
+                <span aria-hidden="true" className="text-gray-400">
+                  ›
+                </span>
               </button>
-            </div>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
 
-            {isExpanded ? <PlanContents planId={plan.planId} /> : null}
-          </li>
-        );
-      })}
-    </ul>
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpenFolderId(null)}
+        className="rounded-md px-1 py-1 text-xs font-medium text-blue-700 hover:underline"
+      >
+        ← All plan libraries
+      </button>
+      <p className="px-1 text-sm font-medium text-gray-800">
+        {openFolder.name}
+      </p>
+      <ul className="space-y-2">
+        {openFolder.plans.map((plan) => {
+          const isExpanded = expandedPlanId === plan.planId;
+
+          return (
+            <li
+              key={plan.planId}
+              className="rounded-lg border border-gray-200 bg-white"
+            >
+              <div className="flex items-center gap-2 p-3">
+                <input
+                  type="checkbox"
+                  checked={selection.plans.has(plan.planId)}
+                  onChange={() => onTogglePlan(plan)}
+                  aria-label={`Select training plan ${plan.title}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-800">
+                    {plan.title}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onExpand(isExpanded ? null : plan.planId)}
+                  aria-expanded={isExpanded}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {isExpanded ? 'Hide contents' : 'View contents'}
+                </button>
+              </div>
+
+              {isExpanded ? <PlanContents planId={plan.planId} /> : null}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }

@@ -39,9 +39,19 @@ import { ImportResult } from './components/ImportResult';
 
 type OverlayTab = 'libraries' | 'plans' | 'groups';
 
+/**
+ * Tab labels name the kind of container explicitly.
+ *
+ * Two things in this product are called a library — a workout library holds
+ * workouts, a plan library holds plans — so a bare "Libraries" next to
+ * "Training Plans" reads as though plans have no libraries.
+ *
+ * These match the popup's tabs exactly (`TabNavigation`): the overlay and the
+ * popup show the same data, so they must not name it differently.
+ */
 const TABS: ReadonlyArray<{ id: OverlayTab; label: string }> = [
-  { id: 'libraries', label: 'Libraries' },
-  { id: 'plans', label: 'Training Plans' },
+  { id: 'libraries', label: 'Workout Libraries' },
+  { id: 'plans', label: 'Plans Library' },
   { id: 'groups', label: 'Athlete Groups' },
 ];
 

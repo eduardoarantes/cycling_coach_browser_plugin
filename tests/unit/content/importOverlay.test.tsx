@@ -69,7 +69,27 @@ vi.mock('@/hooks/useLibraries', () => ({
 
 vi.mock('@/hooks/useTrainingPlans', () => ({
   useTrainingPlans: () => ({
-    data: [],
+    data: [
+      { planId: 21, title: 'Custom Plan 1' },
+      { planId: 22, title: 'Off the Shelf Plan' },
+    ],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/useTrainingPlanFolders', () => ({
+  useTrainingPlanFolders: () => ({
+    data: [
+      { folderId: 'f1', folderName: 'Custom Plans', ownerId: 1, planIds: [21] },
+      {
+        folderId: 'f2',
+        folderName: 'Off the Shelf',
+        ownerId: 1,
+        planIds: [22],
+      },
+    ],
     isLoading: false,
     error: null,
     refetch: vi.fn(),
@@ -93,6 +113,32 @@ vi.mock('@/hooks/useAthleteGroups', () => ({
     rawResponse: null,
   }),
 }));
+
+function renderOverlayWith(
+  overrides: {
+    preselectedLibraryId?: number | null;
+    preselectedPlanId?: number | null;
+  },
+  onClose = vi.fn()
+): { onClose: () => void } {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  render(
+    <QueryClientProvider client={client}>
+      <ImportOverlay
+        focusNonce={0}
+        preselectedLibraryId={overrides.preselectedLibraryId ?? null}
+        preselectedPlanId={overrides.preselectedPlanId ?? null}
+        preselectGroups={false}
+        onClose={onClose}
+      />
+    </QueryClientProvider>
+  );
+
+  return { onClose };
+}
 
 function renderOverlay(onClose = vi.fn()): { onClose: () => void } {
   const client = new QueryClient({
@@ -234,12 +280,12 @@ describe('ImportOverlay', () => {
     renderOverlay();
 
     fireEvent.click(screen.getByLabelText('Select library Base Training'));
-    fireEvent.click(screen.getByRole('button', { name: /^Training Plans/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Plans Library/ }));
 
     // Import acts on every tab's selection, so the library picked on the
     // Libraries tab has to stay visible from the Training Plans tab.
     expect(
-      screen.getByRole('button', { name: 'Libraries, 1 selected' })
+      screen.getByRole('button', { name: 'Workout Libraries, 1 selected' })
     ).toBeInTheDocument();
   });
 
@@ -247,10 +293,76 @@ describe('ImportOverlay', () => {
     renderOverlay();
 
     expect(
-      screen.getByRole('button', { name: 'Libraries' })
+      screen.getByRole('button', { name: 'Workout Libraries' })
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Athlete Groups' })
     ).toBeInTheDocument();
+  });
+
+  it('should list plan libraries before plans', () => {
+    renderOverlay();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Plans Library/ }));
+
+    // The popup groups plans into their libraries, so the overlay must too.
+    expect(screen.getByText('Custom Plans')).toBeInTheDocument();
+    expect(screen.getByText('Off the Shelf')).toBeInTheDocument();
+    expect(screen.queryByText('Custom Plan 1')).not.toBeInTheDocument();
+  });
+
+  it('should open a plan library and let a plan be selected inside it', () => {
+    renderOverlay();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Plans Library/ }));
+    fireEvent.click(screen.getByText('Custom Plans'));
+
+    expect(screen.getByText('Custom Plan 1')).toBeInTheDocument();
+    expect(screen.queryByText('Off the Shelf Plan')).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByLabelText('Select training plan Custom Plan 1')
+    );
+    expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
+  });
+
+  it('should keep a plan selected after navigating back out of its library', () => {
+    renderOverlay();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Plans Library/ }));
+    fireEvent.click(screen.getByText('Custom Plans'));
+    fireEvent.click(
+      screen.getByLabelText('Select training plan Custom Plan 1')
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: '← All plan libraries' })
+    );
+
+    // Plans can be taken from more than one library in a single import, so
+    // leaving a library must not discard what was picked in it.
+    expect(screen.getByText('1 plan · 1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
+  });
+
+  it('should open the library holding a plan the page pre-selected', () => {
+    renderOverlayWith({ preselectedPlanId: 22 });
+
+    // Landing on a library list while a plan is already selected inside one of
+    // them would hide the selection the page asked for.
+    expect(screen.getByText('Off the Shelf Plan')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '← All plan libraries' })
+    ).toBeInTheDocument();
+  });
+
+  it('should respect navigating back out of a pre-selected plan library', () => {
+    renderOverlayWith({ preselectedPlanId: 22 });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: '← All plan libraries' })
+    );
+
+    expect(screen.getByText('Off the Shelf')).toBeInTheDocument();
+    expect(screen.queryByText('Off the Shelf Plan')).not.toBeInTheDocument();
   });
 });

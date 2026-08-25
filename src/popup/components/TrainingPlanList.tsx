@@ -7,6 +7,7 @@
 import { useState, useMemo, useEffect, useRef, type ReactElement } from 'react';
 import { useTrainingPlans } from '@/hooks/useTrainingPlans';
 import { useTrainingPlanFolders } from '@/hooks/useTrainingPlanFolders';
+import { groupPlansByFolder } from '@/utils/planFolderGrouping';
 import { TrainingPlanCard } from './TrainingPlanCard';
 import { SearchBar } from './SearchBar';
 import { EmptyState } from './EmptyState';
@@ -377,7 +378,6 @@ async function fetchTrainingPlanBatchExportBundle(
 }
 
 /** Bucket id for plans TrainingPeaks has not filed in any folder. */
-const UNGROUPED_FOLDER_ID = '__ungrouped__';
 
 export function TrainingPlanList({
   onSelectPlan,
@@ -421,34 +421,10 @@ export function TrainingPlanList({
    * up across folders. Plans in no folder get an "Ungrouped" bucket rather than
    * being hidden — a plan that belongs to nothing must still be reachable.
    */
-  const folderGroups = useMemo(() => {
-    const groups: Array<{ id: string; name: string; plans: TrainingPlan[] }> =
-      [];
-    const claimed = new Set<number>();
-
-    for (const folder of planFolders ?? []) {
-      const inFolder = filteredPlans.filter((plan) =>
-        folder.planIds.includes(plan.planId)
-      );
-      inFolder.forEach((plan) => claimed.add(plan.planId));
-      groups.push({
-        id: folder.folderId,
-        name: folder.folderName,
-        plans: inFolder,
-      });
-    }
-
-    const ungrouped = filteredPlans.filter((plan) => !claimed.has(plan.planId));
-    if (ungrouped.length > 0) {
-      groups.push({
-        id: UNGROUPED_FOLDER_ID,
-        name: 'Ungrouped',
-        plans: ungrouped,
-      });
-    }
-
-    return groups;
-  }, [planFolders, filteredPlans]);
+  const folderGroups = useMemo(
+    () => groupPlansByFolder(filteredPlans, planFolders),
+    [planFolders, filteredPlans]
+  );
 
   const openFolder = useMemo(
     () => folderGroups.find((group) => group.id === selectedFolderId) ?? null,
