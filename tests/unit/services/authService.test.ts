@@ -2,13 +2,17 @@
  * Authentication service tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as authService from '@/services/authService';
 import * as storageService from '@/services/storageService';
 
 describe('authService', () => {
   beforeEach(async () => {
     await storageService.clearToken();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('isAuthenticated', () => {
@@ -70,14 +74,26 @@ describe('authService', () => {
     });
 
     it('should return age in milliseconds', async () => {
+      // The clock is controlled rather than slept through: a real `setTimeout`
+      // is free to fire a fraction early, and `Date.now()` has millisecond
+      // granularity, so sleeping 10ms and asserting an age of at least 10
+      // fails intermittently for reasons that say nothing about this code.
+      const storedAt = 1_700_000_000_000;
+      vi.spyOn(Date, 'now').mockReturnValue(storedAt);
       await authService.setAuthToken('token-with-age');
 
-      // Small delay to ensure some time has passed
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      vi.spyOn(Date, 'now').mockReturnValue(storedAt + 250);
 
-      const age = await authService.getTokenAge();
-      expect(age).toBeGreaterThanOrEqual(10);
-      expect(age).toBeLessThan(1000); // Should be very recent
+      expect(await authService.getTokenAge()).toBe(250);
+    });
+
+    it('should report an age of zero for a token stored this instant', async () => {
+      const storedAt = 1_700_000_000_000;
+      vi.spyOn(Date, 'now').mockReturnValue(storedAt);
+      await authService.setAuthToken('token-with-age');
+
+      // Zero is a real answer, distinct from the null that means "no token".
+      expect(await authService.getTokenAge()).toBe(0);
     });
   });
 
