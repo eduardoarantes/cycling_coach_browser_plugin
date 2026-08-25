@@ -23,6 +23,8 @@ export interface OverlayOptions {
   preselectedLibraryId?: number | null;
   /** Pre-select this TrainingPeaks training plan when the overlay opens */
   preselectedPlanId?: number | null;
+  /** Open the overlay on its athlete-groups tab */
+  preselectGroups?: boolean;
   /** Called once an import finishes, so the bridge can notify the page */
   onImportCompleted?: (payload: SiteControlImportCompletedPayload) => void;
 }
@@ -72,6 +74,7 @@ function render(): void {
           focusNonce={focusNonce}
           preselectedLibraryId={options.preselectedLibraryId ?? null}
           preselectedPlanId={options.preselectedPlanId ?? null}
+          preselectGroups={options.preselectGroups ?? false}
           onImportCompleted={options.onImportCompleted}
           onClose={unmountOverlay}
         />

@@ -22,6 +22,7 @@ import type {
 } from '@/schemas/trainingPlan.schema';
 import type { RxBuilderWorkout } from '@/schemas/rxBuilder.schema';
 import type { LibraryItem } from '@/schemas/library.schema';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
 
 /**
  * Protocol version carried by every envelope in both directions.
@@ -47,6 +48,7 @@ export const SITE_CONTROL_REQUEST_TYPES = [
   'GET_LIBRARY_ITEMS',
   'GET_TRAINING_PLANS',
   'GET_PLAN_CONTENTS',
+  'GET_ATHLETE_GROUPS',
   'OPEN_IMPORTER',
 ] as const;
 
@@ -76,11 +78,22 @@ export interface SiteControlGetPlanContentsPayload {
   planId: number;
 }
 
+/**
+ * `GET_ATHLETE_GROUPS` takes no arguments on purpose.
+ *
+ * The coach whose groups are returned is resolved in the background from the
+ * captured TrainingPeaks session, never from a page-supplied id, so an
+ * allowlisted page cannot read another coach's groups by guessing one.
+ */
+export type SiteControlGetAthleteGroupsPayload = Record<string, never>;
+
 export interface SiteControlOpenImporterPayload {
   /** Pre-select this TrainingPeaks library when the overlay opens */
   libraryId?: number;
   /** Pre-select this TrainingPeaks training plan when the overlay opens */
   planId?: number;
+  /** Open the overlay on its athlete-groups tab */
+  groups?: boolean;
 }
 
 /** Maps each request type to its payload shape. */
@@ -90,6 +103,7 @@ export interface SiteControlPayloadMap {
   GET_LIBRARY_ITEMS: SiteControlGetLibraryItemsPayload;
   GET_TRAINING_PLANS: SiteControlGetTrainingPlansPayload;
   GET_PLAN_CONTENTS: SiteControlGetPlanContentsPayload;
+  GET_ATHLETE_GROUPS: SiteControlGetAthleteGroupsPayload;
   OPEN_IMPORTER: SiteControlOpenImporterPayload;
 }
 
@@ -165,8 +179,46 @@ export type SiteControlResponse<TData = unknown> =
 export interface SiteControlPingResult {
   protocolVersion: number;
   extensionVersion: string;
+  /**
+   * Request types this build actually serves.
+   *
+   * Additive within a protocol version, so the page feature-detects with
+   * `supports?.includes(...)` rather than comparing versions. Older builds omit
+   * the field entirely, which reads as "does not support it" — the correct
+   * answer for every type added after them.
+   */
+  supports: SiteControlRequestType[];
   trainingPeaks: { authenticated: boolean };
-  planMyPeak: { authenticated: boolean };
+  planMyPeak: {
+    /**
+     * Whether a PlanMyPeak credential is stored.
+     *
+     * Asymmetric on purpose: `false` is reliable (nothing can be written),
+     * `true` only means a token exists — it may be expired, revoked, or issued
+     * to a different coach. Never read it as a guarantee that a write will
+     * land, or that it will land in the expected account.
+     */
+    authenticated: boolean;
+    /**
+     * Opaque id of the PlanMyPeak coach the extension is acting as, or `null`
+     * when it could not be resolved.
+     *
+     * The extension's PlanMyPeak session and the page's are independent and can
+     * belong to different coaches — a real case on shared machines and under
+     * admin impersonation. The page compares this against its own signed-in
+     * coach and refuses the import when they differ, which is the only way to
+     * catch a wrong-account write: everything downstream is scoped to the
+     * token's coach, so the write would otherwise succeed silently into the
+     * wrong account.
+     *
+     * `null` means unknown, not "matches" — a page gating on this must
+     * fail closed.
+     *
+     * An account id is not a credential: it identifies whose data is in play
+     * and cannot be used to authenticate. No token or key is exposed here.
+     */
+    coachId: string | null;
+  };
 }
 
 /**
@@ -195,6 +247,7 @@ export interface SiteControlResultMap {
   GET_LIBRARY_ITEMS: LibraryItem[];
   GET_TRAINING_PLANS: TrainingPlan[];
   GET_PLAN_CONTENTS: SiteControlPlanContentsResult;
+  GET_ATHLETE_GROUPS: AthleteGroup[];
   OPEN_IMPORTER: SiteControlOpenImporterResult;
 }
 

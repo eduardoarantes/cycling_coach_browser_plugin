@@ -24,7 +24,17 @@ function describe(summary: Summary): string {
     );
   }
 
-  return parts.length > 0 ? parts.join(' and ') : 'Nothing selected yet';
+  if (summary.groupCount > 0) {
+    parts.push(
+      `${summary.groupCount} athlete group${summary.groupCount === 1 ? '' : 's'} (${summary.athleteCount} athlete${summary.athleteCount === 1 ? '' : 's'})`
+    );
+  }
+
+  if (parts.length === 0) return 'Nothing selected yet';
+  if (parts.length === 1) return parts[0];
+
+  // "a, b and c" rather than "a and b and c" once a third kind is selectable.
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 }
 
 export function SelectionSummary({

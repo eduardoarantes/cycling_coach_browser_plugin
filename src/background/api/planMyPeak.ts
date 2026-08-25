@@ -5,7 +5,7 @@
  */
 
 import { STORAGE_KEYS } from '@/utils/constants';
-import { getPlanMyPeakApiUrl } from '@/services/portConfigService';
+import { getPlanMyPeakApiUrl } from '@/services/planMyPeakConfigService';
 import {
   startExport,
   updateExportItem,
@@ -962,13 +962,14 @@ export async function createPlanMyPeakLibrary(
  * TrainingPeaks account (externalIds). Used to warn when the signed-in
  * TrainingPeaks user differs from the PlanMyPeak coach's linked account.
  */
-export async function fetchPlanMyPeakCoach(): Promise<
-  ApiResponse<PlanMyPeakCoach>
-> {
+export async function fetchPlanMyPeakCoach(
+  init?: RequestInit
+): Promise<ApiResponse<PlanMyPeakCoach>> {
   return apiRequest(
     COACH_ME_ENDPOINT,
     PlanMyPeakCoachSchema,
-    'Fetching PlanMyPeak coach profile'
+    'Fetching PlanMyPeak coach profile',
+    init
   );
 }
 

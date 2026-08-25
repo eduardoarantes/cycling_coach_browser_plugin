@@ -2,11 +2,31 @@ import { describe, expect, it } from 'vitest';
 import {
   PLANMYPEAK_CONTROL_ORIGINS,
   PLANMYPEAK_PRODUCTION_ORIGIN,
+  PLANMYPEAK_STAGING_ORIGIN,
   isPlanMyPeakControlOrigin,
   originFromUrl,
 } from '@/utils/constants';
 
 describe('isPlanMyPeakControlOrigin', () => {
+  it('should accept the staging origin', () => {
+    expect(isPlanMyPeakControlOrigin(PLANMYPEAK_STAGING_ORIGIN)).toBe(true);
+    expect(
+      isPlanMyPeakControlOrigin('https://staging.app.planmypeak.com')
+    ).toBe(true);
+  });
+
+  it('should reject staging lookalikes', () => {
+    expect(
+      isPlanMyPeakControlOrigin('https://staging.app.planmypeak.com.evil.test')
+    ).toBe(false);
+    expect(isPlanMyPeakControlOrigin('http://staging.app.planmypeak.com')).toBe(
+      false
+    );
+    expect(isPlanMyPeakControlOrigin('https://staging.planmypeak.com')).toBe(
+      false
+    );
+  });
+
   it('should accept the production portal origin', () => {
     expect(isPlanMyPeakControlOrigin(PLANMYPEAK_PRODUCTION_ORIGIN)).toBe(true);
     expect(isPlanMyPeakControlOrigin('https://portal.planmypeak.com')).toBe(

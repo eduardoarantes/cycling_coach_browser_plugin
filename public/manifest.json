@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PlanMyPeak Importer",
-  "version": "1.12.45",
+  "version": "1.12.50",
   "description": "Access your workout libraries and training plans directly from your browser",
   "permissions": ["storage", "tabs", "notifications"],
   "host_permissions": [
@@ -12,6 +12,7 @@
     "https://app.trainingpeaks.com/*",
     "https://app.sandbox.trainingpeaks.com/*",
     "https://portal.planmypeak.com/*",
+    "https://staging.app.planmypeak.com/*",
     "https://intervals.icu/*",
     "https://nwvtltfibnkdogdeeluh.supabase.co/*"
   ],
@@ -32,7 +33,8 @@
       "matches": [
         "https://app.trainingpeaks.com/*",
         "https://app.sandbox.trainingpeaks.com/*",
-        "https://portal.planmypeak.com/*"
+        "https://portal.planmypeak.com/*",
+        "https://staging.app.planmypeak.com/*"
       ],
       "js": ["src/content/mainWorldInterceptor.ts"],
       "run_at": "document_start",
@@ -42,14 +44,18 @@
       "matches": [
         "https://app.trainingpeaks.com/*",
         "https://app.sandbox.trainingpeaks.com/*",
-        "https://portal.planmypeak.com/*"
+        "https://portal.planmypeak.com/*",
+        "https://staging.app.planmypeak.com/*"
       ],
       "js": ["src/content/isolatedWorldBridge.ts"],
       "run_at": "document_start",
       "world": "ISOLATED"
     },
     {
-      "matches": ["https://portal.planmypeak.com/*"],
+      "matches": [
+        "https://portal.planmypeak.com/*",
+        "https://staging.app.planmypeak.com/*"
+      ],
       "js": ["src/content/siteControlBridge.ts"],
       "run_at": "document_idle",
       "world": "ISOLATED"

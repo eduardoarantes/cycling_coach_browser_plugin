@@ -1,8 +1,9 @@
 /**
  * Port configuration service for local PlanMyPeak development
  *
- * Manages configurable ports for local development builds.
- * In production builds, this service returns fixed production URLs.
+ * Manages configurable ports for local development builds. Only the `local`
+ * PlanMyPeak environment uses these; environment selection and app URL
+ * resolution live in planMyPeakConfigService.
  */
 
 import {
@@ -11,9 +12,7 @@ import {
   DEFAULT_PLANMYPEAK_SUPABASE_PORT,
   IS_LOCAL_PLANMYPEAK_TARGET,
   isValidPort,
-  PLANMYPEAK_APP_URL,
   PLANMYPEAK_AUTH_BASE_URL,
-  PLANMYPEAK_HOST_LABEL,
 } from '@/utils/constants';
 
 export interface PortConfig {
@@ -135,28 +134,6 @@ export async function resetPortConfig(): Promise<void> {
 }
 
 /**
- * Get the PlanMyPeak app base URL using configured port
- * In production, returns the production URL
- */
-export async function getPlanMyPeakAppUrl(): Promise<string> {
-  if (!IS_LOCAL_PLANMYPEAK_TARGET) {
-    return PLANMYPEAK_APP_URL;
-  }
-
-  const port = await getAppPort();
-  return `https://localhost:${port}`;
-}
-
-/**
- * Get the PlanMyPeak API base URL using configured port
- * In production, returns the production URL
- */
-export async function getPlanMyPeakApiUrl(): Promise<string> {
-  const appUrl = await getPlanMyPeakAppUrl();
-  return `${appUrl}/api`;
-}
-
-/**
  * Get the Supabase base URL using configured port
  * In production, returns the cloud Supabase URL
  */
@@ -167,16 +144,4 @@ export async function getSupabaseUrl(): Promise<string> {
 
   const port = await getSupabasePort();
   return `http://localhost:${port}`;
-}
-
-/**
- * Get the host label for UI display
- */
-export async function getHostLabel(): Promise<string> {
-  if (!IS_LOCAL_PLANMYPEAK_TARGET) {
-    return PLANMYPEAK_HOST_LABEL;
-  }
-
-  const port = await getAppPort();
-  return `localhost:${port}`;
 }

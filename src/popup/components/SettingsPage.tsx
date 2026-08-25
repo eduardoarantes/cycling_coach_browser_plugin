@@ -7,7 +7,12 @@ import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
 import { usePortConfig } from '@/hooks/usePortConfig';
 import { useTrainingPeaksEnvironment } from '@/hooks/useTrainingPeaksEnvironment';
-import type { TrainingPeaksEnvironment } from '@/utils/constants';
+import { usePlanMyPeakEnvironment } from '@/hooks/usePlanMyPeakEnvironment';
+import { clearAuth as clearMyPeakAuth } from '@/services/myPeakAuthService';
+import type {
+  PlanMyPeakEnvironment,
+  TrainingPeaksEnvironment,
+} from '@/utils/constants';
 import { openMyPeakTab } from '@/utils/myPeakTab';
 import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
 import {
@@ -19,6 +24,7 @@ import {
 import {
   DEFAULT_PLANMYPEAK_APP_PORT,
   DEFAULT_PLANMYPEAK_SUPABASE_PORT,
+  PLANMYPEAK_ENVIRONMENTS,
   parsePort,
 } from '@/utils/constants';
 import { IntervalsApiKeyBanner } from './IntervalsApiKeyBanner';
@@ -151,6 +157,28 @@ function SettingsPageContent({
     isLoading: isTpEnvironmentLoading,
   } = useTrainingPeaksEnvironment();
 
+  const {
+    environment: planMyPeakEnvironment,
+    availableEnvironments: planMyPeakEnvironments,
+    hostLabel: planMyPeakHostLabel,
+    isLocalEnvironment: isPlanMyPeakLocalEnvironment,
+    isLoading: isPlanMyPeakEnvironmentLoading,
+    setEnvironment: setPlanMyPeakEnvironment,
+  } = usePlanMyPeakEnvironment();
+
+  const handlePlanMyPeakEnvironmentChange = async (
+    next: PlanMyPeakEnvironment
+  ): Promise<void> => {
+    if (next === planMyPeakEnvironment) return;
+    await setPlanMyPeakEnvironment(next);
+    // The captured token belongs to the deployment it was captured on, and the
+    // cached data to the previous environment's API — drop both so the popup
+    // asks for a fresh sign-in on the newly selected one.
+    await clearMyPeakAuth();
+    await queryClient.invalidateQueries();
+    await refreshMyPeakAuth();
+  };
+
   const handleTrainingPeaksEnvironmentChange = async (
     next: TrainingPeaksEnvironment
   ): Promise<void> => {
@@ -203,11 +231,6 @@ function SettingsPageContent({
       setIsSaving(false);
     }
   };
-
-  // Build dynamic host label based on saved port
-  const planMyPeakHostLabel = isPortConfigurable
-    ? `localhost:${appPort}`
-    : 'planmypeak.com';
 
   const handleTrainingPeaksRefresh = async (): Promise<void> => {
     await openTrainingPeaksTab();
@@ -350,7 +373,41 @@ function SettingsPageContent({
             error={myPeakError}
             onRefresh={handleMyPeakRefresh}
           />
-          {isPortConfigurable && (
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+            <p className="mb-1 text-xs font-medium text-gray-700">
+              Environment
+            </p>
+            <div className="flex gap-2">
+              {planMyPeakEnvironments.map((env) => (
+                <label
+                  key={env}
+                  className={`flex flex-1 cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
+                    planMyPeakEnvironment === env
+                      ? 'border-blue-400 bg-blue-50 font-medium text-blue-900'
+                      : 'border-gray-200 bg-white text-gray-700'
+                  } ${isPlanMyPeakEnvironmentLoading ? 'opacity-60' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="planmypeak-environment"
+                    value={env}
+                    checked={planMyPeakEnvironment === env}
+                    disabled={isPlanMyPeakEnvironmentLoading}
+                    onChange={() => {
+                      void handlePlanMyPeakEnvironmentChange(env);
+                    }}
+                    className="h-3 w-3"
+                  />
+                  {PLANMYPEAK_ENVIRONMENTS[env].label}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[10px] text-gray-600">
+              Using {planMyPeakHostLabel}. Switching clears the captured
+              PlanMyPeak sign-in — open the new environment and sign in there.
+            </p>
+          </div>
+          {isPortConfigurable && isPlanMyPeakLocalEnvironment && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
               <div className="mb-1.5 text-xs font-medium text-amber-800">
                 Local Dev Ports

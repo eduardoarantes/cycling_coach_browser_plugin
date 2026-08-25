@@ -665,13 +665,30 @@ Full wire protocol and page-side snippet: `PLANMYPEAK_INTEGRATION.md` →
 - `src/content/siteControlBridge.ts` — origin gate, page ↔ background relay
 - `src/content/overlay/` — the overlay (shadow DOM, own QueryClient)
 - `src/utils/constants.ts` — `PLANMYPEAK_CONTROL_ORIGINS`, `isPlanMyPeakControlOrigin`
+- `src/services/planMyPeakConfigService.ts` — PlanMyPeak environment
+  (production / staging / local) and the app URLs derived from it
 
 **Invariants — do not weaken these when extending the channel**:
 
 - The page names _site-control_ request types only (`PING`, `GET_LIBRARIES`,
   `GET_LIBRARY_ITEMS`, `GET_TRAINING_PLANS`, `GET_PLAN_CONTENTS`,
-  `OPEN_IMPORTER`). It can never name a `RuntimeMessage` type, so adding a
-  background handler does not expose it to the page.
+  `GET_ATHLETE_GROUPS`, `OPEN_IMPORTER`). It can never name a `RuntimeMessage`
+  type, so adding a background handler does not expose it to the page.
+  `PING` advertises this list as `supports`, so the page feature-detects
+  instead of comparing extension versions.
+- Requests resolve the acting account from stored credentials, never from a
+  page-supplied id: `GET_ATHLETE_GROUPS` takes no `coachId`, so an allowlisted
+  page cannot read another coach's data by guessing one.
+- `PING` reports `planMyPeak.coachId` so the page can refuse an import when the
+  extension is acting as a different coach than the page session. Ingest is
+  scoped to the token's coach, so a wrong-account import succeeds silently —
+  this comparison is the only thing that catches it. `null` means unknown and
+  must fail closed. An account id is not a credential; the coach's email and
+  name still may not cross into the page.
+- Imports are blocked on a confirmed TrainingPeaks/PlanMyPeak account mismatch
+  in **both** surfaces — the popup (`AccountMismatchBanner`) and the overlay
+  (`AccountMismatchGate`). A gate that exists on only one surface is not a gate:
+  the page-driven path runs the same upload code.
 - Origin is checked in the content script _and_ re-checked in the background
   against `sender.origin`. Adding a request type does not change this.
 - A non-allowlisted origin gets **no response at all**, so a site cannot use

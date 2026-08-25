@@ -10,6 +10,7 @@ import { ImportOverlay } from '@/content/overlay/ImportOverlay';
 
 const authState = { isAuthenticated: true, isLoading: false };
 const planMyPeakAuthState = { isAuthenticated: true };
+const accountMatchState: { status: string } = { status: 'matched' };
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
@@ -34,6 +35,17 @@ vi.mock('@/hooks/useMyPeakAuth', () => ({
     validateAuth: vi.fn(),
     clearAuth: vi.fn(),
     setError: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/usePlanMyPeakAccountMatch', () => ({
+  usePlanMyPeakAccountMatch: () => ({
+    status: accountMatchState.status,
+    hasMismatch: accountMatchState.status !== 'matched',
+    tpUserId: '111',
+    linkedTpId: '222',
+    tpUserName: 'Coach A',
+    coachName: 'Coach B',
   }),
 }));
 
@@ -64,6 +76,24 @@ vi.mock('@/hooks/useTrainingPlans', () => ({
   }),
 }));
 
+vi.mock('@/hooks/useAthleteGroups', () => ({
+  useAthleteGroups: () => ({
+    data: [
+      {
+        id: 5,
+        coachId: 9,
+        name: 'Squad A',
+        athleteIds: [1, 2],
+        isDefault: false,
+      },
+    ],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+    rawResponse: null,
+  }),
+}));
+
 function renderOverlay(onClose = vi.fn()): { onClose: () => void } {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -79,6 +109,7 @@ function renderOverlay(onClose = vi.fn()): { onClose: () => void } {
         focusNonce={0}
         preselectedLibraryId={null}
         preselectedPlanId={null}
+        preselectGroups={false}
         onClose={onClose}
       />
     )
@@ -91,6 +122,7 @@ describe('ImportOverlay', () => {
   beforeEach(() => {
     authState.isAuthenticated = true;
     planMyPeakAuthState.isAuthenticated = true;
+    accountMatchState.status = 'matched';
     vi.spyOn(chrome.runtime, 'sendMessage').mockResolvedValue({
       success: true,
       data: [],
@@ -155,5 +187,46 @@ describe('ImportOverlay', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('should block the import when the accounts do not match', () => {
+    accountMatchState.status = 'mismatch';
+    renderOverlay();
+
+    fireEvent.click(screen.getByLabelText('Select library Base Training'));
+
+    // The upload would succeed against the wrong account rather than fail, so
+    // nothing downstream would catch this — the overlay has to stop it.
+    expect(screen.getByText('Account mismatch')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled();
+  });
+
+  it('should not block a coach whose PlanMyPeak profile has no linked TrainingPeaks account', () => {
+    accountMatchState.status = 'not-linked';
+    renderOverlay();
+
+    fireEvent.click(screen.getByLabelText('Select library Base Training'));
+
+    // A setup state, not evidence of the wrong account. Matches the popup.
+    expect(screen.queryByText('Account mismatch')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
+  });
+
+  it('should not warn about accounts when they match', () => {
+    renderOverlay();
+
+    expect(screen.queryByText('Account mismatch')).not.toBeInTheDocument();
+  });
+
+  it('should let the coach select athlete groups', () => {
+    renderOverlay();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Athlete Groups' }));
+    fireEvent.click(screen.getByLabelText('Select athlete group Squad A'));
+
+    expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
+    expect(
+      screen.getByText('1 athlete group (2 athletes)')
+    ).toBeInTheDocument();
   });
 });

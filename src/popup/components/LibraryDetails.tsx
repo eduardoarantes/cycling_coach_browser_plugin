@@ -106,7 +106,9 @@ function WorkoutDetailsModal({
                 TSS
               </p>
               <p className="mt-1 font-semibold text-gray-900">
-                {workout.tssPlanned ?? 'N/A'}
+                {workout.tssPlanned !== null
+                  ? Math.round(workout.tssPlanned)
+                  : 'N/A'}
               </p>
             </div>
             <div className="rounded-lg bg-gray-50 p-3">

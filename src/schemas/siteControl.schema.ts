@@ -72,11 +72,17 @@ export const SiteControlRequestSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...BaseRequestFields,
+    type: z.literal('GET_ATHLETE_GROUPS'),
+    payload: EmptyPayloadSchema,
+  }),
+  z.object({
+    ...BaseRequestFields,
     type: z.literal('OPEN_IMPORTER'),
     payload: z
       .object({
         libraryId: IdSchema.optional(),
         planId: IdSchema.optional(),
+        groups: z.boolean().optional(),
       })
       .default({}),
   }),

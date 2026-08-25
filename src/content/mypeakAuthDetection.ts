@@ -23,8 +23,15 @@ export const MYPEAK_SUPABASE_HOSTS = [
  * header on API requests (e.g. `portal.planmypeak.com/api/backend/*`).
  * Capturing here ensures the user token is detected even though app data calls
  * do not go through Supabase directly.
+ *
+ * Both first-party deployments are listed so a token is captured whichever
+ * environment the user signs in to; the popup's environment selection decides
+ * which one the extension then talks to.
  */
-export const MYPEAK_APP_HOSTS = ['portal.planmypeak.com'];
+export const MYPEAK_APP_HOSTS = [
+  'portal.planmypeak.com',
+  'staging.app.planmypeak.com',
+];
 
 /**
  * Check if a URL is a PlanMyPeak auth-bearing request.

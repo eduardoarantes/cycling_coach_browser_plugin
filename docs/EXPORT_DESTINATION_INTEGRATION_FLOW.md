@@ -396,10 +396,54 @@ If the answer to (1) is no, do not add the control to the export dialog.
 
 ## PlanMyPeak Notes (Current State)
 
-- Local dev app URL: `http://localhost:3006`
-- Local Supabase auth URL: `http://127.0.0.1:54361`
-- PlanMyPeak API base (local): `http://localhost:3006/api/v1`
+### Environment selection
+
+PlanMyPeak has three environments, selectable at runtime from the Settings
+panel (`PlanMyPeak (Optional)` → `Environment`) and stored in
+`chrome.storage.local` under `planmypeak_environment`:
+
+| Environment  | App URL                               | Availability        |
+| ------------ | ------------------------------------- | ------------------- |
+| `production` | `https://portal.planmypeak.com`       | every build         |
+| `staging`    | `https://staging.app.planmypeak.com`  | every build         |
+| `local`      | `https://localhost:<configured port>` | local-target builds |
+
+- Resolution lives in `src/services/planMyPeakConfigService.ts`
+  (`getPlanMyPeakAppUrl` / `getPlanMyPeakApiUrl` / `getPlanMyPeakHostLabel`);
+  never hardcode a PlanMyPeak host in a caller.
+- `local` is excluded from production bundles because their manifest carries no
+  loopback host permissions; a stale `local` value in storage falls back to the
+  build default.
+- Both first-party origins are in `host_permissions` and every content-script
+  match list, so switching environments needs no rebuild.
+- Switching clears the captured PlanMyPeak token and invalidates cached data:
+  a token issued by one deployment is not valid on another.
+- Auth validation hits the selected environment's own
+  `/api/backend/coaches/me`, so staging needs no Supabase project URL or anon
+  key of its own.
+- The Local Dev Ports panel is only shown while the `local` environment is
+  selected in a local-target build.
+- A banner (`PlanMyPeakEnvironmentIndicator`) is shown in the popup whenever a
+  non-production environment is active.
+
+### Hosts
+
+The local PlanMyPeak app is served over **https** on a per-developer port (the
+stack is mkcert-backed and each developer instance shifts the port), so the
+port is configurable at runtime from the Local Dev Ports panel rather than
+fixed. Supabase runs over http.
+
+- Local dev app URL: `https://localhost:<configured port>` (default
+  `DEFAULT_PLANMYPEAK_APP_PORT` = `3002`)
+- Local Supabase auth URL: `http://127.0.0.1:<configured port>` (default
+  `DEFAULT_PLANMYPEAK_SUPABASE_PORT` = `54341`)
+- PlanMyPeak API base (local): `https://localhost:<configured port>/api/v1`
 - API contract source: current PlanMyPeak backend contract
+
+Local-target builds request `localhost` and `127.0.0.1` without a port in the
+manifest, and `isPlanMyPeakControlOrigin` compares the hostname exactly while
+leaving the port open, so **any** loopback port works for the site-control
+channel without a rebuild — no need to widen an allowlist per developer.
 
 Current implemented endpoints:
 
@@ -445,15 +489,23 @@ The wire protocol, request list, and page-side helper snippet are documented in
 1. **The page names destination-specific request types, never `RuntimeMessage`
    types.** The indirection is what keeps the page-reachable surface an explicit
    list that does not grow when handlers are added to the background router.
-2. **Check the origin twice** — in the content script and again in the
+   Advertise the served list from the handshake (`PING` → `supports`) so the
+   page feature-detects instead of version-comparing, and so a type added to the
+   protocol cannot be left silently undiscoverable.
+2. **Resolve the acting account in the background, never from the page.** A
+   request that names whose data to read (a coach id, an athlete id) lets an
+   allowlisted page reach another account's data by guessing one. Derive it
+   from the stored session instead — `GET_ATHLETE_GROUPS` takes no arguments
+   for exactly this reason.
+3. **Check the origin twice** — in the content script and again in the
    background against `sender.origin`, which the page cannot forge.
-3. **Answer non-allowlisted origins with silence**, not an error, so an
+4. **Answer non-allowlisted origins with silence**, not an error, so an
    arbitrary site cannot use the channel to detect the extension.
-4. **No credential ever crosses into the page** — not in data, not in errors,
+5. **No credential ever crosses into the page** — not in data, not in errors,
    not in notifications.
-5. **Keep the always-injected bridge dependency-light** and load the overlay
+6. **Keep the always-injected bridge dependency-light** and load the overlay
    with a dynamic `import()`, so pages that never open it pay nothing.
-6. **Reuse the shared import path.** The overlay runs the same adapter,
+7. **Reuse the shared import path.** The overlay runs the same adapter,
    duplicate preflight (`Replace` / `Append` / `Ignore Upload`), and progress
    reporting as the export dialog. Extract shared logic into UI-free helpers
    (see `src/export/adapters/planMyPeak/duplicatePreflight.ts`) rather than

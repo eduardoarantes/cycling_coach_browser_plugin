@@ -8,6 +8,7 @@
 
 import type { LibraryItem } from '@/schemas/library.schema';
 import type { TrainingPlan } from '@/schemas/trainingPlan.schema';
+import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
 import { canImportTpItemToPlanMyPeak } from '@/export/adapters/planMyPeak/workoutMapping';
 
 export type LibraryWorkoutSelection = 'all' | ReadonlySet<number>;
@@ -25,18 +26,31 @@ export interface SelectedPlan {
   plan: TrainingPlan;
 }
 
+export interface SelectedGroup {
+  groupId: number;
+  groupName: string;
+  /** The full group, as the ingest endpoint takes the TrainingPeaks shape */
+  group: AthleteGroup;
+}
+
 export interface OverlaySelection {
   libraries: ReadonlyMap<number, SelectedLibrary>;
   plans: ReadonlyMap<number, SelectedPlan>;
+  groups: ReadonlyMap<number, SelectedGroup>;
 }
 
 export const EMPTY_SELECTION: OverlaySelection = {
   libraries: new Map(),
   plans: new Map(),
+  groups: new Map(),
 };
 
 export function isSelectionEmpty(selection: OverlaySelection): boolean {
-  return selection.libraries.size === 0 && selection.plans.size === 0;
+  return (
+    selection.libraries.size === 0 &&
+    selection.plans.size === 0 &&
+    selection.groups.size === 0
+  );
 }
 
 export function isLibrarySelected(
@@ -146,6 +160,50 @@ export function togglePlan(
   return { ...selection, plans };
 }
 
+export function isGroupSelected(
+  selection: OverlaySelection,
+  groupId: number
+): boolean {
+  return selection.groups.has(groupId);
+}
+
+export function toggleGroup(
+  selection: OverlaySelection,
+  group: AthleteGroup
+): OverlaySelection {
+  const groups = new Map(selection.groups);
+
+  if (groups.has(group.id)) {
+    groups.delete(group.id);
+  } else {
+    groups.set(group.id, {
+      groupId: group.id,
+      groupName: group.name,
+      group,
+    });
+  }
+
+  return { ...selection, groups };
+}
+
+/**
+ * Athletes covered by the selected groups, counted once each.
+ *
+ * An athlete can belong to several groups, so the raw sum would overstate what
+ * the import touches.
+ */
+export function selectedAthleteCount(selection: OverlaySelection): number {
+  const athleteIds = new Set<number>();
+
+  for (const entry of selection.groups.values()) {
+    for (const athleteId of entry.group.athleteIds) {
+      athleteIds.add(athleteId);
+    }
+  }
+
+  return athleteIds.size;
+}
+
 /**
  * Narrow a library's loaded items to the ones the coach selected.
  */
@@ -178,6 +236,9 @@ export function unsupportedWorkouts(
 export interface SelectionSummary {
   libraryCount: number;
   planCount: number;
+  groupCount: number;
+  /** Distinct athletes across the selected groups */
+  athleteCount: number;
   /** Workouts the import will cover, across libraries whose items are loaded */
   workoutCount: number;
   /**
@@ -224,6 +285,8 @@ export function summarizeSelection(
   return {
     libraryCount: selection.libraries.size,
     planCount: selection.plans.size,
+    groupCount: selection.groups.size,
+    athleteCount: selectedAthleteCount(selection),
     workoutCount,
     hasUnknownWorkoutCounts,
     unsupported,

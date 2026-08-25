@@ -239,10 +239,13 @@ same way. The web app needs no knowledge of the extension ID.
 
 ### Rules the channel enforces
 
-- **Origin.** Only origins in `PLANMYPEAK_CONTROL_ORIGINS` are served —
-  `https://portal.planmypeak.com` in production, plus the local dev origins in
-  local-target builds. Checked in the content script _and_ re-checked in the
-  background against `sender.origin`, which the page cannot forge.
+- **Origin.** Only origins in `PLANMYPEAK_CONTROL_ORIGINS` are served — the
+  two first-party deployments, `https://portal.planmypeak.com` and
+  `https://staging.app.planmypeak.com`, plus the local dev origins in
+  local-target builds. Both first-party origins are served by every build
+  regardless of the environment selected in Settings. Checked in the content
+  script _and_ re-checked in the background against `sender.origin`, which the
+  page cannot forge.
 - **Silence for everyone else.** A non-allowlisted origin gets _no response at
   all_, not an error. Treat "no response within your timeout" as "extension not
   available" — this is the supported way to feature-detect.
@@ -282,19 +285,83 @@ rather than retrying.
 
 ### Request types
 
-| Type                 | Payload                                   | `data` on success                                                                                        |
-| -------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `PING`               | —                                         | `{ protocolVersion, extensionVersion, trainingPeaks: { authenticated }, planMyPeak: { authenticated } }` |
-| `GET_LIBRARIES`      | —                                         | `Library[]`                                                                                              |
-| `GET_LIBRARY_ITEMS`  | `{ libraryId: number }`                   | `LibraryItem[]`                                                                                          |
-| `GET_TRAINING_PLANS` | —                                         | `TrainingPlan[]`                                                                                         |
-| `GET_PLAN_CONTENTS`  | `{ planId: number }`                      | `{ planId, workouts, notes, events, rxWorkouts }`                                                        |
-| `OPEN_IMPORTER`      | `{ libraryId?: number, planId?: number }` | `{ opened: boolean, focused: boolean }`                                                                  |
+| Type                 | Payload                                                     | `data` on success                                                                                                           |
+| -------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `PING`               | —                                                           | `{ protocolVersion, extensionVersion, supports, trainingPeaks: { authenticated }, planMyPeak: { authenticated, coachId } }` |
+| `GET_LIBRARIES`      | —                                                           | `Library[]`                                                                                                                 |
+| `GET_LIBRARY_ITEMS`  | `{ libraryId: number }`                                     | `LibraryItem[]`                                                                                                             |
+| `GET_TRAINING_PLANS` | —                                                           | `TrainingPlan[]`                                                                                                            |
+| `GET_PLAN_CONTENTS`  | `{ planId: number }`                                        | `{ planId, workouts, notes, events, rxWorkouts }`                                                                           |
+| `GET_ATHLETE_GROUPS` | —                                                           | `AthleteGroup[]`                                                                                                            |
+| `OPEN_IMPORTER`      | `{ libraryId?: number, planId?: number, groups?: boolean }` | `{ opened: boolean, focused: boolean }`                                                                                     |
 
 `GET_PLAN_CONTENTS` fetches all four legs of a plan in one round trip and fails
 as a whole if any leg fails, so a partially-loaded plan never renders as a
 complete one. `OPEN_IMPORTER` focuses an already-open overlay rather than
-mounting a second one (`focused: true`).
+mounting a second one (`focused: true`); `opened` is `true` in both cases, so
+read success from `ok` and treat `focused` as informational.
+`OPEN_IMPORTER` with `groups: true` opens the overlay on its athlete-groups tab.
+
+`GET_ATHLETE_GROUPS` takes no arguments on purpose: the coach whose groups are
+returned is resolved in the background from the captured TrainingPeaks session,
+never from a page-supplied id, so an allowlisted page cannot read another
+coach's groups by guessing one.
+
+### Reading the auth answers
+
+`trainingPeaks.authenticated` and `planMyPeak.authenticated` are **asymmetric**,
+and the page must treat them that way:
+
+- `false` is reliable — no usable credential is stored, so nothing can be
+  written. Do not offer the import.
+- `true` is weak — it means a token exists, not that it is valid. It is
+  consistent with an expired token, a revoked token, or a token belonging to a
+  different coach. Never read it as a guarantee that a write will land, or that
+  it will land in the expected account. Judge the outcome from
+  `IMPORT_COMPLETED`'s counts, never from the probe.
+
+`planMyPeak.coachId` is the opaque id of the PlanMyPeak coach the extension is
+acting as, or `null` when it could not be resolved.
+
+**Why it exists.** The extension's PlanMyPeak session and the page's are
+independent and can belong to different coaches — a real case on shared or
+agency machines and under admin impersonation. Every ingest endpoint is scoped
+to the token's coach, so an import in that state does not fail: it succeeds
+into the wrong account, and the coach who clicked sees nothing change on their
+own page. Comparing this id against the page's signed-in coach is the only way
+to catch it.
+
+**Gate fail-closed.** `null` means unknown, never "matches":
+
+```js
+const coachId = ping?.data?.planMyPeak?.coachId ?? null;
+const sameCoach = coachId !== null && coachId === currentCoachId;
+if (!sameCoach) {
+  // Refuse, and say the importer is signed in to a different PlanMyPeak
+  // account — do not start an import that would land somewhere else.
+}
+```
+
+No credential is exposed here. An account id identifies whose data is in play
+and cannot be used to authenticate; the coach's email and name are not sent.
+
+The lookup is bounded and cached per token, so `PING` stays fast enough for
+detection: if the profile call is slow or unreachable, `coachId` comes back
+`null` rather than delaying the reply.
+
+### Feature detection
+
+`PING`'s `supports` lists the request types this build actually serves. It is
+additive within a protocol version, so the page should feature-detect rather
+than compare versions:
+
+```js
+const canImportGroups =
+  ping?.data?.supports?.includes('GET_ATHLETE_GROUPS') ?? false;
+```
+
+Builds older than this field omit it entirely, which the `?? false` reads as
+"not supported" — the correct answer for every type added after them.
 
 ### Import completion notification
 
@@ -312,68 +379,6 @@ posts an unsolicited event carrying counts only:
 ```
 
 Use it to refresh the portal's own view of the coach's libraries.
-
-### Page-side helper
-
-```js
-const SITE_CONTROL_VERSION = 1;
-
-function callExtension(type, payload = {}, timeoutMs = 2000) {
-  return new Promise((resolve) => {
-    const requestId = crypto.randomUUID();
-
-    const timer = setTimeout(() => {
-      window.removeEventListener('message', onMessage);
-      // No response means the extension is not installed, or this origin is
-      // not allowlisted. Both are "not available".
-      resolve(null);
-    }, timeoutMs);
-
-    function onMessage(event) {
-      if (event.source !== window) return;
-      const data = event.data;
-      if (!data || data.source !== 'planmypeak-extension') return;
-      if (data.requestId !== requestId) return;
-      clearTimeout(timer);
-      window.removeEventListener('message', onMessage);
-      resolve(data);
-    }
-
-    window.addEventListener('message', onMessage);
-    window.postMessage(
-      {
-        source: 'planmypeak-site-control',
-        version: SITE_CONTROL_VERSION,
-        requestId,
-        type,
-        payload,
-      },
-      window.location.origin
-    );
-  });
-}
-
-// Feature-detect before showing an "Import from TrainingPeaks" affordance.
-const ping = await callExtension('PING');
-const available = ping?.ok === true;
-const canImport = available && ping.data.trainingPeaks.authenticated;
-
-// Open the importer, optionally pre-selecting a library.
-if (available) {
-  await callExtension('OPEN_IMPORTER', { libraryId: 1234 }, 8000);
-}
-
-// Listen for the result.
-window.addEventListener('message', (event) => {
-  const data = event.data;
-  if (
-    data?.source === 'planmypeak-extension' &&
-    data.type === 'IMPORT_COMPLETED'
-  ) {
-    refreshLibraries(data.payload);
-  }
-});
-```
 
 ### The import overlay
 
