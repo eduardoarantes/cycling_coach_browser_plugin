@@ -542,6 +542,61 @@ describe('messageHandler site-control routing', () => {
     });
   });
 
+  describe('GET_TRAINING_PLAN_LIBRARIES', () => {
+    it('should return libraries in TrainingPeaks shape, membership included', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchTrainingPlanFolders').mockResolvedValue({
+        success: true,
+        data: [
+          {
+            folderId: 'f1',
+            folderName: 'Custom Plans',
+            ownerId: 9,
+            planIds: [21, 22],
+          },
+        ] as never,
+      });
+
+      const response = await send(request('GET_TRAINING_PLAN_LIBRARIES'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+
+      // planIds is what lets the page group by the same rule we do, rather
+      // than a synthesised per-plan field.
+      expect(response.data).toEqual([
+        { id: 'f1', name: 'Custom Plans', planIds: [21, 22] },
+      ]);
+    });
+
+    it('should keep a library a coach made but never filled', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchTrainingPlanFolders').mockResolvedValue({
+        success: true,
+        data: [
+          { folderId: 'f2', folderName: 'Empty', ownerId: 9, planIds: [] },
+        ] as never,
+      });
+
+      const response = await send(request('GET_TRAINING_PLAN_LIBRARIES'));
+
+      expect(response.ok).toBe(true);
+      if (!response.ok) return;
+      expect(response.data).toEqual([{ id: 'f2', name: 'Empty', planIds: [] }]);
+    });
+
+    it('should map a missing token to AUTH_REQUIRED', async () => {
+      vi.spyOn(trainingPeaksApi, 'fetchTrainingPlanFolders').mockResolvedValue({
+        success: false,
+        error: { message: 'Not authenticated', code: 'NO_TOKEN' },
+      });
+
+      const response = await send(request('GET_TRAINING_PLAN_LIBRARIES'));
+
+      expect(response.ok).toBe(false);
+      if (response.ok) return;
+      expect(response.error.code).toBe('AUTH_REQUIRED');
+    });
+  });
+
   describe('GET_ATHLETE_GROUPS', () => {
     const GROUP = {
       id: 11,

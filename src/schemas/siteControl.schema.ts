@@ -67,6 +67,11 @@ export const SiteControlRequestSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     ...BaseRequestFields,
+    type: z.literal('GET_TRAINING_PLAN_LIBRARIES'),
+    payload: EmptyPayloadSchema,
+  }),
+  z.object({
+    ...BaseRequestFields,
     type: z.literal('GET_PLAN_CONTENTS'),
     payload: z.object({ planId: IdSchema }),
   }),

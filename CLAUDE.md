@@ -672,8 +672,9 @@ Full wire protocol and page-side snippet: `PLANMYPEAK_INTEGRATION.md` →
 
 - The page names _site-control_ request types only (`PING`, `GET_LIBRARIES`,
   `GET_LIBRARY_ITEMS`, `GET_TRAINING_PLANS`, `GET_PLAN_CONTENTS`,
-  `GET_ATHLETE_GROUPS`, `OPEN_IMPORTER`). It can never name a `RuntimeMessage`
-  type, so adding a background handler does not expose it to the page.
+  `GET_TRAINING_PLAN_LIBRARIES`, `GET_ATHLETE_GROUPS`, `OPEN_IMPORTER`). It can
+  never name a `RuntimeMessage` type, so adding a background handler does not
+  expose it to the page.
   `PING` advertises this list as `supports`, so the page feature-detects
   instead of comparing extension versions.
 - Requests resolve the acting account from stored credentials, never from a

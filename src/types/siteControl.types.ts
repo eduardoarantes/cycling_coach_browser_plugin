@@ -47,6 +47,7 @@ export const SITE_CONTROL_REQUEST_TYPES = [
   'GET_LIBRARIES',
   'GET_LIBRARY_ITEMS',
   'GET_TRAINING_PLANS',
+  'GET_TRAINING_PLAN_LIBRARIES',
   'GET_PLAN_CONTENTS',
   'GET_ATHLETE_GROUPS',
   'OPEN_IMPORTER',
@@ -73,6 +74,32 @@ export interface SiteControlGetLibraryItemsPayload {
 }
 
 export type SiteControlGetTrainingPlansPayload = Record<string, never>;
+
+/**
+ * `GET_TRAINING_PLAN_LIBRARIES` takes no arguments: the libraries returned are
+ * the signed-in coach's, resolved from the captured session.
+ */
+export type SiteControlGetTrainingPlanLibrariesPayload = Record<string, never>;
+
+/**
+ * A TrainingPeaks plan library, as TrainingPeaks models it.
+ *
+ * Membership lives here as `planIds` rather than on the plan, so a plan's
+ * library is found by looking its id up across libraries. This mirrors the API
+ * rather than synthesising a per-plan field, which keeps `TrainingPlan` the
+ * verbatim TrainingPeaks shape.
+ *
+ * Group with the same rule the extension uses, or the two surfaces will
+ * disagree: take libraries in order, skip a plan already claimed by an earlier
+ * one so it appears exactly once, and put plans in no library into an
+ * "Ungrouped" bucket rather than hiding them.
+ */
+export interface SiteControlTrainingPlanLibrary {
+  id: string;
+  name: string;
+  /** Plan ids in this library; may be empty for a library a coach made but never filled */
+  planIds: number[];
+}
 
 export interface SiteControlGetPlanContentsPayload {
   planId: number;
@@ -102,6 +129,7 @@ export interface SiteControlPayloadMap {
   GET_LIBRARIES: SiteControlGetLibrariesPayload;
   GET_LIBRARY_ITEMS: SiteControlGetLibraryItemsPayload;
   GET_TRAINING_PLANS: SiteControlGetTrainingPlansPayload;
+  GET_TRAINING_PLAN_LIBRARIES: SiteControlGetTrainingPlanLibrariesPayload;
   GET_PLAN_CONTENTS: SiteControlGetPlanContentsPayload;
   GET_ATHLETE_GROUPS: SiteControlGetAthleteGroupsPayload;
   OPEN_IMPORTER: SiteControlOpenImporterPayload;
@@ -246,6 +274,7 @@ export interface SiteControlResultMap {
   GET_LIBRARIES: Library[];
   GET_LIBRARY_ITEMS: LibraryItem[];
   GET_TRAINING_PLANS: TrainingPlan[];
+  GET_TRAINING_PLAN_LIBRARIES: SiteControlTrainingPlanLibrary[];
   GET_PLAN_CONTENTS: SiteControlPlanContentsResult;
   GET_ATHLETE_GROUPS: AthleteGroup[];
   OPEN_IMPORTER: SiteControlOpenImporterResult;

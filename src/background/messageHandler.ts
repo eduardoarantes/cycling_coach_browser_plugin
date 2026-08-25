@@ -130,6 +130,7 @@ import type {
   SiteControlError,
   SiteControlPingResult,
   SiteControlPlanContentsResult,
+  SiteControlTrainingPlanLibrary,
   SiteControlResponse,
 } from '@/types/siteControl.types';
 import type { ApiError } from '@/schemas/api.schema';
@@ -1050,6 +1051,34 @@ async function handleSiteControlPlanContents(
 }
 
 /**
+ * Fetch the coach's TrainingPeaks plan libraries for the page.
+ *
+ * Returned in TrainingPeaks' own shape, membership included, so the page groups
+ * plans by the same rule the popup and the overlay do rather than by a
+ * synthesised per-plan field. `TrainingPlan` stays the verbatim TrainingPeaks
+ * response.
+ */
+async function handleSiteControlTrainingPlanLibraries(
+  requestId: string
+): Promise<SiteControlResponse> {
+  const folders = await handleGetTrainingPlanFolders();
+
+  if (!folders.success) {
+    return createErrorResponse(requestId, toSiteControlError(folders.error));
+  }
+
+  const libraries: SiteControlTrainingPlanLibrary[] = folders.data.map(
+    (folder) => ({
+      id: folder.folderId,
+      name: folder.folderName,
+      planIds: folder.planIds,
+    })
+  );
+
+  return createSuccessResponse(requestId, libraries);
+}
+
+/**
  * Fetch the libraries the page may offer, owned by the signed-in coach.
  *
  * Every surface inside the extension shows owned libraries only (`useLibraries`
@@ -1166,6 +1195,9 @@ async function handleSiteControlRequest(
         request.requestId,
         await handleGetTrainingPlans()
       );
+
+    case 'GET_TRAINING_PLAN_LIBRARIES':
+      return await handleSiteControlTrainingPlanLibraries(request.requestId);
 
     case 'GET_PLAN_CONTENTS':
       return await handleSiteControlPlanContents(
