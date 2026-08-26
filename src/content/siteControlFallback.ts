@@ -46,8 +46,15 @@ const READY_FLAG = '__planMyPeakSiteControlBridgeReady';
  * a moment after this script does. Answering immediately would report a working
  * extension as broken. Waiting means a genuinely dead bridge is reported one
  * beat later, which is the cheaper mistake.
+ *
+ * Bounded from above by the page's own probe timeout: the PlanMyPeak app gives
+ * `PING` 2000ms, and an answer that arrives after that is no answer at all —
+ * it costs the coach a whole retry before they are told anything. This leaves
+ * a second of margin for that, which is still two orders of magnitude more
+ * than the bridge's module needs: it is a local extension file, not a network
+ * fetch. Raising this means checking the page's timeout first.
  */
-const BRIDGE_GRACE_MS = 1500;
+const BRIDGE_GRACE_MS = 1000;
 
 declare global {
   interface Window {

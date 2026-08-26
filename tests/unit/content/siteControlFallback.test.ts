@@ -8,6 +8,7 @@
  * @vitest-environment-options { "url": "https://portal.planmypeak.com/" }
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   PLANMYPEAK_SITE_CONTROL_VERSION,
@@ -157,13 +158,11 @@ describe('site-control availability fallback', () => {
 });
 
 describe('fallback wire constants', () => {
-  it('should match the protocol definitions it deliberately duplicates', async () => {
+  it('should match the protocol definitions it deliberately duplicates', () => {
     // The fallback imports nothing, so that the build emits it without a
     // module fetch that could fail - which is the whole point of it. That
     // forces these three values to be copied, so they are pinned here.
-    const source = await import('fs').then((fs) =>
-      fs.readFileSync('src/content/siteControlFallback.ts', 'utf8')
-    );
+    const source = readFileSync('src/content/siteControlFallback.ts', 'utf8');
 
     expect(source).toContain(
       `const PAGE_SOURCE = '${SITE_CONTROL_PAGE_SOURCE}'`
@@ -177,5 +176,18 @@ describe('fallback wire constants', () => {
 
     // An import here would reintroduce the failure mode this file avoids.
     expect(source).not.toMatch(/^\s*import\s/m);
+  });
+
+  it('should answer well inside the page probe it is answering', () => {
+    const source = readFileSync('src/content/siteControlFallback.ts', 'utf8');
+    const grace = Number(
+      /const BRIDGE_GRACE_MS = (\d+);/.exec(source)?.[1] ?? NaN
+    );
+
+    // The PlanMyPeak app gives PING 2000ms. An answer arriving after that is
+    // no answer at all - the coach waits out a whole retry before being told
+    // anything - so the grace period must leave real margin under it.
+    expect(grace).toBeGreaterThan(0);
+    expect(grace).toBeLessThanOrEqual(1000);
   });
 });
