@@ -57,7 +57,7 @@
         "https://staging.app.planmypeak.com/*"
       ],
       "js": ["src/content/siteControlBridge.ts"],
-      "run_at": "document_idle",
+      "run_at": "document_start",
       "world": "ISOLATED"
     }
   ],
