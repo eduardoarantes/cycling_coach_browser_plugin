@@ -29,6 +29,13 @@ import type {
 } from '@/types/siteControl.types';
 import type { SiteControlRequestMessage } from '@/types';
 
+declare global {
+  interface Window {
+    /** Set once this bridge is listening; see `siteControlFallback.ts`. */
+    __planMyPeakSiteControlBridgeReady?: boolean;
+  }
+}
+
 const DEBUG = import.meta.env.DEV;
 const log = (...args: unknown[]): void => {
   if (DEBUG) console.log('[PlanMyPeak Site Control]', ...args);
@@ -164,6 +171,12 @@ export async function handleSiteControlPageMessage(
 window.addEventListener('message', (event) => {
   void handleSiteControlPageMessage(event);
 });
+
+// Claim the channel. `siteControlFallback.ts` answers readiness only while this
+// flag is unset, so that it reports a bridge that never loaded rather than
+// competing with one that did. Set after the listener is attached, so the flag
+// never claims more than is true.
+window.__planMyPeakSiteControlBridgeReady = true;
 
 log('Bridge loaded');
 

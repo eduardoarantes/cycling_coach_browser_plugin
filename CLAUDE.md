@@ -715,6 +715,16 @@ both surfaces at it — `groupPlansByFolder`, `duplicatePreflight`,
   Intervals.icu key) may appear in any page-bound message, including errors.
 - The always-injected bridge stays dependency-light; the overlay is behind a
   dynamic `import()`. Do not statically import React into the bridge.
+- **A broken extension must say so, not go quiet.** The bridge imports
+  schemas, so the build wraps it in a loader that fetches its module at
+  runtime; if that fetch fails the bridge never attaches and is silent
+  forever, which the page can only read as "not installed".
+  `src/content/siteControlFallback.ts` covers that case and therefore
+  **imports nothing** — with no imports the build emits it directly, with no
+  module fetch of its own to fail. Adding an import to it would give it the
+  failure mode it exists to cover. It answers `PING` only, stands down as soon
+  as the bridge sets its ready flag, and relies on its manifest matches for
+  the origin gate rather than carrying a second copy of the allow-list.
 
 **Overlay imports use the shared path**: `planMyPeakAdapter`, the duplicate
 preflight in `src/export/adapters/planMyPeak/duplicatePreflight.ts`, and the

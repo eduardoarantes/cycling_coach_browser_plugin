@@ -36,12 +36,6 @@ Used to:
 - Find existing TrainingPeaks or PlanMyPeak tabs
 - Focus and reload those tabs when the user asks the extension to refresh auth
 
-### `notifications`
-
-Used to:
-
-- Show export start, progress, completion, and failure notifications
-
 ## Host Permissions
 
 ### TrainingPeaks
