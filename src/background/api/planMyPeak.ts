@@ -10,7 +10,6 @@ import {
   startExport,
   updateExportItem,
   completeExport,
-  updateExportNotification,
 } from '@/services/exportProgressService';
 import { logger } from '@/utils/logger';
 import {
@@ -1469,15 +1468,12 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     });
 
     if (exportState) {
-      const state = await updateExportItem({
+      await updateExportItem({
         exportId: exportState.exportId,
         itemIndex: i,
         itemName: workout.name,
         success: true,
       });
-      if (state) {
-        await updateExportNotification(state);
-      }
     }
   }
 

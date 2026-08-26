@@ -1,7 +1,7 @@
 /**
  * Export Progress Service
  *
- * Manages export state persistence, notifications, and badge updates.
+ * Manages export state persistence and badge updates.
  * Allows exports to continue in background and provides status recovery
  * when the popup is reopened.
  */
@@ -70,13 +70,6 @@ function hasActionApi(): boolean {
   );
 }
 
-function hasNotificationsApi(): boolean {
-  return (
-    typeof chrome !== 'undefined' &&
-    typeof chrome.notifications?.create === 'function'
-  );
-}
-
 /**
  * Generate a unique export ID
  */
@@ -134,7 +127,6 @@ export async function startExport(params: {
 
   await saveExportProgress(state);
   await updateBadge(state);
-  await showExportStartNotification(state);
 
   return state;
 }
@@ -197,7 +189,9 @@ export async function completeExport(params: {
 
   await saveExportProgress(state);
   await updateBadge(state);
-  await showExportCompleteNotification(state);
+  // Clearing the badge was previously a side effect of showing the completion
+  // notification. It belongs to finishing an export, not to announcing one.
+  await clearBadgeAfterDelay();
 
   return state;
 }
@@ -257,94 +251,6 @@ export async function clearBadgeAfterDelay(
       await chrome.action.setBadgeText({ text: '' });
     }
   }, delayMs);
-}
-
-/**
- * Show notification when export starts
- */
-export async function showExportStartNotification(
-  state: ExportProgressState
-): Promise<void> {
-  if (!hasNotificationsApi()) {
-    return;
-  }
-
-  const destinationLabel =
-    state.destination === 'planmypeak' ? 'PlanMyPeak' : 'Intervals.icu';
-
-  await chrome.notifications.create(state.exportId, {
-    type: 'progress',
-    iconUrl: '/icons/icon128.png',
-    title: 'Export Started',
-    message: `Exporting ${state.totalItems} workouts to ${destinationLabel}`,
-    progress: 0,
-  });
-}
-
-/**
- * Update notification progress
- */
-export async function updateExportNotification(
-  state: ExportProgressState
-): Promise<void> {
-  if (typeof chrome.notifications?.update !== 'function') {
-    return;
-  }
-
-  const progress = Math.round((state.completedItems / state.totalItems) * 100);
-
-  try {
-    await chrome.notifications.update(state.exportId, {
-      progress,
-    });
-  } catch {
-    // Notification may have been dismissed by user
-  }
-}
-
-/**
- * Show notification when export completes
- */
-export async function showExportCompleteNotification(
-  state: ExportProgressState
-): Promise<void> {
-  if (!hasNotificationsApi()) {
-    await clearBadgeAfterDelay();
-    return;
-  }
-
-  const destinationLabel =
-    state.destination === 'planmypeak' ? 'PlanMyPeak' : 'Intervals.icu';
-
-  // Clear progress notification
-  try {
-    await chrome.notifications.clear(state.exportId);
-  } catch {
-    // Notification may already be cleared
-  }
-
-  if (state.status === 'completed') {
-    const duration = state.completedAt
-      ? Math.round((state.completedAt - state.startedAt) / 1000)
-      : 0;
-
-    await chrome.notifications.create(`${state.exportId}_complete`, {
-      type: 'basic',
-      iconUrl: '/icons/icon128.png',
-      title: 'Export Complete',
-      message: `Successfully exported ${state.successCount} workouts to ${destinationLabel} in ${duration}s`,
-    });
-  } else {
-    await chrome.notifications.create(`${state.exportId}_failed`, {
-      type: 'basic',
-      iconUrl: '/icons/icon128.png',
-      title: 'Export Failed',
-      message: state.error || `Failed to export to ${destinationLabel}`,
-    });
-  }
-
-  // Clear badge after delay
-  await clearBadgeAfterDelay();
 }
 
 /**

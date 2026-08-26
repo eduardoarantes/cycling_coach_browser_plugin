@@ -83,3 +83,12 @@ describe('content script registration', () => {
     expect(order).toBeLessThan(bridgeOrder);
   });
 });
+
+describe('requested permissions', () => {
+  it('should request only the permissions the extension still uses', () => {
+    // Notifications were removed along with the export notifications they
+    // served; a permission the code no longer exercises is one the store
+    // review and the coach are asked to accept for nothing.
+    expect(manifest.permissions).toEqual(['storage', 'tabs']);
+  });
+});

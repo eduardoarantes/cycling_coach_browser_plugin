@@ -17,7 +17,7 @@ Intervals.icu, or PlanMyPeak.
 - Browses TrainingPeaks workout libraries, workouts, plans, notes, and events
 - Exports workout libraries and full training plans to PlanMyPeak
 - Exports workout libraries and reusable PLAN folders to Intervals.icu
-- Tracks export progress with extension badge updates and Chrome notifications
+- Tracks export progress with extension badge updates and an in-popup progress banner
 
 ## Supported Platforms
 

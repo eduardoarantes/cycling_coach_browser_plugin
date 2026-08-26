@@ -45,7 +45,6 @@ import {
   startExport,
   updateExportItem,
   completeExport,
-  updateExportNotification,
 } from '@/services/exportProgressService';
 import { logger } from '@/utils/logger';
 import type { ApiResponse } from '@/types/api.types';
@@ -1318,15 +1317,12 @@ export async function exportWorkoutsToLibrary(
 
         // Update progress for successful item
         if (exportState) {
-          const state = await updateExportItem({
+          await updateExportItem({
             exportId: exportState.exportId,
             itemIndex: i,
             itemName: workout.itemName,
             success: true,
           });
-          if (state) {
-            await updateExportNotification(state);
-          }
         }
 
         logger.debug(`Successfully exported workout: ${workout.itemName}`);
