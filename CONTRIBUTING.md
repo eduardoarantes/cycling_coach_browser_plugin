@@ -42,13 +42,17 @@ Useful commands:
 - `npm run dev`: local PlanMyPeak target on `https://localhost:3002` (port configurable in Settings → Local Dev Ports)
 - `npm run dev:prod`: dev server against production targets
 - `npm run build:bundle`: build without changing the version number
-- `npm run build`: build and bump patch version
-- `npm run build:local`: local-target build and patch version bump
+- `npm run build`: production build
+- `npm run build:local`: local-target build
 - `npm run test:e2e`: Playwright extension tests
+- `npm run version:patch` / `version:minor` / `version:major`: set the version
 
-For routine development, prefer `npm run build:bundle`. The `build` and
-`build:local` scripts run `scripts/increment-version.cjs`, which updates both
-`package.json` and `public/manifest.json`.
+Builds never touch the version. `scripts/increment-version.cjs` is run
+deliberately and updates `package.json` and `public/manifest.json` together,
+refusing to run if the two have drifted apart. It used to run on every build,
+which meant a build could move a version someone had chosen on purpose, and
+bumping from whatever was on disk turned an uncommitted bump into a skipped
+version on the next run.
 
 ## Loading the Extension
 

@@ -85,13 +85,14 @@ Useful commands:
 - `npm run dev:prod`: development server targeting production hosts
 - `npm run build:bundle`: production-target bundle without a version bump
 - `npm run build`: production-target bundle and patch-version increment
-- `npm run build:local`: local-target bundle and patch-version increment
+- `npm run build:local`: local-target bundle
 - `npm run package:release`: build and create the canonical Chrome Web Store ZIP
 - `npm run test:e2e`: Playwright extension tests in headed Chromium
 
-Important: `npm run build` and `npm run build:local` update the patch version in
-`package.json` and `public/manifest.json` via `scripts/increment-version.cjs`.
-For routine local validation, prefer `npm run build:bundle`.
+Builds never change the version. Set it deliberately with `npm run
+version:patch` (or `version:minor` / `version:major`), which updates
+`package.json` and `public/manifest.json` together. The release workflow
+refuses to publish unless the tag matches both.
 
 ## CI And Releases
 
