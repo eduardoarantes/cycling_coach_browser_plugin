@@ -95,13 +95,30 @@ For routine local validation, prefer `npm run build:bundle`.
 
 ## CI And Releases
 
-- Pull requests and pushes to `main` run GitHub Actions lint, type-check, unit
-  tests, and `npm run build:bundle`.
-- Tagged releases use `.github/workflows/release.yml` and expect a tag in the
-  form `vX.Y.Z` that matches `package.json` and `public/manifest.json`.
-- The release workflow publishes a canonical store artifact named
-  `planmypeak-importer-webstore-vX.Y.Z.zip` to the GitHub release and as a
-  workflow artifact.
+Pull requests and pushes to `main` run GitHub Actions lint, type-check, unit
+tests, and `npm run build:bundle`.
+
+### Publishing a release
+
+1. Raise a PR that sets the version (`npm run version:patch`, or
+   `version:minor` / `version:major`) and merge it.
+2. In the repository's **Actions** tab, run the **Release Artifact** workflow.
+
+That releases whatever version `main` currently carries: it re-runs the
+checks, creates and pushes the `vX.Y.Z` tag, packages the store artifact, and
+publishes the GitHub release. Pass the optional `expected_version` input to
+have it fail rather than release if `main` is not on the version you meant.
+
+Pushing a `vX.Y.Z` tag by hand does the same thing, minus the tagging step.
+
+The workflow refuses to release if `package.json` and `public/manifest.json`
+disagree, or if the tag already exists — which is what a forgotten version
+bump looks like. It never changes the version itself: `main` requires pull
+requests, so the bump goes through step 1.
+
+The published artifact is `planmypeak-importer-webstore-vX.Y.Z.zip`, attached
+to the GitHub release and available as a workflow artifact. That zip is what
+you upload to the Chrome Web Store.
 
 ## Project Layout
 
