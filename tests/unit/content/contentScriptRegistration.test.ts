@@ -57,4 +57,29 @@ describe('content script registration', () => {
       'https://staging.app.planmypeak.com/*',
     ]);
   });
+
+  it('should register the availability fallback alongside the bridge', () => {
+    const fallback = scriptFor('siteControlFallback.ts');
+    const bridge = scriptFor('siteControlBridge.ts');
+
+    // It answers for the bridge, so it must be injected wherever the bridge
+    // is - and nowhere else, or it would answer an origin the bridge would
+    // have stayed silent for.
+    expect(fallback.matches).toEqual(bridge.matches);
+    expect(fallback.run_at).toBe('document_start');
+    expect(fallback.world).toBe('ISOLATED');
+  });
+
+  it('should register the fallback before the bridge', () => {
+    const order = scripts.findIndex((script) =>
+      script.js.some((file) => file.endsWith('siteControlFallback.ts'))
+    );
+    const bridgeOrder = scripts.findIndex((script) =>
+      script.js.some((file) => file.endsWith('siteControlBridge.ts'))
+    );
+
+    // The fallback has no module to fetch, so it is listening first either
+    // way; declaring it first keeps the manifest honest about that.
+    expect(order).toBeLessThan(bridgeOrder);
+  });
 });
