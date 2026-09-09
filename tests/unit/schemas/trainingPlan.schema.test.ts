@@ -320,6 +320,57 @@ describe('TrainingPlanSchema', () => {
   });
 });
 
+/**
+ * A plan row shaped like a real `/plans/v1/plansWithAccess` entry.
+ * Overrides let a test bend exactly one field out of shape.
+ */
+function trainingPlanFixture(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return {
+    planAccess: {
+      planAccessId: 0,
+      personId: 6240623,
+      planId: 624432,
+      accessFromPayment: false,
+      accessFromShare: false,
+      grantedFromPersonId: 6240623,
+      planAccessType: 2,
+    },
+    planId: 624432,
+    planPersonId: 6240625,
+    ownerPersonId: 6240623,
+    createdOn: '2026-02-21T01:29:00',
+    title: 'Cycling Custom Training Plan',
+    author: 'Coach Example',
+    planEmail: 'coach@example.com',
+    planLanguage: 'en',
+    dayCount: 18,
+    weekCount: 3,
+    startDate: '2026-02-24T00:00:00',
+    endDate: '2026-03-13T00:00:00',
+    workoutCount: 8,
+    eventCount: 0,
+    description: '',
+    planCategory: 4,
+    subcategory: 6,
+    additionalCriteria: [0, 2],
+    eventPlan: false,
+    eventName: null,
+    eventDate: null,
+    forceDate: false,
+    isDynamic: false,
+    isPublic: false,
+    isSearchable: false,
+    price: null,
+    customUrl: 0,
+    hasWeeklyGoals: false,
+    sampleWeekOne: null,
+    sampleWeekTwo: null,
+    ...overrides,
+  };
+}
+
 describe('TrainingPlansApiResponseSchema', () => {
   it('should validate array of training plans', () => {
     const validResponse = [
@@ -367,16 +418,55 @@ describe('TrainingPlansApiResponseSchema', () => {
     ];
 
     const result = TrainingPlansApiResponseSchema.parse(validResponse);
-    expect(result).toEqual(validResponse);
-    expect(result).toHaveLength(1);
+    expect(result.items).toEqual(validResponse);
+    expect(result.items).toHaveLength(1);
+    expect(result.skipped).toEqual([]);
   });
 
   it('should validate empty array', () => {
     const emptyResponse: unknown[] = [];
 
     const result = TrainingPlansApiResponseSchema.parse(emptyResponse);
-    expect(result).toEqual([]);
-    expect(result).toHaveLength(0);
+    expect(result.items).toEqual([]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('should keep readable plans and report the ones it drops', () => {
+    const validPlan = trainingPlanFixture({ planId: 1 });
+    const unreadablePlan = trainingPlanFixture({ planId: 'not-a-number' });
+
+    const result = TrainingPlansApiResponseSchema.parse([
+      validPlan,
+      unreadablePlan,
+    ]);
+
+    expect(result.items).toEqual([validPlan]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]).toMatchObject({
+      index: 1,
+      path: '[1].planId',
+      input: 'not-a-number',
+    });
+  });
+
+  // The reported failure: one plan with a null startDate hid a coach's entire
+  // plan list, which read to them as the import being broken.
+  it('should keep every plan when one has a null date range', () => {
+    const response = [
+      trainingPlanFixture({ planId: 1 }),
+      trainingPlanFixture({ planId: 2, startDate: null, endDate: null }),
+      trainingPlanFixture({ planId: 3 }),
+    ];
+
+    const result = TrainingPlansApiResponseSchema.parse(response);
+
+    expect(result.items).toHaveLength(3);
+    expect(result.skipped).toEqual([]);
+    expect(result.items[1]).toMatchObject({
+      planId: 2,
+      startDate: null,
+      endDate: null,
+    });
   });
 
   it('should reject non-array response', () => {

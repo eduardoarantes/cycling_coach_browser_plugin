@@ -6,6 +6,8 @@
 
 import { z } from 'zod';
 
+import { tolerantList } from './tolerantList';
+
 /**
  * Schema for plan access control data
  * Contains information about user's access rights to a training plan
@@ -46,6 +48,14 @@ const NullableCountSchema = z
   .transform((value) => value ?? 0);
 
 /**
+ * TrainingPeaks leaves a plan's date range null when the plan was never placed
+ * on a calendar - an unscheduled template, an off-the-shelf plan a coach sells,
+ * a dynamic plan. Such a plan is still listable and still importable: its week
+ * structure comes from its workouts, not from this field.
+ */
+const NullableDateSchema = z.string().nullable();
+
+/**
  * Schema for a single training plan object
  * Matches the structure from /trainingplans/v2/plansWithAccess endpoint
  */
@@ -61,8 +71,8 @@ export const TrainingPlanSchema = z.object({
   planLanguage: z.string().nullable(),
   dayCount: NullableCountSchema,
   weekCount: NullableCountSchema,
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: NullableDateSchema,
+  endDate: NullableDateSchema,
   workoutCount: NullableCountSchema,
   eventCount: NullableCountSchema,
   description: z.string().nullable(),
@@ -109,9 +119,13 @@ export type PlanFoldersApiResponse = z.infer<
 
 /**
  * Schema for training plans list API response
- * The API returns an array of training plan objects directly
+ * The API returns an array of training plan objects directly.
+ *
+ * Parsed row by row (see `tolerantList`): a plan we cannot read is dropped from
+ * the list and reported, rather than taking the coach's other plans with it.
+ * `fetchTrainingPlans` logs whatever it drops.
  */
-export const TrainingPlansApiResponseSchema = z.array(TrainingPlanSchema);
+export const TrainingPlansApiResponseSchema = tolerantList(TrainingPlanSchema);
 
 export type TrainingPlansApiResponse = z.infer<
   typeof TrainingPlansApiResponseSchema

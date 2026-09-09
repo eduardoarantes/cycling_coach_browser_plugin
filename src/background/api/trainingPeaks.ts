@@ -448,11 +448,57 @@ export async function fetchLibraryItems(
 export async function fetchTrainingPlans(): Promise<
   ApiResponse<TrainingPlan[]>
 > {
-  return apiRequest(
-    '/plans/v1/plansWithAccess',
+  const endpoint = '/plans/v1/plansWithAccess';
+  const operationName = 'training plans';
+
+  const result = await apiRequest(
+    endpoint,
     TrainingPlansApiResponseSchema,
-    'training plans'
+    operationName
   );
+
+  if (!result.success) {
+    return result;
+  }
+
+  const { items, skipped } = result.data;
+
+  // A dropped plan is invisible to the coach - the list just comes back one
+  // short - so it has to reach the exported debug log, which is how these
+  // reports actually arrive. Logged as a success: the request worked and the
+  // other plans are usable.
+  if (skipped.length > 0) {
+    const first = skipped[0];
+    const inputPreview = truncateForLog(
+      stringifyValidationInput(first.input),
+      MAX_VALIDATION_INPUT_LENGTH
+    );
+
+    logger.warn(
+      `${operationName}: skipped ${skipped.length} unreadable row(s)`,
+      {
+        skipped,
+      }
+    );
+
+    void addLog({
+      timestamp: Date.now(),
+      endpoint,
+      method: 'GET',
+      baseUrl: await getTrainingPeaksApiBaseUrl(),
+      status: 200,
+      success: true,
+      durationMs: 0,
+      errorMessage: `Skipped ${skipped.length} of ${items.length + skipped.length} training plans that failed validation at ${first.path}: ${first.message}`,
+      errorCode: 'PARTIAL_VALIDATION',
+      validationPath: first.path,
+      validationIssue: first.message,
+      validationInput: inputPreview,
+      operationName,
+    });
+  }
+
+  return { success: true, data: items };
 }
 
 /**

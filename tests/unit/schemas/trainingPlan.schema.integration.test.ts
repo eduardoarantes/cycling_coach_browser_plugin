@@ -222,12 +222,13 @@ describe('TrainingPlan Schema Integration Tests', () => {
     it('should validate representative training plan list responses', () => {
       const result = TrainingPlansApiResponseSchema.parse(trainingPlansFixture);
 
-      expect(result).toBeInstanceOf(Array);
-      expect(result).toHaveLength(2);
-      expect(result[0]).toHaveProperty('planId', 7001);
-      expect(result[0]).toHaveProperty('title', 'Base Bike Plan');
-      expect(result[1]).toHaveProperty('planId', 7002);
-      expect(result[1]).toHaveProperty('title', 'Run Build');
+      expect(result.items).toBeInstanceOf(Array);
+      expect(result.items).toHaveLength(2);
+      expect(result.skipped).toEqual([]);
+      expect(result.items[0]).toHaveProperty('planId', 7001);
+      expect(result.items[0]).toHaveProperty('title', 'Base Bike Plan');
+      expect(result.items[1]).toHaveProperty('planId', 7002);
+      expect(result.items[1]).toHaveProperty('title', 'Run Build');
     });
   });
 

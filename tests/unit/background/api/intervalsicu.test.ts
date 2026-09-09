@@ -1221,6 +1221,35 @@ describe('Intervals.icu API Client - Redesigned', () => {
       expect(result).toBe('2026-03-02T00:00:00');
     });
 
+    // TrainingPeaks leaves startDate null on plans that were never scheduled;
+    // the workouts still date the plan.
+    it('should compute start_date_local when the TP plan has no start date', () => {
+      const planWithoutDates = {
+        ...mockTrainingPlan,
+        startDate: null,
+        endDate: null,
+      } as unknown as TrainingPlan;
+
+      const result = buildIntervalsPlanStartDateLocal(planWithoutDates, [
+        makePlanWorkout({ workoutDay: '2026-03-10T00:00:00' }),
+      ]);
+
+      // 2026-03-10 is a Tuesday, so its plan week starts the Monday before.
+      expect(result).toBe('2026-03-09T00:00:00');
+    });
+
+    it('should throw when neither the plan nor its contents carry a date', () => {
+      const planWithoutDates = {
+        ...mockTrainingPlan,
+        startDate: null,
+        endDate: null,
+      } as unknown as TrainingPlan;
+
+      expect(() =>
+        buildIntervalsPlanStartDateLocal(planWithoutDates, [])
+      ).toThrow(/Unable to determine Intervals plan start date/);
+    });
+
     it('should create PLAN folder using TP training plan title as name', async () => {
       let callCount = 0;
       global.fetch = vi.fn().mockImplementation(() => {

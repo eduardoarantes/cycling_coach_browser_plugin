@@ -234,7 +234,10 @@ function getIntervalsPlanAnchorMonday(
   );
 
   const anchorSource =
-    allDates[0] ?? parseTpDateToUtcMidnight(trainingPlan.startDate);
+    allDates[0] ??
+    (trainingPlan.startDate
+      ? parseTpDateToUtcMidnight(trainingPlan.startDate)
+      : null);
 
   if (!anchorSource) {
     throw new Error(
