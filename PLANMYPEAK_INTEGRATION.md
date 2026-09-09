@@ -296,6 +296,13 @@ rather than retrying.
 | `GET_ATHLETE_GROUPS`          | —                                        | `AthleteGroup[]`                                                                                                            |
 | `OPEN_IMPORTER`               | `{ libraryId?, planId?, groups?, tab? }` | `{ opened: boolean, focused: boolean }`                                                                                     |
 
+`GET_TRAINING_PLANS` is validated row by row: a plan whose shape the extension
+cannot read is left out of the array rather than failing the whole request, so
+the list is best-effort and can be one plan short of TrainingPeaks. A plan's
+`startDate` and `endDate` are `null` when it was never placed on a calendar (an
+unscheduled template, an off-the-shelf plan), so render the range as optional —
+such a plan is still importable, its weeks coming from its own sessions.
+
 `GET_PLAN_CONTENTS` fetches all four legs of a plan in one round trip and fails
 as a whole if any leg fails, so a partially-loaded plan never renders as a
 complete one. `OPEN_IMPORTER` focuses an already-open overlay rather than

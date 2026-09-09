@@ -127,6 +127,41 @@ function parseTpDateToUtcMidnight(value: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+/**
+ * Week 1 of the imported plan.
+ *
+ * TrainingPeaks leaves `startDate` null on plans that were never placed on a
+ * calendar (unscheduled templates, off-the-shelf plans), so the plan's own date
+ * cannot be the only anchor or those plans could never be imported. The earliest
+ * dated entry is the week TrainingPeaks itself shows as week 1, so it stands in.
+ */
+function resolvePlanStart(
+  trainingPlan: TrainingPlan,
+  workouts: PlanWorkout[],
+  notes: CalendarNote[]
+): Date | null {
+  const declaredStart = trainingPlan.startDate
+    ? parseTpDateToUtcMidnight(trainingPlan.startDate)
+    : null;
+
+  if (declaredStart) {
+    return declaredStart;
+  }
+
+  const entryDates = [
+    ...workouts.map((workout) => parseTpDateToUtcMidnight(workout.workoutDay)),
+    ...notes.map((note) => parseTpDateToUtcMidnight(note.noteDate)),
+  ].filter((date): date is Date => date !== null);
+
+  if (entryDates.length === 0) {
+    return null;
+  }
+
+  return entryDates.reduce((earliest, date) =>
+    date < earliest ? date : earliest
+  );
+}
+
 async function resolveSharedPlanWorkoutLibrary(
   preferredName?: string
 ): Promise<ApiResponse<PlanMyPeakLibrary>> {
@@ -428,10 +463,14 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     'Classic workout processing complete'
   );
 
-  const planStart = parseTpDateToUtcMidnight(trainingPlan.startDate);
+  const planStart = resolvePlanStart(trainingPlan, workouts, notes);
   if (!planStart) {
     return failWithProgress(
-      [`Invalid training plan startDate: ${trainingPlan.startDate}`],
+      [
+        `Could not determine a start week for "${planName}": TrainingPeaks reported startDate ${String(
+          trainingPlan.startDate
+        )} and no workout or note carries a usable date.`,
+      ],
       {
         phase: 'folder',
         phaseCurrent: folderCurrent,

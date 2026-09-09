@@ -21,6 +21,7 @@ import type {
 // Mock chrome.storage.local
 const mockGet = vi.fn();
 const mockRemove = vi.fn();
+const mockSet = vi.fn();
 
 beforeEach(() => {
   // Reset all mocks
@@ -31,6 +32,7 @@ beforeEach(() => {
     storage: {
       local: {
         get: mockGet,
+        set: mockSet,
         remove: mockRemove,
       },
     },
@@ -46,6 +48,49 @@ afterEach(() => {
 
 describe('trainingPeaks Training Plans API', () => {
   describe('fetchTrainingPlans', () => {
+    /** One plan row exactly as `/plans/v1/plansWithAccess` returns it. */
+    const validPlanResponse: TrainingPlan = {
+      planAccess: {
+        planAccessId: 1,
+        personId: 12345,
+        planId: 100,
+        accessFromPayment: false,
+        accessFromShare: true,
+        grantedFromPersonId: 54321,
+        planAccessType: 1,
+      },
+      planId: 100,
+      planPersonId: 12345,
+      ownerPersonId: 54321,
+      createdOn: '2024-01-15T10:00:00Z',
+      title: 'Marathon Training Plan',
+      author: 'Coach Smith',
+      planEmail: 'coach@example.com',
+      planLanguage: 'en',
+      dayCount: 84,
+      weekCount: 12,
+      startDate: '2024-03-01',
+      endDate: '2024-05-23',
+      workoutCount: 48,
+      eventCount: 1,
+      description: 'A comprehensive 12-week marathon training plan',
+      planCategory: 1,
+      subcategory: null,
+      additionalCriteria: null,
+      eventPlan: true,
+      eventName: 'City Marathon',
+      eventDate: '2024-05-23',
+      forceDate: false,
+      isDynamic: false,
+      isPublic: true,
+      isSearchable: true,
+      price: null,
+      customUrl: 0,
+      hasWeeklyGoals: true,
+      sampleWeekOne: null,
+      sampleWeekTwo: null,
+    };
+
     it('should return training plans array when API call succeeds', async () => {
       // Arrange
       const mockToken = 'valid-token-123';
@@ -170,14 +215,14 @@ describe('trainingPeaks Training Plans API', () => {
       }
     });
 
-    it('should return error on invalid response schema', async () => {
+    it('should return error when the response is not a list', async () => {
       // Arrange
       const mockToken = 'valid-token-123';
       mockGet.mockResolvedValue({ auth_token: mockToken });
       (global.fetch as any).mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => [{ invalid: 'schema' }],
+        json: async () => ({ plans: [] }),
       });
 
       // Act
@@ -186,11 +231,86 @@ describe('trainingPeaks Training Plans API', () => {
       // Assert
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.message).toContain(
-          'Response validation failed at [0].planAccess'
-        );
-        expect(result.error.message).toContain('Input: undefined');
         expect(result.error.code).toBe('VALIDATION_ERROR');
+      }
+    });
+
+    // A plan TrainingPeaks returns in a shape we cannot read used to reject the
+    // whole response, so one bad row emptied the coach's plan list.
+    it('should keep the readable plans when one row fails validation', async () => {
+      // Arrange
+      const mockToken = 'valid-token-123';
+      mockGet.mockResolvedValue({ auth_token: mockToken });
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [validPlanResponse, { invalid: 'schema' }],
+      });
+
+      // Act
+      const result = await fetchTrainingPlans();
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0]?.planId).toBe(validPlanResponse.planId);
+      }
+    });
+
+    it('should record a skipped plan in the debug log', async () => {
+      // Arrange
+      const mockToken = 'valid-token-123';
+      mockGet.mockResolvedValue({ auth_token: mockToken });
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [validPlanResponse, { invalid: 'schema' }],
+      });
+
+      // Act
+      await fetchTrainingPlans();
+      // addLog is fire-and-forget; let its storage write settle.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Assert
+      const loggedEntries = mockSet.mock.calls
+        .flatMap(([written]) => Object.values(written ?? {}))
+        .flatMap((value) => (Array.isArray(value) ? value : []));
+
+      expect(
+        loggedEntries.some(
+          (entry: any) =>
+            entry.errorCode === 'PARTIAL_VALIDATION' &&
+            entry.validationPath === '[1].planAccess' &&
+            entry.operationName === 'training plans'
+        )
+      ).toBe(true);
+    });
+
+    // TrainingPeaks leaves the date range null on plans that were never
+    // scheduled; those plans must still reach the coach's list.
+    it('should return plans with a null date range', async () => {
+      // Arrange
+      const mockToken = 'valid-token-123';
+      mockGet.mockResolvedValue({ auth_token: mockToken });
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [
+          { ...validPlanResponse, startDate: null, endDate: null },
+        ],
+      });
+
+      // Act
+      const result = await fetchTrainingPlans();
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0]?.startDate).toBeNull();
+        expect(result.data[0]?.endDate).toBeNull();
       }
     });
   });
