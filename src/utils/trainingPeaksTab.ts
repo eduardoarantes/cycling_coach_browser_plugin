@@ -1,53 +1,34 @@
 /**
- * Utility functions for interacting with TrainingPeaks tabs
+ * TrainingPeaks auth-refresh helpers for the popup, plus the shared
+ * error-classification helpers used by every error screen.
  */
 
+import type { AuthRefreshResult, RefreshProviderAuthMessage } from '@/types';
 import { logger } from './logger';
-import { getTrainingPeaksAppUrl } from '@/services/trainingPeaksConfigService';
 
 /**
- * Opens or focuses the TrainingPeaks tab to allow token refresh
+ * Ask the background to refresh the TrainingPeaks token.
  *
- * Strategy:
- * 1. Look for existing TrainingPeaks tab (for the active environment)
- * 2. If found, reload and focus it
- * 3. If not found, create new tab
- *
- * This allows the content script to capture a fresh authentication token
+ * The background opens a temporary background tab on TrainingPeaks, waits for
+ * the page's own authenticated request to be captured, and closes the tab.
+ * The coach's existing TrainingPeaks tab is never reloaded or focused. When no
+ * token arrives (the coach is signed out), the tab is left open and brought
+ * forward so they can sign in, and the result says so.
  */
-export async function openTrainingPeaksTab(): Promise<void> {
+export async function requestTrainingPeaksAuthRefresh(): Promise<AuthRefreshResult> {
   try {
-    const trainingPeaksUrl = await getTrainingPeaksAppUrl();
-
-    // Query for existing TrainingPeaks tabs
-    const tabs = await chrome.tabs.query({
-      url: `${trainingPeaksUrl}/*`,
-    });
-
-    if (tabs.length > 0 && tabs[0].id) {
-      // Found existing tab - reload and focus it
-      logger.info('Found existing TrainingPeaks tab, reloading...');
-      await chrome.tabs.reload(tabs[0].id);
-      await chrome.tabs.update(tabs[0].id, { active: true });
-
-      // Focus the window containing the tab
-      if (tabs[0].windowId) {
-        await chrome.windows.update(tabs[0].windowId, { focused: true });
-      }
-    } else {
-      // No existing tab - create new one
-      logger.info('Creating new TrainingPeaks tab...');
-      await chrome.tabs.create({
-        url: trainingPeaksUrl,
-        active: true,
-      });
-    }
+    return await chrome.runtime.sendMessage<
+      RefreshProviderAuthMessage,
+      AuthRefreshResult
+    >({ type: 'REFRESH_PROVIDER_AUTH', provider: 'trainingpeaks' });
   } catch (error) {
-    logger.error('Failed to open TrainingPeaks tab:', error);
-    throw error;
+    logger.error('Failed to request TrainingPeaks auth refresh:', error);
+    return {
+      outcome: 'error',
+      error: error instanceof Error ? error.message : 'Auth refresh failed',
+    };
   }
 }
-
 /**
  * Check if an error is a 401 authentication error
  */

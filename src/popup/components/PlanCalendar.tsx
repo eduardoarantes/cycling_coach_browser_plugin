@@ -31,8 +31,8 @@ import {
   is401Error,
   is403Error,
   getUserFriendlyErrorMessage,
-  openTrainingPeaksTab,
 } from '@/utils/trainingPeaksTab';
+import { useProviderAuthRefresh } from '@/hooks/useProviderAuthRefresh';
 import { downloadJsonFile } from '@/utils/downloadJson';
 import type {
   PlanWorkout,
@@ -299,6 +299,7 @@ export function PlanCalendar({
   onBack,
 }: PlanCalendarProps): ReactElement {
   const queryClient = useQueryClient();
+  const tpAuthRefresh = useProviderAuthRefresh('trainingpeaks');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExportingToIntervals, setIsExportingToIntervals] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -769,8 +770,11 @@ export function PlanCalendar({
 
     const handleRetry = async (): Promise<void> => {
       if (isAuthError) {
-        // For 401 errors, open TrainingPeaks to get a fresh token
-        await openTrainingPeaksTab();
+        // 401: refresh the token in a background tab, then retry ourselves.
+        const result = await tpAuthRefresh.refresh();
+        if (result.outcome === 'refreshed') {
+          errorContext.retry();
+        }
       } else {
         // For other errors, just retry the request
         errorContext.retry();
@@ -781,8 +785,9 @@ export function PlanCalendar({
       <div className="flex flex-col items-center justify-center p-8">
         <p className="text-red-600 font-semibold text-center">{errorMessage}</p>
         {isAuthError && (
-          <p className="text-gray-500 text-xs mt-1 text-center">
-            Opening TrainingPeaks to refresh your authentication...
+          <p className="text-gray-500 text-xs mt-1 text-center" role="status">
+            {tpAuthRefresh.message ??
+              'Your TrainingPeaks sign-in expired. Refresh it in a background tab without leaving this page.'}
           </p>
         )}
         {isPermissionError && (
@@ -792,9 +797,14 @@ export function PlanCalendar({
         )}
         <button
           onClick={handleRetry}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          disabled={tpAuthRefresh.isRefreshing}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isAuthError ? 'Open TrainingPeaks' : 'Retry'}
+          {tpAuthRefresh.isRefreshing
+            ? 'Refreshing…'
+            : isAuthError
+              ? 'Refresh TrainingPeaks sign-in'
+              : 'Retry'}
         </button>
         {onBack && (
           <button

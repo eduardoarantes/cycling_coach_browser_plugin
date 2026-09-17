@@ -166,6 +166,22 @@ describe('messageHandler site-control routing', () => {
       expect(response.error.code).toBe('UNSUPPORTED_REQUEST_TYPE');
     });
 
+    it('should not route captured-workout types from the page', async () => {
+      for (const type of [
+        'WORKOUT_CAPTURED',
+        'GET_CAPTURED_WORKOUTS',
+        'UPDATE_CAPTURED_WORKOUT',
+        'REMOVE_CAPTURED_WORKOUTS',
+      ]) {
+        const response = await send(
+          request(type as SiteControlRequest['type'])
+        );
+        expect(response.ok).toBe(false);
+        if (response.ok) continue;
+        expect(response.error.code).toBe('UNSUPPORTED_REQUEST_TYPE');
+      }
+    });
+
     it('should reject a malformed payload reaching the background', async () => {
       const response = await send(
         request('GET_LIBRARY_ITEMS', { libraryId: 'nope' })
@@ -352,6 +368,16 @@ describe('messageHandler site-control routing', () => {
       // to the protocol cannot be silently left undiscoverable by the page.
       expect(data.supports).toEqual([...SITE_CONTROL_REQUEST_TYPES]);
       expect(data.supports).toContain('GET_ATHLETE_GROUPS');
+      // Captured workouts are a background-only feature: none of their
+      // request types is served to, or advertised to, the page.
+      for (const type of [
+        'WORKOUT_CAPTURED',
+        'GET_CAPTURED_WORKOUTS',
+        'UPDATE_CAPTURED_WORKOUT',
+        'REMOVE_CAPTURED_WORKOUTS',
+      ]) {
+        expect(data.supports).not.toContain(type);
+      }
     });
   });
 

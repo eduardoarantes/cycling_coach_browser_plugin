@@ -3,7 +3,7 @@
 **Project**: TrainingPeaks Workout Library Browser Extension
 **Status**: Intervals.icu Integration Complete (Issue #90-91)
 **Version**: 1.0.0
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-09-17
 
 ---
 
@@ -74,6 +74,7 @@ cycling_coach_browser_plugin/
 │   ├── content/            # Content scripts
 │   │   ├── mainWorldInterceptor.ts
 │   │   ├── isolatedWorldBridge.ts
+│   │   ├── workoutCaptureDetection.ts  # Pure TP calendar-write matcher
 │   │   ├── siteControlBridge.ts   # PlanMyPeak site-control channel
 │   │   └── overlay/               # In-page import overlay (lazy-loaded)
 │   ├── popup/              # Extension popup UI
@@ -82,18 +83,23 @@ cycling_coach_browser_plugin/
 │   │   └── main.tsx
 │   ├── services/           # Business logic layer
 │   │   ├── authService.ts
-│   │   └── storageService.ts
+│   │   ├── storageService.ts
+│   │   ├── capturedWorkoutService.ts  # captured_workouts map, serialized writes
+│   │   └── badgeService.ts            # single owner of the action badge
 │   ├── store/              # Zustand state management
 │   │   └── authStore.ts
 │   ├── hooks/              # React custom hooks
 │   │   ├── useAuth.ts
 │   │   ├── useUser.ts
 │   │   ├── useLibraries.ts
-│   │   └── useLibraryItems.ts
+│   │   ├── useLibraryItems.ts
+│   │   ├── useCapturedWorkouts.ts     # New Workouts tab list (storage-backed)
+│   │   └── useSendCapturedWorkouts.ts # Send captured workouts via planMyPeakAdapter
 │   ├── config/             # Configuration
 │   │   └── queryClient.ts
 │   ├── schemas/            # Zod validation schemas
-│   │   └── storage.schema.ts
+│   │   ├── storage.schema.ts
+│   │   └── capturedWorkout.schema.ts  # capture payload + stored record
 │   ├── types/              # TypeScript type definitions
 │   │   └── index.ts
 │   ├── utils/              # Shared utilities
@@ -706,7 +712,11 @@ both surfaces at it — `groupPlansByFolder`, `duplicatePreflight`,
 - Imports are blocked on a confirmed TrainingPeaks/PlanMyPeak account mismatch
   in **both** surfaces — the popup (`AccountMismatchBanner`) and the overlay
   (`AccountMismatchGate`). A gate that exists on only one surface is not a gate:
-  the page-driven path runs the same upload code.
+  the page-driven path runs the same upload code. The comparison lives in one
+  hook, `usePlanMyPeakAccountMatch`, and is enforced only against the
+  **production** PlanMyPeak environment: on staging and local it reports
+  `not-enforced`, because dev coach accounts are not linked to the coach's
+  real TrainingPeaks account. Do not add a second bypass elsewhere.
 - Origin is checked in the content script _and_ re-checked in the background
   against `sender.origin`. Adding a request type does not change this.
 - A non-allowlisted origin gets **no response at all**, so a site cannot use
@@ -732,6 +742,86 @@ progress state in `src/types/export.types.ts` are shared with the popup export
 dialog, so the two surfaces cannot drift.
 
 ---
+
+## Captured Workouts (TrainingPeaks calendar → PlanMyPeak)
+
+A coach who creates a workout on an athlete's TrainingPeaks calendar can send
+it to their default PlanMyPeak library ("My Library") without re-reading
+TrainingPeaks. The main-world interceptor watches two routes only —
+`POST …/fitness/v6/athletes/{athleteId}/workouts` (create) and
+`PUT …/workouts/{workoutId}` (update of an already-captured workout) — on both
+TrainingPeaks API hosts, via `fetch` and XHR. Full design:
+`openspec/changes/tp-workout-capture-to-pmp/design.md`.
+
+**Key files**:
+
+- `src/content/workoutCaptureDetection.ts` — pure URL/body helpers (exact path
+  match; sibling routes such as `/comments` and `/details` never match)
+- `src/content/mainWorldInterceptor.ts` — takes a synchronous body handle,
+  dispatches the original fetch at once, reads request + response off a
+  clone on a detached promise, returns the original response immediately
+- `src/content/isolatedWorldBridge.ts` — relays `TP_WORKOUT_CREATED` /
+  `TP_WORKOUT_UPDATED` as `WORKOUT_CAPTURED` (no imports, no validation)
+- `src/schemas/capturedWorkout.schema.ts` — tolerant payload schema, stored
+  record schema, `buildCapturedWorkoutKey(environment, athleteId, workoutId)`
+- `src/services/capturedWorkoutService.ts` — the `captured_workouts` map
+- `src/services/badgeService.ts` — `refreshBadge()`, the badge owner
+- `src/hooks/useCapturedWorkouts.ts`, `src/hooks/useSendCapturedWorkouts.ts`
+- `src/popup/components/CapturedWorkoutList.tsx`, `CapturedWorkoutRow.tsx`,
+  the **New Workouts** tab in `TabNavigation.tsx`
+
+**Rules — do not weaken these when extending the feature**:
+
+- **The capture channel is not page-facing.** `WORKOUT_CAPTURED`,
+  `GET_CAPTURED_WORKOUTS`, `UPDATE_CAPTURED_WORKOUT` and
+  `REMOVE_CAPTURED_WORKOUTS` are `RuntimeMessage` types only. They are not in
+  `PING.supports` and the site-control router does not serve them; the
+  site-control test asserts this.
+- **Captures are origin-gated in the background.** `WORKOUT_CAPTURED` is
+  accepted only from a tab whose URL origin is a TrainingPeaks app origin
+  (`trainingPeaksEnvironmentForAppOrigin`), and the record's `environment`
+  comes from that origin, never from the message. The popup cannot send it.
+- **No credential in a capture.** The posted message carries request body,
+  response body, ids, kind and timestamp — never request headers.
+- **The capture never affects the page.** Nothing is awaited before the
+  original fetch is dispatched; the page gets the original response object
+  as soon as it exists; every failure in the capture path is swallowed.
+- **Only the background writes `captured_workouts`.** Every mutation is a
+  read-modify-write serialized through `withCapturedWorkoutsLock`; the popup
+  and hooks send runtime messages and never call `chrome.storage.local.set`
+  on the key. Reads may bypass the queue.
+- **One badge owner.** `badgeService.refreshBadge()` is the only place the
+  idle badge is decided: export `in_progress` wins, then a `completed`/
+  `failed` export younger than `EXPORT_BADGE_LINGER_MS`, then the pending
+  capture count (`99+` cap, amber), else empty. Export services paint their
+  own transient states and delegate the idle case; nothing else calls
+  `chrome.action.setBadgeText` for the idle case. The linger check on
+  `completedAt` is what keeps a persisted `✓` from surviving a restart.
+- **Sends use the shared path with a namespaced identity.** The hook runs
+  `planMyPeakAdapter.transform → validate → export` with
+  `{ createFolder: false, providerIdNamespace: 'cal' | 'cal-sandbox', capturedKeys }`.
+  The transformer mints `provider_workout_id` as `${namespace}:${workoutId}`;
+  nothing outside it rewrites identities. `createFolder: false` resolves the
+  `isDefault` library by flag, never by name.
+- **Send outcomes are written by the background upload loop**, per workout,
+  right after its POST, through `capturedKeys` on
+  `EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY`. The popup only reflects storage,
+  so a popup closed mid-send loses nothing. The hook records only
+  transform-time skips (`lastSendError`).
+- **Sends are gated like every other import**: disabled without PlanMyPeak
+  auth or with the connection off, blocked on a confirmed account mismatch.
+- **`exportWorkoutsToPlanMyPeakLibrary` no longer short-circuits when every
+  upload fails.** It returns `success: true` with the full summary whenever
+  the loop ran; `isTotalUploadFailure(summary)` is how consumers
+  (`PlanMyPeakAdapter.export`, `trainingPlanExport`) turn that into the
+  user-facing failure, now listing every failure message. `success: false`
+  means no upload was attempted. `ExportResult.itemResults` (keyed by
+  provider id) and `failures[].providerWorkoutId` are additive.
+
+**Known limits**: only the documented create endpoint is captured (applying a
+library item to the calendar, copy/paste and plan application use other
+routes and are out of scope until observed); athlete names are not available,
+so rows show the athlete id and workout day.
 
 ## Export Adapters
 
@@ -926,7 +1016,28 @@ make build
 
 - Check you're on `app.trainingpeaks.com`
 - Open DevTools → Console for content script logs
-- Trigger an API request (click around TrainingPeaks)
+- Trigger an API request (click around TrainingPeaks), or click **Refresh** in
+  the popup
+
+### Refreshing sign-in without disrupting the user
+
+The extension holds no credential of its own: tokens are only visible when the
+site's page makes an authenticated request. A **Refresh** therefore asks the
+background (`REFRESH_PROVIDER_AUTH` → `src/services/authRefreshService.ts`) to
+open a temporary **background** tab on the site, wait for the token to land in
+storage, and close the tab. Rules:
+
+- Never reload or focus the user's own tab; that is exactly the disruption
+  this replaces. `reloadPlanMyPeakTab` (an explicit data refresh) is the one
+  deliberate exception and is only run when the user asks for it.
+- A background tab, not a window: a new window steals focus and closes the
+  popup.
+- If no token arrives within `AUTH_REFRESH_TIMEOUT_MS` the tab is left open and
+  brought forward: the user almost certainly has to sign in.
+- The popup awaits the background's verdict (`useProviderAuthRefresh`) instead
+  of guessing with a timer; the stores update live via `chrome.storage.onChanged`.
+- The message opens tabs, so it is accepted only from extension pages and the
+  PlanMyPeak overlay's allowlisted origin.
 
 ---
 
@@ -983,6 +1094,6 @@ read @docs/EXPORT_DESTINATION_INTEGRATION_FLOW.md
 
 ---
 
-**Last Updated**: 2026-02-20
-**Maintained By**: Claude Sonnet 4.5
+**Last Updated**: 2026-09-17
+**Maintained By**: Claude
 **For Questions**: See README.md or architecture documentation

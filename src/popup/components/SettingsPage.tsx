@@ -13,8 +13,7 @@ import type {
   PlanMyPeakEnvironment,
   TrainingPeaksEnvironment,
 } from '@/utils/constants';
-import { openMyPeakTab } from '@/utils/myPeakTab';
-import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
+import { useProviderAuthRefresh } from '@/hooks/useProviderAuthRefresh';
 import {
   formatTokenAge,
   buildProviderStatusLabel,
@@ -232,21 +231,18 @@ function SettingsPageContent({
     }
   };
 
+  const tpAuthRefresh = useProviderAuthRefresh('trainingpeaks');
+  const myPeakAuthRefresh = useProviderAuthRefresh('planmypeak');
+
   const handleTrainingPeaksRefresh = async (): Promise<void> => {
-    await openTrainingPeaksTab();
-    setTimeout(() => {
-      void refreshTpAuth();
-    }, 1500);
+    await tpAuthRefresh.refresh();
+    await refreshTpAuth();
   };
 
   const handleMyPeakRefresh = async (): Promise<void> => {
-    await openMyPeakTab();
-    setTimeout(() => {
-      void (async () => {
-        await refreshMyPeakAuth();
-        await validateMyPeakAuth();
-      })();
-    }, 1500);
+    await myPeakAuthRefresh.refresh();
+    await refreshMyPeakAuth();
+    await validateMyPeakAuth();
   };
 
   // Build status labels using centralized string functions
@@ -318,6 +314,11 @@ function SettingsPageContent({
           error={tpError}
           onRefresh={handleTrainingPeaksRefresh}
         />
+        {tpAuthRefresh.message ? (
+          <p className="mt-1 text-xs text-gray-600" role="status">
+            {tpAuthRefresh.message}
+          </p>
+        ) : null}
 
         <div className="mt-3 border-t border-blue-200 pt-2">
           <p className="mb-1 text-xs font-medium text-blue-900">Environment</p>
@@ -373,6 +374,11 @@ function SettingsPageContent({
             error={myPeakError}
             onRefresh={handleMyPeakRefresh}
           />
+          {myPeakAuthRefresh.message ? (
+            <p className="mt-1 text-xs text-gray-600" role="status">
+              {myPeakAuthRefresh.message}
+            </p>
+          ) : null}
           <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
             <p className="mb-1 text-xs font-medium text-gray-700">
               Environment

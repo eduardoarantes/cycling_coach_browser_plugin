@@ -47,6 +47,23 @@ export interface ExportResult {
   itemsExported: number;
   warnings: ValidationMessage[];
   errors?: string[];
+  /**
+   * Per-item outcome keyed by provider id, for destinations that upload item
+   * by item. Additive: identically named workouts and partial failures are
+   * attributable by id where `warnings`/`errors` only carry names.
+   */
+  itemResults?: ExportItemResult[];
+}
+
+/** Outcome of exporting one item, identified by its provider id. */
+export interface ExportItemResult {
+  providerWorkoutId: string;
+  success: boolean;
+  /** Destination's id for the item, when it landed */
+  remoteId?: string;
+  /** Destination container the item landed in, when known */
+  libraryName?: string;
+  error?: string;
 }
 
 /**

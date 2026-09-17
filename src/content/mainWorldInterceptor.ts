@@ -6,7 +6,19 @@
  */
 
 import { isMyPeakSupabaseRequest } from './mypeakAuthDetection';
-import { extractRequestInfo, toAbsoluteUrl } from './requestInfo';
+import {
+  extractRequestInfo,
+  extractRequestMethod,
+  toAbsoluteUrl,
+} from './requestInfo';
+import {
+  matchTrainingPeaksWorkoutWrite,
+  readJsonBody,
+  readWorkoutIdFromResponse,
+  safeParseJson,
+  takeRequestBodyHandle,
+  type TrainingPeaksWorkoutWriteMatch,
+} from './workoutCaptureDetection';
 
 const DEBUG = import.meta.env.DEV;
 const log = (...args: unknown[]): void => {
@@ -70,6 +82,44 @@ function maybePostMyPeakSupabaseAuth(
   log('  ✅ Posted MyPeak auth details to isolated world');
 }
 
+/**
+ * Post a captured TrainingPeaks workout write to the isolated world.
+ *
+ * Carries the parsed request and response bodies, the ids, the kind and a
+ * timestamp — never request headers, so no credential can cross here. A
+ * create whose response carries no numeric `workoutId` is dropped: without a
+ * stable identity nothing downstream could store or upsert it.
+ */
+function postWorkoutCapture(
+  match: TrainingPeaksWorkoutWriteMatch,
+  request: unknown,
+  response: unknown,
+  context: 'fetch' | 'xhr'
+): void {
+  const workoutId = match.workoutId ?? readWorkoutIdFromResponse(response);
+  if (workoutId === null) {
+    log('  ⏭️ Workout capture skipped: no workout id in response', context);
+    return;
+  }
+
+  window.postMessage(
+    {
+      type:
+        match.kind === 'create' ? 'TP_WORKOUT_CREATED' : 'TP_WORKOUT_UPDATED',
+      kind: match.kind,
+      athleteId: match.athleteId,
+      workoutId,
+      request,
+      response,
+      timestamp: Date.now(),
+      source: 'trainingpeaks-extension-main',
+    },
+    '*'
+  );
+
+  log('  ✅ Posted workout capture to isolated world', context, match.kind);
+}
+
 log('🚀 Main world interceptor loading...');
 
 // Store original fetch
@@ -126,14 +176,85 @@ window.fetch = async function (...args) {
 
   maybePostMyPeakSupabaseAuth(urlStr, headers, 'fetch');
 
-  return originalFetch.apply(this, args);
+  const captureMatch = matchTrainingPeaksWorkoutWrite(
+    extractRequestMethod(args[0], args[1]),
+    urlStr
+  );
+  if (!captureMatch) {
+    return originalFetch.apply(this, args);
+  }
+
+  // Take a handle on the request body synchronously — a Request is cloned,
+  // a string is kept as is — and dispatch the original fetch at once. Nothing
+  // is awaited before dispatch, so the page's request goes out exactly when
+  // it would have without the interceptor.
+  let bodyHandle: string | Request | undefined;
+  try {
+    bodyHandle = takeRequestBodyHandle(args[0], args[1]);
+  } catch (error) {
+    log('  ⚠️ Could not take workout request body handle:', error);
+    bodyHandle = undefined;
+  }
+
+  const response = await originalFetch.apply(this, args);
+
+  // The page gets the original response back immediately. The bodies are read
+  // off a clone on a detached promise, concurrently with the page's own
+  // consumption; any failure in that path is logged and swallowed.
+  try {
+    if (response.ok) {
+      const responseClone = response.clone();
+      void Promise.all([readJsonBody(bodyHandle), responseClone.json()])
+        .then(([requestBody, responseBody]) => {
+          postWorkoutCapture(captureMatch, requestBody, responseBody, 'fetch');
+        })
+        .catch((error) => {
+          log('  ⚠️ Workout capture failed (fetch):', error);
+        });
+    } else {
+      log('  ⏭️ Workout write not captured: status', response.status);
+    }
+  } catch (error) {
+    log('  ⚠️ Workout capture setup failed (fetch):', error);
+  }
+
+  return response;
 };
 
 // Intercept XMLHttpRequest
 const originalXHROpen = XMLHttpRequest.prototype.open;
 const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+const originalXHRSend = XMLHttpRequest.prototype.send;
 const xhrHeaders = new WeakMap<XMLHttpRequest, Map<string, string>>();
+/** String bodies passed to send(), for workout-write capture. */
+const xhrBodies = new WeakMap<XMLHttpRequest, string>();
 let xhrCount = 0;
+
+XMLHttpRequest.prototype.send = function (
+  body?: Document | XMLHttpRequestBodyInit | null
+) {
+  // Only string bodies are parsed; anything else is skipped.
+  if (typeof body === 'string') {
+    xhrBodies.set(this, body);
+  }
+
+  return originalXHRSend.call(this, body);
+};
+
+/**
+ * The response body of a loaded XHR as JSON, honouring `responseType`.
+ * `responseText` throws for a non-text responseType, so `json` is read from
+ * `response` instead and anything else is skipped.
+ */
+function readXhrResponseJson(xhr: XMLHttpRequest): unknown {
+  if (xhr.responseType === 'json') {
+    return xhr.response as unknown;
+  }
+  if (xhr.responseType === '' || xhr.responseType === 'text') {
+    return safeParseJson(xhr.responseText);
+  }
+  return undefined;
+}
 
 XMLHttpRequest.prototype.setRequestHeader = function (
   header: string,
@@ -161,6 +282,33 @@ XMLHttpRequest.prototype.open = function (
   xhrCount++;
   const xhrUrlAbs = toAbsoluteUrl(url.toString(), document.baseURI);
   log('📡 XHR request #' + xhrCount + ':', method, xhrUrlAbs);
+
+  const captureMatch = matchTrainingPeaksWorkoutWrite(method, xhrUrlAbs);
+  if (captureMatch) {
+    // `load` fires after the page's own handlers have been queued and never
+    // blocks them; a failure here is logged and swallowed.
+    this.addEventListener('load', function () {
+      try {
+        if (this.status < 200 || this.status >= 300) {
+          log('  ⏭️ Workout write not captured (XHR): status', this.status);
+          return;
+        }
+
+        const requestBody = xhrBodies.get(this);
+        const requestJson =
+          requestBody !== undefined ? safeParseJson(requestBody) : undefined;
+        const responseJson = readXhrResponseJson(this);
+        if (responseJson === undefined) {
+          log('  ⏭️ Workout write not captured (XHR): unreadable response');
+          return;
+        }
+
+        postWorkoutCapture(captureMatch, requestJson, responseJson, 'xhr');
+      } catch (error) {
+        log('  ⚠️ Workout capture failed (XHR):', error);
+      }
+    });
+  }
 
   this.addEventListener('loadstart', function () {
     const headers = xhrHeaders.get(this);

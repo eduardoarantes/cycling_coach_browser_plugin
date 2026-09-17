@@ -49,7 +49,8 @@ Reload in `chrome://extensions`.
 
 1. Open `https://app.trainingpeaks.com`.
 2. Sign in.
-3. Refresh the page or click around inside the app.
+3. Click around inside the app, or click **Refresh** in the popup (it captures
+   the sign-in in a temporary background tab; your own tab is not reloaded).
 4. Open the extension popup.
 5. Confirm that TrainingPeaks shows as connected.
 

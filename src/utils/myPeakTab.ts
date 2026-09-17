@@ -1,13 +1,46 @@
 /**
- * Utility functions for interacting with the PlanMyPeak app tab
+ * PlanMyPeak tab helpers for the popup.
+ *
+ * Two different needs live here and must not be confused:
+ *
+ * - `requestPlanMyPeakAuthRefresh` refreshes the captured token quietly, in a
+ *   temporary background tab handled by the background worker. The coach's
+ *   own PlanMyPeak tab is never reloaded or focused.
+ * - `reloadPlanMyPeakTab` is a **data** refresh of the portal itself (for
+ *   example so freshly imported groups appear). It does reload and focus the
+ *   coach's tab, and is only ever run when they explicitly ask for it.
  */
 
+import type { AuthRefreshResult, RefreshProviderAuthMessage } from '@/types';
 import { getPlanMyPeakAppUrl } from '@/services/planMyPeakConfigService';
 import { logger } from './logger';
 
-export async function openMyPeakTab(): Promise<void> {
+/**
+ * Ask the background to refresh the PlanMyPeak token in a temporary
+ * background tab. See `requestTrainingPeaksAuthRefresh` for the contract.
+ */
+export async function requestPlanMyPeakAuthRefresh(): Promise<AuthRefreshResult> {
   try {
-    // Get dynamic URL based on configured port
+    return await chrome.runtime.sendMessage<
+      RefreshProviderAuthMessage,
+      AuthRefreshResult
+    >({ type: 'REFRESH_PROVIDER_AUTH', provider: 'planmypeak' });
+  } catch (error) {
+    logger.error('Failed to request PlanMyPeak auth refresh:', error);
+    return {
+      outcome: 'error',
+      error: error instanceof Error ? error.message : 'Auth refresh failed',
+    };
+  }
+}
+
+/**
+ * Reload and focus the coach's PlanMyPeak tab (or open one) so the portal
+ * shows fresh data. This is disruptive by design and is only used when the
+ * coach explicitly asks to see the result of an import in PlanMyPeak.
+ */
+export async function reloadPlanMyPeakTab(): Promise<void> {
+  try {
     const appUrl = await getPlanMyPeakAppUrl();
 
     const tabs = await chrome.tabs.query({

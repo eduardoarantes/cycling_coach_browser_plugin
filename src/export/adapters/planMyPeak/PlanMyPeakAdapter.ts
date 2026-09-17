@@ -17,6 +17,7 @@ import type {
 } from '@/types';
 import type {
   ExportAdapter,
+  ExportItemResult,
   ExportResult,
   ValidationMessage,
   ValidationResult,
@@ -31,7 +32,10 @@ import {
   type PlanMyPeakLibrary,
   type PlanMyPeakWorkoutLibraryItem,
 } from '@/schemas/planMyPeakApi.schema';
-import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
+import {
+  isTotalUploadFailure,
+  type PlanMyPeakUploadSummary,
+} from '@/background/api/planMyPeak';
 import { PlanMyPeakWorkoutSchema } from '@/schemas/planMyPeak.schema';
 import { logger } from '@/utils/logger';
 import { transformToPlanMyPeak } from './transformer';
@@ -425,6 +429,27 @@ export class PlanMyPeakAdapter implements ExportAdapter<
   }
 
   /**
+   * Per-item outcomes from an upload summary, keyed by provider id, so
+   * identically named workouts and partial failures are attributable.
+   */
+  private buildItemResults(
+    summary: PlanMyPeakUploadSummary
+  ): ExportItemResult[] {
+    const successes: ExportItemResult[] = summary.results.map((entry) => ({
+      providerWorkoutId: entry.workout.providerWorkoutId ?? '',
+      success: true,
+      remoteId: entry.workout.id,
+      libraryName: entry.workout.library.name,
+    }));
+    const failures: ExportItemResult[] = summary.failures.map((failure) => ({
+      providerWorkoutId: failure.providerWorkoutId,
+      success: false,
+      error: failure.message,
+    }));
+    return [...successes, ...failures];
+  }
+
+  /**
    * Upload workouts to PlanMyPeak.
    *
    * The write is an upsert keyed on TrainingPeaks identity, so a re-import
@@ -448,14 +473,19 @@ export class PlanMyPeakAdapter implements ExportAdapter<
       const { library: targetLibrary, createdByUs } =
         await this.resolveTargetLibrary(config);
 
-      const uploadResult = await chrome.runtime.sendMessage<
-        ExportWorkoutsToPlanMyPeakLibraryMessage,
-        ApiResponse<PlanMyPeakUploadSummary>
-      >({
+      const uploadMessage: ExportWorkoutsToPlanMyPeakLibraryMessage = {
         type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
         workouts,
         libraryId: targetLibrary.id,
-      });
+      };
+      if (config.capturedKeys) {
+        uploadMessage.capturedKeys = config.capturedKeys;
+      }
+
+      const uploadResult = await chrome.runtime.sendMessage<
+        ExportWorkoutsToPlanMyPeakLibraryMessage,
+        ApiResponse<PlanMyPeakUploadSummary>
+      >(uploadMessage);
 
       if (!uploadResult.success) {
         logger.error(
@@ -473,6 +503,26 @@ export class PlanMyPeakAdapter implements ExportAdapter<
       }
 
       const summary = uploadResult.data;
+      const itemResults = this.buildItemResults(summary);
+
+      // The loop ran and nothing landed. Surface it as the failure it is, with
+      // every failure message rather than the first — the keyed results say
+      // which workout each one belongs to.
+      if (isTotalUploadFailure(summary)) {
+        const errors = summary.failures.map(
+          (failure) => `Failed to upload "${failure.name}": ${failure.message}`
+        );
+        logger.error('[PlanMyPeakAdapter] Upload failed:', errors[0]);
+        return {
+          success: false,
+          fileName: targetLibrary.name,
+          format: 'api',
+          itemsExported: 0,
+          warnings: [...warnings, ...this.lastTransformWarnings],
+          errors,
+          itemResults,
+        };
+      }
 
       logger.info(
         `[PlanMyPeakAdapter] Upload complete: ${summary.createdCount} created, ${summary.updatedCount} updated -> ${targetLibrary.name}`
@@ -576,6 +626,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
         format: 'api',
         itemsExported: summary.results.length,
         warnings,
+        itemResults,
       };
     } catch (error) {
       logger.error('[PlanMyPeakAdapter] Export failed:', error);
