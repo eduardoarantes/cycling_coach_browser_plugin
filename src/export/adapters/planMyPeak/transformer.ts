@@ -610,6 +610,18 @@ export function transformToPlanMyPeak(
   const allowsEmptyStructure =
     DISCIPLINES_ALLOWING_EMPTY_STRUCTURE.has(discipline);
 
+  // Provider identity. Library and plan exports send the bare TrainingPeaks
+  // id; calendar captures ask for a namespace (`cal`, `cal-sandbox`) so they
+  // never collide with those or with each other across environments. This is
+  // the only place identities are minted — nothing downstream rewrites them.
+  const namespace = config.providerIdNamespace?.trim();
+  const providerWorkoutId = namespace
+    ? `${namespace}:${item.exerciseLibraryItemId}`
+    : String(item.exerciseLibraryItemId);
+  const sourceFile = namespace
+    ? `workout_${namespace}_${item.exerciseLibraryItemId}.json`
+    : `workout_${item.exerciseLibraryItemId}.json`;
+
   // Transform structure (remove polyline, begin/end, add target type/unit).
   //
   // Rest days, notes, races and strength sessions may carry no structure:
@@ -639,13 +651,13 @@ export function transformToPlanMyPeak(
     variable_components: null, // Not available in TrainingPeaks data
     // TrainingPeaks' own id, which becomes PlanMyPeak's providerWorkoutId and
     // makes a re-import an update rather than a duplicate.
-    provider_workout_id: String(item.exerciseLibraryItemId),
+    provider_workout_id: providerWorkoutId,
     provider_item_type: item.exerciseLibraryItemType?.trim() || null,
     // Passed through verbatim; the API boundary decides whether the pair is
     // usable, since PlanMyPeak refuses one without the other.
     provider_intensity_factor: item.ifPlanned,
     provider_tss: item.tssPlanned,
-    source_file: `workout_${item.exerciseLibraryItemId}.json`,
+    source_file: sourceFile,
     source_format: 'json',
     signature: generateSignature(item),
   };

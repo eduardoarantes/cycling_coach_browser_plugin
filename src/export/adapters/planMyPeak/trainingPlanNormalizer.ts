@@ -7,11 +7,34 @@ interface PlanMyPeakPlanWorkoutNormalizationOptions {
 }
 
 /**
+ * The fields of a TrainingPeaks calendar workout this bridge reads. A full
+ * `PlanWorkout` satisfies it; so does the compact copy kept for a captured
+ * workout, which carries only these.
+ */
+export type PlanMyPeakNormalizableWorkout = Pick<
+  PlanWorkout,
+  | 'workoutId'
+  | 'title'
+  | 'workoutTypeValueId'
+  | 'distancePlanned'
+  | 'totalTimePlanned'
+  | 'caloriesPlanned'
+  | 'tssPlanned'
+  | 'ifPlanned'
+  | 'velocityPlanned'
+  | 'energyPlanned'
+  | 'elevationGainPlanned'
+  | 'description'
+  | 'coachComments'
+  | 'structure'
+>;
+
+/**
  * PlanMyPeak-only adapter bridge: normalize TP training-plan workouts to the
  * TP library-item shape consumed by the existing PlanMyPeak adapter/transformer.
  */
 export function normalizeTpPlanWorkoutToPlanMyPeakLibraryItem(
-  workout: PlanWorkout,
+  workout: PlanMyPeakNormalizableWorkout,
   options: PlanMyPeakPlanWorkoutNormalizationOptions = {}
 ): LibraryItem {
   return {

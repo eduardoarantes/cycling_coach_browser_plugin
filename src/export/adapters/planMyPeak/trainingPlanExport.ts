@@ -12,7 +12,10 @@ import type {
   GetPlanMyPeakLibrariesMessage,
   TrainingPlanExportProgressPayload,
 } from '@/types';
-import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
+import {
+  isTotalUploadFailure,
+  type PlanMyPeakUploadSummary,
+} from '@/background/api/planMyPeak';
 import type { PlanFolder } from '@/schemas/trainingPlan.schema';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 import type {
@@ -125,6 +128,41 @@ function parseTpDateToUtcMidnight(value: string): Date | null {
   const [, year, month, day] = match.map(Number);
   const parsed = new Date(Date.UTC(year, month - 1, day));
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
+ * Week 1 of the imported plan.
+ *
+ * TrainingPeaks leaves `startDate` null on plans that were never placed on a
+ * calendar (unscheduled templates, off-the-shelf plans), so the plan's own date
+ * cannot be the only anchor or those plans could never be imported. The earliest
+ * dated entry is the week TrainingPeaks itself shows as week 1, so it stands in.
+ */
+function resolvePlanStart(
+  trainingPlan: TrainingPlan,
+  workouts: PlanWorkout[],
+  notes: CalendarNote[]
+): Date | null {
+  const declaredStart = trainingPlan.startDate
+    ? parseTpDateToUtcMidnight(trainingPlan.startDate)
+    : null;
+
+  if (declaredStart) {
+    return declaredStart;
+  }
+
+  const entryDates = [
+    ...workouts.map((workout) => parseTpDateToUtcMidnight(workout.workoutDay)),
+    ...notes.map((note) => parseTpDateToUtcMidnight(note.noteDate)),
+  ].filter((date): date is Date => date !== null);
+
+  if (entryDates.length === 0) {
+    return null;
+  }
+
+  return entryDates.reduce((earliest, date) =>
+    date < earliest ? date : earliest
+  );
 }
 
 async function resolveSharedPlanWorkoutLibrary(
@@ -391,6 +429,22 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     });
   }
 
+  // Every workout failing is still a failed export; the summary now carries
+  // each failure, so report all of them instead of only the first.
+  if (isTotalUploadFailure(uploadResult.data)) {
+    return failWithProgress(
+      uploadResult.data.failures.map(
+        (failure) => `Failed to upload "${failure.name}": ${failure.message}`
+      ),
+      {
+        phase: 'classicWorkouts',
+        phaseCurrent: classicCurrent,
+        phaseTotal: classicPhaseTotal,
+        message: 'Failed to upload plan workouts',
+      }
+    );
+  }
+
   /** Namespaced note id -> the PlanMyPeak workout it became. */
   const workoutIdByNoteId = new Map<string, string>();
 
@@ -428,10 +482,14 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     'Classic workout processing complete'
   );
 
-  const planStart = parseTpDateToUtcMidnight(trainingPlan.startDate);
+  const planStart = resolvePlanStart(trainingPlan, workouts, notes);
   if (!planStart) {
     return failWithProgress(
-      [`Invalid training plan startDate: ${trainingPlan.startDate}`],
+      [
+        `Could not determine a start week for "${planName}": TrainingPeaks reported startDate ${String(
+          trainingPlan.startDate
+        )} and no workout or note carries a usable date.`,
+      ],
       {
         phase: 'folder',
         phaseCurrent: folderCurrent,

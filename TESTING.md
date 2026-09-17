@@ -40,7 +40,8 @@ but noisy during normal development.
 
 1. Load the extension in Chrome.
 2. Sign in to `https://app.trainingpeaks.com`.
-3. Refresh the page or navigate inside the app.
+3. Navigate inside the app, or click **Refresh** in the popup (this opens a
+   temporary background tab and closes it; your own tab must stay untouched).
 4. Open the popup.
 5. Confirm that TrainingPeaks shows as connected.
 
@@ -56,7 +57,7 @@ but noisy during normal development.
 
 1. Enable the PlanMyPeak integration in Settings.
 2. Sign in to `planmypeak.com` or the configured local PlanMyPeak target.
-3. Refresh the tab.
+3. Click the PlanMyPeak **Refresh** in the popup, or navigate inside the app.
 4. Confirm that the extension marks PlanMyPeak as connected.
 
 ### 4. Intervals.icu Connection

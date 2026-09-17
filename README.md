@@ -62,7 +62,9 @@ full details.
 ### First Use
 
 1. Open `https://app.trainingpeaks.com` and sign in.
-2. Refresh the page or navigate inside TrainingPeaks to trigger API requests.
+2. Navigate inside TrainingPeaks to trigger an API request, or click **Refresh**
+   in the popup: it captures the sign-in in a temporary background tab without
+   reloading your page.
 3. Open the extension popup.
 4. Confirm that TrainingPeaks shows as connected.
 5. Optionally connect PlanMyPeak or add an Intervals.icu API key in Settings.

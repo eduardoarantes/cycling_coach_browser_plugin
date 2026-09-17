@@ -33,8 +33,13 @@ Used to store:
 
 Used to:
 
-- Find existing TrainingPeaks or PlanMyPeak tabs
-- Focus and reload those tabs when the user asks the extension to refresh auth
+- Open a temporary **background** tab on TrainingPeaks or PlanMyPeak when the
+  user asks the extension to refresh sign-in, and close it again as soon as the
+  site's own page load has produced an authenticated request. The user's open
+  tabs are never reloaded or focused; the only time the temporary tab is
+  brought forward is when no sign-in was found, so the user can sign in there.
+- Find and reload the PlanMyPeak tab only when the user explicitly asks to see
+  freshly imported data in PlanMyPeak
 
 ## Host Permissions
 

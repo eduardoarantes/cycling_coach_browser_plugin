@@ -31,9 +31,39 @@ window.addEventListener('message', (event) => {
     return;
   if (
     event.data.type !== 'TP_TOKEN_FOUND' &&
-    event.data.type !== 'MY_PEAK_AUTH_FOUND'
+    event.data.type !== 'MY_PEAK_AUTH_FOUND' &&
+    event.data.type !== 'TP_WORKOUT_CREATED' &&
+    event.data.type !== 'TP_WORKOUT_UPDATED'
   )
     return;
+
+  if (
+    event.data.type === 'TP_WORKOUT_CREATED' ||
+    event.data.type === 'TP_WORKOUT_UPDATED'
+  ) {
+    log('📨 Received workout capture from MAIN world:', event.data.kind);
+
+    // Relayed as-is: the background validates and normalizes it. No schema is
+    // imported here so the always-injected bridge stays dependency-light.
+    chrome.runtime
+      .sendMessage({
+        type: 'WORKOUT_CAPTURED',
+        kind: event.data.type === 'TP_WORKOUT_CREATED' ? 'create' : 'update',
+        athleteId: event.data.athleteId,
+        workoutId: event.data.workoutId,
+        request: event.data.request,
+        response: event.data.response,
+        timestamp: event.data.timestamp,
+      })
+      .then(() => {
+        log('✅ Workout capture sent to background successfully');
+      })
+      .catch((error) => {
+        logError('❌ Failed to send workout capture to background:', error);
+      });
+
+    return;
+  }
 
   if (event.data.type === 'MY_PEAK_AUTH_FOUND') {
     log('📨 Received MyPeak auth details from MAIN world');

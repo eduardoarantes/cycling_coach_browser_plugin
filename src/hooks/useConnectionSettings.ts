@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '@/utils/constants';
-import { parseConnectionSettings } from '@/schemas/storage.schema';
+import {
+  DEFAULT_PLANMYPEAK_ENABLED,
+  parseConnectionSettings,
+} from '@/schemas/storage.schema';
 import { logger } from '@/utils/logger';
 
 interface ConnectionSettings {
@@ -14,7 +17,9 @@ interface ConnectionSettings {
 }
 
 export function useConnectionSettings(): ConnectionSettings {
-  const [isPlanMyPeakEnabled, setIsPlanMyPeakEnabledState] = useState(false);
+  const [isPlanMyPeakEnabled, setIsPlanMyPeakEnabledState] = useState(
+    DEFAULT_PLANMYPEAK_ENABLED
+  );
   const [isIntervalsEnabled, setIsIntervalsEnabledState] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +77,10 @@ export function useConnectionSettings(): ConnectionSettings {
       if (areaName !== 'local') return;
 
       if (changes[STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK]) {
+        // A removed value falls back to the default, like a fresh install.
+        const { newValue } = changes[STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK];
         setIsPlanMyPeakEnabledState(
-          changes[STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK].newValue === true
+          typeof newValue === 'boolean' ? newValue : DEFAULT_PLANMYPEAK_ENABLED
         );
       }
 

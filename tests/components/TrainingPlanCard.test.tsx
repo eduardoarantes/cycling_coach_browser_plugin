@@ -79,6 +79,21 @@ describe('TrainingPlanCard', () => {
       expect(screen.getByText(/8 workouts/)).toBeInTheDocument();
     });
 
+    // TrainingPeaks leaves the range null on plans that were never scheduled;
+    // the card drops the range rather than rendering "Invalid Date".
+    it('should omit the date range when the plan has no dates', () => {
+      const mockOnClick = vi.fn();
+      render(
+        <TrainingPlanCard
+          plan={{ ...mockPlan, startDate: null, endDate: null }}
+          onClick={mockOnClick}
+        />
+      );
+
+      expect(screen.getByText('3 weeks • 8 workouts')).toBeInTheDocument();
+      expect(screen.queryByText(/Invalid Date/)).not.toBeInTheDocument();
+    });
+
     it('should render formatted date range', () => {
       const mockOnClick = vi.fn();
       render(<TrainingPlanCard plan={mockPlan} onClick={mockOnClick} />);

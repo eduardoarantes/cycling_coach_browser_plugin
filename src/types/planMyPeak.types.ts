@@ -271,6 +271,18 @@ export interface PlanMyPeakExportConfig {
   defaultIntensity?: IntensityLevel;
   /** Default suitable phases */
   defaultSuitablePhases?: TrainingPhase[];
+  /**
+   * When set, `provider_workout_id` is minted as `${namespace}:${tpId}` (and
+   * `source_file` carries the namespace too). Used for calendar captures
+   * (`cal`, `cal-sandbox`) so they never collide with library item ids or with
+   * each other across TrainingPeaks environments.
+   */
+  providerIdNamespace?: string;
+  /**
+   * Captured-workout record key by provider id, forwarded on the export
+   * message so the background records each workout's outcome as it uploads.
+   */
+  capturedKeys?: Record<string, string>;
 }
 
 export type PlanMyPeakWeekday =

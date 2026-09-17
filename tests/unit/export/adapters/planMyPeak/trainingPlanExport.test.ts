@@ -374,6 +374,52 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     expect(entry.dayOfWeek).toBe(2);
   });
 
+  // TrainingPeaks leaves startDate null on plans that were never scheduled. The
+  // plan is still importable: its first dated session is the week the coach sees
+  // as week 1.
+  it('anchors week 1 on the earliest session when the plan has no start date', async () => {
+    const calls = mockPlanMyPeak({});
+
+    const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan({ startDate: null, endDate: null }),
+      workouts: [
+        makeStructuredWorkout(),
+        makeStructuredWorkout({
+          workoutId: 1002,
+          workoutDay: '2026-03-10T00:00:00',
+        }),
+      ],
+      notes: [],
+      config: {},
+    });
+
+    expect(result.success).toBe(true);
+    // 2026-03-03 is the earliest session, so its week is week 1 and the session
+    // a week later falls in week 2.
+    expect(calls.entryPayloads.map((entry) => entry.weekNumber)).toEqual([
+      1, 2,
+    ]);
+    expect(calls.planPayloads[0].providerMetadata).toMatchObject({
+      trainingPeaksStartDate: null,
+    });
+  });
+
+  it('fails with a readable message when nothing dates the plan', async () => {
+    mockPlanMyPeak({});
+
+    const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+      trainingPlan: makeTrainingPlan({ startDate: null, endDate: null }),
+      workouts: [makeStructuredWorkout({ workoutDay: 'not-a-date' })],
+      notes: [],
+      config: {},
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors[0]).toContain('Could not determine a start week');
+    }
+  });
+
   it('never sends a note, so a coach-written one survives a re-import', async () => {
     // An omitted note is kept by the server; sending null would erase it. We
     // have no note to offer, so the field must be absent rather than empty.

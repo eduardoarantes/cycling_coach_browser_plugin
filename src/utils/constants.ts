@@ -41,6 +41,49 @@ export function isTrainingPeaksEnvironment(
   return value === 'production' || value === 'sandbox';
 }
 
+const TRAININGPEAKS_ENVIRONMENT_NAMES: readonly TrainingPeaksEnvironment[] = [
+  'production',
+  'sandbox',
+];
+
+/**
+ * Which TrainingPeaks environment serves the web app at `origin`, or null when
+ * the origin is not a TrainingPeaks app origin. Exact match only, so a
+ * lookalike such as `https://app.trainingpeaks.com.evil.test` is rejected.
+ */
+export function trainingPeaksEnvironmentForAppOrigin(
+  origin: string | null | undefined
+): TrainingPeaksEnvironment | null {
+  if (!origin) {
+    return null;
+  }
+
+  return (
+    TRAININGPEAKS_ENVIRONMENT_NAMES.find(
+      (environment) => TRAININGPEAKS_ENVIRONMENTS[environment].appUrl === origin
+    ) ?? null
+  );
+}
+
+/**
+ * Which TrainingPeaks environment serves the API at `origin`, or null when the
+ * origin is not a TrainingPeaks API origin. Exact match only.
+ */
+export function trainingPeaksEnvironmentForApiOrigin(
+  origin: string | null | undefined
+): TrainingPeaksEnvironment | null {
+  if (!origin) {
+    return null;
+  }
+
+  return (
+    TRAININGPEAKS_ENVIRONMENT_NAMES.find(
+      (environment) =>
+        TRAININGPEAKS_ENVIRONMENTS[environment].apiBaseUrl === origin
+    ) ?? null
+  );
+}
+
 /**
  * TrainingPeaks API base URL (production default).
  * Prefer the environment-aware helpers in trainingPeaksConfigService for
@@ -408,6 +451,12 @@ export const STORAGE_KEYS = {
   PLANMYPEAK_SUPABASE_PORT: 'planmypeak_supabase_port',
   PLANMYPEAK_ENVIRONMENT: 'planmypeak_environment',
   TRAININGPEAKS_ENVIRONMENT: 'trainingpeaks_environment',
+  /**
+   * Map of workouts captured from TrainingPeaks calendar writes, keyed by
+   * `environment:athleteId:workoutId`. Written only by the background worker
+   * through capturedWorkoutService; the popup reads it and sends messages.
+   */
+  CAPTURED_WORKOUTS: 'captured_workouts',
 } as const;
 
 /**

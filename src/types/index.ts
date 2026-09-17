@@ -25,6 +25,14 @@ import type {
   IntervalsPlanConflictAction,
 } from '@/types/intervalsicu.types';
 import type { SiteControlRequest } from '@/types/siteControl.types';
+import type {
+  CapturedWorkoutRecord,
+  CapturedWorkoutStatus,
+} from '@/schemas/capturedWorkout.schema';
+import type {
+  AuthRefreshProvider,
+  AuthRefreshResult,
+} from '@/services/authRefreshService';
 
 /**
  * Message types for chrome.runtime messaging
@@ -57,6 +65,18 @@ export interface ValidateTokenMessage {
 export interface ValidateMyPeakTokenMessage {
   type: 'VALIDATE_MY_PEAK_TOKEN';
 }
+
+/**
+ * Refresh a provider's captured token by opening a temporary background tab
+ * on the site and closing it once the token lands. Never touches the coach's
+ * own tabs. Handled in the background so it completes if the popup closes.
+ */
+export interface RefreshProviderAuthMessage {
+  type: 'REFRESH_PROVIDER_AUTH';
+  provider: AuthRefreshProvider;
+}
+
+export type { AuthRefreshProvider, AuthRefreshResult };
 
 export interface GetPlanMyPeakLibrariesMessage {
   type: 'GET_PLANMYPEAK_LIBRARIES';
@@ -97,7 +117,59 @@ export interface ExportWorkoutsToPlanMyPeakLibraryMessage {
   type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY';
   workouts: PlanMyPeakWorkout[];
   libraryId: string;
+  /**
+   * Captured-workout record key by `provider_workout_id`. When present, the
+   * background upload loop writes each workout's outcome to its record right
+   * after its POST, so a popup that closes mid-send loses nothing.
+   */
+  capturedKeys?: Record<string, string>;
 }
+
+/**
+ * A workout create/update observed on TrainingPeaks by the main-world
+ * interceptor and relayed by the isolated bridge. Carries the parsed request
+ * and response bodies only — never headers.
+ */
+export interface WorkoutCapturedMessage {
+  type: 'WORKOUT_CAPTURED';
+  kind: 'create' | 'update';
+  athleteId: number;
+  workoutId: number;
+  request: unknown;
+  response: unknown;
+  timestamp: number;
+}
+
+export interface GetCapturedWorkoutsMessage {
+  type: 'GET_CAPTURED_WORKOUTS';
+}
+
+export interface UpdateCapturedWorkoutMessage {
+  type: 'UPDATE_CAPTURED_WORKOUT';
+  key: string;
+  status?: CapturedWorkoutStatus;
+  planMyPeakWorkoutId?: string;
+  planMyPeakLibraryName?: string;
+  /** A string records the error; `null` clears it. */
+  lastSendError?: string | null;
+}
+
+export interface RemoveCapturedWorkoutsMessage {
+  type: 'REMOVE_CAPTURED_WORKOUTS';
+  statuses: CapturedWorkoutStatus[];
+}
+
+export interface CapturedWorkoutsListResult {
+  /** Newest first */
+  records: CapturedWorkoutRecord[];
+  pendingCount: number;
+}
+
+export interface RemoveCapturedWorkoutsResult {
+  removed: number;
+}
+
+export type { CapturedWorkoutRecord, CapturedWorkoutStatus };
 
 /**
  * Look a workout up by its TrainingPeaks id before writing it. Rarely needed,
@@ -407,6 +479,7 @@ export type RuntimeMessage =
   | ClearTokenMessage
   | ValidateTokenMessage
   | ValidateMyPeakTokenMessage
+  | RefreshProviderAuthMessage
   | GetPlanMyPeakLibrariesMessage
   | CreatePlanMyPeakLibraryMessage
   | DeletePlanMyPeakLibraryMessage
@@ -447,6 +520,10 @@ export type RuntimeMessage =
   | ClearIntervalsApiKeyMessage
   | GetDebugLogsMessage
   | ClearDebugLogsMessage
+  | WorkoutCapturedMessage
+  | GetCapturedWorkoutsMessage
+  | UpdateCapturedWorkoutMessage
+  | RemoveCapturedWorkoutsMessage
   | SiteControlRequestMessage;
 
 export interface FindIntervalsPlanFolderByNameResponse {

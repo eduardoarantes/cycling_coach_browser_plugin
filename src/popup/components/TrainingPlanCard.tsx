@@ -33,6 +33,22 @@ function formatDate(dateString: string): string {
 }
 
 /**
+ * Format a plan's date range, which TrainingPeaks leaves null for plans that
+ * were never scheduled. Those plans drop the range rather than showing
+ * "Invalid Date" - the weeks and workout count still describe them.
+ */
+function formatDateRange(
+  startDate: string | null,
+  endDate: string | null
+): string | null {
+  if (!startDate || !endDate) {
+    return null;
+  }
+
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+}
+
+/**
  * Format week count with proper singular/plural
  * @param count - Number of weeks
  * @returns Formatted string (e.g., "1 week" or "3 weeks")
@@ -72,8 +88,12 @@ export function TrainingPlanCard({
     }
   };
 
-  const dateRange = `${formatDate(plan.startDate)} - ${formatDate(plan.endDate)}`;
-  const metadata = `${formatWeeks(plan.weekCount)} • ${formatWorkouts(plan.workoutCount)} • ${dateRange}`;
+  const dateRange = formatDateRange(plan.startDate, plan.endDate);
+  const metadata = [
+    formatWeeks(plan.weekCount),
+    formatWorkouts(plan.workoutCount),
+    ...(dateRange ? [dateRange] : []),
+  ].join(' • ');
 
   return (
     <button

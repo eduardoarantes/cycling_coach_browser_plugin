@@ -73,6 +73,26 @@ const mockAction = {
   setBadgeBackgroundColor: vi.fn(() => Promise.resolve()),
 };
 
+// Mock chrome.tabs / chrome.windows (used by the auth refresh flow)
+let nextTabId = 1000;
+const mockTabs = {
+  create: vi.fn((props: { url?: string; active?: boolean }) =>
+    Promise.resolve({ id: nextTabId++, url: props.url, active: props.active })
+  ),
+  remove: vi.fn(() => Promise.resolve()),
+  update: vi.fn(() => Promise.resolve({})),
+  reload: vi.fn(() => Promise.resolve()),
+  query: vi.fn(() => Promise.resolve([])),
+  onRemoved: {
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+  },
+};
+
+const mockWindows = {
+  update: vi.fn(() => Promise.resolve({})),
+};
+
 // Set up global chrome object
 global.chrome = {
   storage: {
@@ -81,6 +101,8 @@ global.chrome = {
   },
   action: mockAction,
   runtime: mockRuntime,
+  tabs: mockTabs,
+  windows: mockWindows,
 } as never;
 
 // Clear storage before each test

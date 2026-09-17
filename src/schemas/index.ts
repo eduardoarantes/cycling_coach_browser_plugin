@@ -8,5 +8,6 @@ export * from './intervalsicuDsl.schema';
 export * from './library.schema';
 export * from './planMyPeakApi.schema';
 export * from './storage.schema';
+export * from './tolerantList';
 export * from './trainingPlan.schema';
 export * from './user.schema';

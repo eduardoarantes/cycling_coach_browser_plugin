@@ -32,7 +32,10 @@ vi.mock('@/hooks/usePlanMyPeakGroupImport', () => ({
   }),
 }));
 
-vi.mock('@/utils/myPeakTab', () => ({ openMyPeakTab: vi.fn() }));
+vi.mock('@/utils/myPeakTab', () => ({
+  reloadPlanMyPeakTab: vi.fn(),
+  requestPlanMyPeakAuthRefresh: vi.fn(),
+}));
 
 const rawPayload = [{ id: 1, coachId: 2, name: 'Squad', athleteIds: [7] }];
 

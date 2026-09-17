@@ -53,3 +53,22 @@ export function toAbsoluteUrl(url: string, base: string): string {
     return url;
   }
 }
+
+/**
+ * Resolve the HTTP method of a fetch() call, upper-cased. `init.method`
+ * overrides a Request's own method, exactly as fetch itself resolves it.
+ */
+export function extractRequestMethod(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): string {
+  if (init && typeof init.method === 'string') {
+    return init.method.toUpperCase();
+  }
+
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    return input.method.toUpperCase();
+  }
+
+  return 'GET';
+}
