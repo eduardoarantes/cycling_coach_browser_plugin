@@ -11,8 +11,7 @@ import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useUser } from '@/hooks/useUser';
 import { usePortConfig } from '@/hooks/usePortConfig';
 import { parsePort } from '@/utils/constants';
-import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
-import { openMyPeakTab } from '@/utils/myPeakTab';
+import { useProviderAuthRefresh } from '@/hooks/useProviderAuthRefresh';
 import {
   formatTokenAge,
   buildProviderStatusLabel,
@@ -59,21 +58,18 @@ export function AuthStatus(): ReactElement {
     ? `localhost:${appPort}`
     : 'planmypeak.com';
 
+  const tpAuthRefresh = useProviderAuthRefresh('trainingpeaks');
+  const myPeakAuthRefresh = useProviderAuthRefresh('planmypeak');
+
   const handleTrainingPeaksRefresh = async (): Promise<void> => {
-    await openTrainingPeaksTab();
-    setTimeout(() => {
-      void refreshTpAuth();
-    }, 2000);
+    await tpAuthRefresh.refresh();
+    await refreshTpAuth();
   };
 
   const handleMyPeakRefresh = async (): Promise<void> => {
-    await openMyPeakTab();
-    setTimeout(() => {
-      void (async () => {
-        await refreshMyPeakAuth();
-        await validateMyPeakAuth();
-      })();
-    }, 2000);
+    await myPeakAuthRefresh.refresh();
+    await refreshMyPeakAuth();
+    await validateMyPeakAuth();
   };
 
   // Build status labels using centralized string functions
@@ -138,6 +134,11 @@ export function AuthStatus(): ReactElement {
         title={tpTooltip}
         onRefresh={handleTrainingPeaksRefresh}
       />
+      {tpAuthRefresh.message ? (
+        <p className="mt-1 text-xs text-gray-600" role="status">
+          {tpAuthRefresh.message}
+        </p>
+      ) : null}
 
       <AuthRow
         label={myPeakLabel}
@@ -148,6 +149,11 @@ export function AuthStatus(): ReactElement {
         title={myPeakTooltip}
         onRefresh={handleMyPeakRefresh}
       />
+      {myPeakAuthRefresh.message ? (
+        <p className="mt-1 text-xs text-gray-600" role="status">
+          {myPeakAuthRefresh.message}
+        </p>
+      ) : null}
 
       {isPortConfigurable && (
         <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2">

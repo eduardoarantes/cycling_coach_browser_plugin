@@ -12,7 +12,10 @@ import type {
   GetPlanMyPeakLibrariesMessage,
   TrainingPlanExportProgressPayload,
 } from '@/types';
-import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
+import {
+  isTotalUploadFailure,
+  type PlanMyPeakUploadSummary,
+} from '@/background/api/planMyPeak';
 import type { PlanFolder } from '@/schemas/trainingPlan.schema';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 import type {
@@ -424,6 +427,22 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       phaseTotal: classicPhaseTotal,
       message: 'Failed to upload plan workouts',
     });
+  }
+
+  // Every workout failing is still a failed export; the summary now carries
+  // each failure, so report all of them instead of only the first.
+  if (isTotalUploadFailure(uploadResult.data)) {
+    return failWithProgress(
+      uploadResult.data.failures.map(
+        (failure) => `Failed to upload "${failure.name}": ${failure.message}`
+      ),
+      {
+        phase: 'classicWorkouts',
+        phaseCurrent: classicCurrent,
+        phaseTotal: classicPhaseTotal,
+        message: 'Failed to upload plan workouts',
+      }
+    );
   }
 
   /** Namespaced note id -> the PlanMyPeak workout it became. */

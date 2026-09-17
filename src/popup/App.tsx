@@ -7,6 +7,7 @@ import { TabNavigation } from './components/TabNavigation';
 import type { TabType } from './components/TabNavigation';
 import { TrainingPlanList } from './components/TrainingPlanList';
 import { AthleteGroupList } from './components/AthleteGroupList';
+import { CapturedWorkoutList } from './components/CapturedWorkoutList';
 import { PlanCalendar } from './components/PlanCalendar';
 import { SettingsPage } from './components/SettingsPage';
 import { ConnectionHealthSummary } from './components/ConnectionHealthSummary';
@@ -19,7 +20,8 @@ import { useIntervalsConnection } from '@/hooks/useIntervalsConnection';
 import { useConnectionSettings } from '@/hooks/useConnectionSettings';
 import { useLibraries } from '@/hooks/useLibraries';
 import { usePlanMyPeakEnvironment } from '@/hooks/usePlanMyPeakEnvironment';
-import { openTrainingPeaksTab } from '@/utils/trainingPeaksTab';
+import { useCapturedWorkouts } from '@/hooks/useCapturedWorkouts';
+import { useProviderAuthRefresh } from '@/hooks/useProviderAuthRefresh';
 
 function App(): ReactElement {
   const [activeView, setActiveView] = useState<'main' | 'settings'>('main');
@@ -44,6 +46,8 @@ function App(): ReactElement {
   } = useConnectionSettings();
   const { environment: planMyPeakEnvironment, hostLabel: planMyPeakHostLabel } =
     usePlanMyPeakEnvironment();
+  const { pendingCount: pendingCapturedCount } = useCapturedWorkouts();
+  const tpAuthRefresh = useProviderAuthRefresh('trainingpeaks');
   const canAccessTrainingPeaksData = isTrainingPeaksAuthenticated;
 
   // TrainingPeaks data should be visible as soon as TP authentication is ready.
@@ -77,19 +81,16 @@ function App(): ReactElement {
   };
 
   const handleRefreshTrainingPeaks = async (): Promise<void> => {
-    try {
-      await openTrainingPeaksTab();
-    } finally {
-      setTimeout(() => {
-        void refreshTrainingPeaksAuth();
-      }, 1500);
-    }
+    // The background answers once the token has landed (or tells us the
+    // coach must sign in), so no timer is needed here.
+    await tpAuthRefresh.refresh();
+    await refreshTrainingPeaksAuth();
   };
 
   // Use wider layout for calendar view
   const isCalendarView =
     activeView === 'main' && activeTab === 'plans' && selectedPlanId !== null;
-  const containerWidth = isCalendarView ? 'w-[750px]' : 'w-[480px]';
+  const containerWidth = isCalendarView ? 'w-[750px]' : 'w-[580px]';
 
   return (
     <div className={`${containerWidth} min-h-96 p-4 bg-gray-50`}>
@@ -154,21 +155,34 @@ function App(): ReactElement {
           {!canAccessTrainingPeaksData ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
               <div className="flex items-start justify-between gap-3">
-                <p className="pr-2">
-                  TrainingPeaks authentication is required to load data. Open
-                  Settings to connect accounts. If you are already signed in,
-                  you may need to refresh the TrainingPeaks page to detect
-                  authentication.
-                </p>
+                <div className="pr-2">
+                  <p>
+                    TrainingPeaks authentication is required to load data. Open
+                    Settings to connect accounts. If you are already signed in,
+                    Refresh captures it in a background tab without touching
+                    your open TrainingPeaks page.
+                  </p>
+                  {tpAuthRefresh.message ? (
+                    <p className="mt-1 font-medium" role="status">
+                      {tpAuthRefresh.message}
+                    </p>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     void handleRefreshTrainingPeaks();
                   }}
-                  disabled={isTrainingPeaksAuthLoading}
+                  disabled={
+                    isTrainingPeaksAuthLoading || tpAuthRefresh.isRefreshing
+                  }
                   className="shrink-0 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isTrainingPeaksAuthLoading ? 'Checking...' : 'Refresh'}
+                  {tpAuthRefresh.isRefreshing
+                    ? 'Refreshing…'
+                    : isTrainingPeaksAuthLoading
+                      ? 'Checking...'
+                      : 'Refresh'}
                 </button>
               </div>
             </div>
@@ -179,6 +193,7 @@ function App(): ReactElement {
               <TabNavigation
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
+                pendingCount={pendingCapturedCount}
               />
 
               {activeTab === 'libraries' ? (
@@ -193,6 +208,8 @@ function App(): ReactElement {
                 )
               ) : activeTab === 'groups' ? (
                 <AthleteGroupList />
+              ) : activeTab === 'captured' ? (
+                <CapturedWorkoutList />
               ) : selectedPlanId !== null ? (
                 <PlanCalendar
                   planId={selectedPlanId}

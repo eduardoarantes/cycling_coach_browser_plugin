@@ -21,8 +21,8 @@ import {
   is401Error,
   is403Error,
   getUserFriendlyErrorMessage,
-  openTrainingPeaksTab,
 } from '@/utils/trainingPeaksTab';
+import { useProviderAuthRefresh } from '@/hooks/useProviderAuthRefresh';
 import type { ExportDestination } from '@/types/export.types';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
 import type { IntervalsIcuExportConfig } from '@/types/intervalsicu.types';
@@ -39,6 +39,7 @@ export function LibraryList({
   onSelectLibrary,
 }: LibraryListProps): ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
+  const tpAuthRefresh = useProviderAuthRefresh('trainingpeaks');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedLibraryIds, setSelectedLibraryIds] = useState<Set<number>>(
     new Set()
@@ -167,8 +168,11 @@ export function LibraryList({
 
     const handleRetry = async (): Promise<void> => {
       if (isAuthError) {
-        // For 401 errors, open TrainingPeaks to get a fresh token
-        await openTrainingPeaksTab();
+        // 401: refresh the token in a background tab, then retry ourselves.
+        const result = await tpAuthRefresh.refresh();
+        if (result.outcome === 'refreshed') {
+          refetch();
+        }
       } else {
         // For other errors, just retry the request
         refetch();
@@ -183,8 +187,9 @@ export function LibraryList({
           </p>
           <p className="mt-1 text-xs text-red-600">{friendlyMessage}</p>
           {isAuthError && (
-            <p className="mt-2 text-xs text-red-500">
-              Opening TrainingPeaks to refresh your authentication...
+            <p className="mt-2 text-xs text-red-500" role="status">
+              {tpAuthRefresh.message ??
+                'Your TrainingPeaks sign-in expired. Refresh it in a background tab without leaving this page.'}
             </p>
           )}
           {isPermissionError && (
@@ -194,9 +199,14 @@ export function LibraryList({
           )}
           <button
             onClick={handleRetry}
-            className="mt-3 text-sm text-red-600 hover:text-red-800 font-medium"
+            disabled={tpAuthRefresh.isRefreshing}
+            className="mt-3 text-sm text-red-600 hover:text-red-800 font-medium disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isAuthError ? 'Open TrainingPeaks' : 'Retry'}
+            {tpAuthRefresh.isRefreshing
+              ? 'Refreshing…'
+              : isAuthError
+                ? 'Refresh TrainingPeaks sign-in'
+                : 'Retry'}
           </button>
         </div>
       </div>

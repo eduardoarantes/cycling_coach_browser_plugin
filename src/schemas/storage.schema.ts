@@ -56,10 +56,15 @@ export type ValidatedConnectionSettings = z.infer<
   typeof ValidatedConnectionSettingsSchema
 >;
 
+/** PlanMyPeak is the primary destination, so it is on until switched off. */
+export const DEFAULT_PLANMYPEAK_ENABLED = true;
+
 /**
  * Parse raw storage data into validated connection settings
  *
- * Applies defaults for missing values (false = disabled by default).
+ * Applies defaults for missing values: PlanMyPeak is enabled unless the user
+ * has explicitly turned it off, since it is the extension's primary
+ * destination; Intervals.icu stays opt-in.
  *
  * @param data - Raw data from chrome.storage.local
  * @returns Validated connection settings with defaults applied
@@ -73,7 +78,7 @@ export function parseConnectionSettings(
   if (!parsed.success) {
     // Return defaults if validation fails
     return {
-      isPlanMyPeakEnabled: false,
+      isPlanMyPeakEnabled: DEFAULT_PLANMYPEAK_ENABLED,
       isIntervalsEnabled: false,
     };
   }
@@ -81,7 +86,8 @@ export function parseConnectionSettings(
   // Transform to validated shape with defaults
   return {
     isPlanMyPeakEnabled:
-      parsed.data[STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK] === true,
+      parsed.data[STORAGE_KEYS.CONNECTION_ENABLE_PLANMYPEAK] ??
+      DEFAULT_PLANMYPEAK_ENABLED,
     isIntervalsEnabled:
       parsed.data[STORAGE_KEYS.CONNECTION_ENABLE_INTERVALS] === true,
   };

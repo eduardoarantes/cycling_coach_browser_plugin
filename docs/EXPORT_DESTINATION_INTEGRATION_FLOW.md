@@ -232,7 +232,10 @@ Rules:
 
 - Each provider gets its own row
 - Each row has consistent status language (`Checking`, `Authenticated`, `Not Authenticated`)
-- Each row has a refresh action that opens the provider tab and re-validates
+- Each row has a refresh action that asks the background to capture a fresh
+  token in a temporary background tab (`REFRESH_PROVIDER_AUTH`,
+  `src/services/authRefreshService.ts`) and then re-validates; it never reloads
+  or focuses the user's own provider tab
 - Popup-level access gating is based on all required auths
 
 Current popup gate:
@@ -517,6 +520,61 @@ The overlay mounts one host element with a shadow root and adopts its stylesheet
 there, so its styles never reach host-page elements and host-page styles never
 alter it. Closing it removes the host element and restores the page's scroll
 setting to exactly its previous value.
+
+## Calendar Capture (Observation-Initiated Flow)
+
+A third way a destination import can start, alongside the popup-initiated
+export and the destination-initiated site-control flow: the extension
+**observes** the coach creating something on TrainingPeaks and keeps a copy,
+so it can be sent later without asking TrainingPeaks for it again.
+`PlanMyPeak` uses this for calendar workouts today ("New Workouts" tab).
+
+### Flow
+
+1. `src/content/mainWorldInterceptor.ts` matches a TrainingPeaks write
+   (`POST …/fitness/v6/athletes/{athleteId}/workouts`, and
+   `PUT …/workouts/{workoutId}` for already-captured workouts) with the pure
+   helper in `src/content/workoutCaptureDetection.ts`
+2. It takes a synchronous handle on the request body, dispatches the original
+   fetch immediately, and on 2xx reads the request and a **clone** of the
+   response on a detached promise; the page always gets the original response
+   as soon as it exists
+3. `src/content/isolatedWorldBridge.ts` relays the capture as a
+   `WORKOUT_CAPTURED` runtime message (no imports, no validation)
+4. `src/background/messageHandler.ts` accepts it only from a TrainingPeaks app
+   origin, derives `environment` from that origin, validates with
+   `src/schemas/capturedWorkout.schema.ts`, normalizes (structure string →
+   object, `polyline` dropped) and stores it through
+   `src/services/capturedWorkoutService.ts`
+5. `src/services/badgeService.ts` shows the pending count on the action badge
+   (export progress keeps priority) and the popup tab shows a dot
+6. Sending runs the shared adapter path from `useSendCapturedWorkouts` with
+   `createFolder: false` (the `isDefault` library) and a namespaced provider
+   id (`cal:{workoutId}` / `cal-sandbox:{workoutId}`), and the background
+   upload loop writes each record's outcome through `capturedKeys`
+
+### Rules to preserve if another destination adopts this pattern
+
+1. **Match exact paths in a pure helper**, never substrings: sibling routes
+   under an id (`/comments`, `/details`) must not capture. Keep the helper
+   testable without patching `fetch`.
+2. **Never delay or alter the page's request.** No await before dispatch, the
+   original response object returned unread, every capture failure swallowed.
+   Only string and `Request` bodies are parsed; everything else is skipped.
+3. **Relay raw, normalize in the background.** The bridge stays import-free;
+   validation and shaping live in one place, where storage is written.
+4. **Origin-gate the capture in the background** and derive the environment
+   from the sender origin, not from the message.
+5. **No credential in the capture** — bodies, ids, kind and timestamp only.
+6. **Serialize every write to the captured map** in the background and keep
+   the popup a reader that sends messages.
+7. **One badge owner** with a fixed priority; export services delegate the
+   idle case rather than clearing the badge themselves.
+8. **Reuse the shared adapter path** and mint identities in the transformer
+   via `providerIdNamespace`; have the upload loop persist per-item outcomes
+   via `capturedKeys` so a closed popup loses nothing.
+9. **Keep it off the site-control channel.** Captured data is not advertised
+   in `PING.supports` and no page-facing request type reads it.
 
 ## Suggested Extension Point for Future Integrations
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   exportWorkoutsToPlanMyPeakLibrary,
+  isTotalUploadFailure,
   fetchPlanMyPeakWorkouts,
   fetchPlanMyPeakWorkoutByProviderId,
   ingestTrainingPeaksAthleteGroups,
@@ -524,12 +525,18 @@ describe('planMyPeak API - workout export request mapping', () => {
     if (result.success) {
       expect(result.data.results).toHaveLength(1);
       expect(result.data.failures).toEqual([
-        { name: 'Bad', message: 'name too long' },
+        {
+          providerWorkoutId: '12684302',
+          name: 'Bad',
+          message: 'name too long',
+        },
       ]);
     }
   });
 
-  it('should fail when every workout fails', async () => {
+  it('should return the full summary when every workout fails', async () => {
+    // The loop ran, so the caller gets every keyed failure rather than a
+    // single error; `isTotalUploadFailure` tells it nothing landed.
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -537,11 +544,34 @@ describe('planMyPeak API - workout export request mapping', () => {
     } as Response);
 
     const result = await exportWorkoutsToPlanMyPeakLibrary(
-      [makeWorkout()],
+      [
+        makeWorkout({ name: 'One', provider_workout_id: '1' }),
+        makeWorkout({ name: 'Two', provider_workout_id: '2' }),
+      ],
       TARGET_LIBRARY_ID
     );
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.results).toEqual([]);
+      expect(result.data.failures).toEqual([
+        { providerWorkoutId: '1', name: 'One', message: 'rejected' },
+        { providerWorkoutId: '2', name: 'Two', message: 'rejected' },
+      ]);
+      expect(isTotalUploadFailure(result.data)).toBe(true);
+    }
+  });
+
+  it('should not report a total failure for a partial one or an empty run', () => {
+    expect(
+      isTotalUploadFailure({
+        results: [],
+        createdCount: 0,
+        updatedCount: 0,
+        destinationEmpty: false,
+        failures: [],
+      })
+    ).toBe(false);
   });
 });
 

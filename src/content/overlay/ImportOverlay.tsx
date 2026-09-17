@@ -10,8 +10,8 @@ import type { ReactElement } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { usePlanMyPeakAccountMatch } from '@/hooks/usePlanMyPeakAccountMatch';
-import { getTrainingPeaksAppUrl } from '@/services/trainingPeaksConfigService';
 import type { Library } from '@/types/api.types';
+import type { AuthRefreshResult, RefreshProviderAuthMessage } from '@/types';
 import type { LibraryItem } from '@/schemas/library.schema';
 import type { TrainingPlan } from '@/schemas/trainingPlan.schema';
 import type { AthleteGroup } from '@/schemas/athleteGroup.schema';
@@ -217,12 +217,16 @@ export function ImportOverlay({
 
   const handleOpenTrainingPeaks = useCallback((): void => {
     void (async () => {
-      const url = await getTrainingPeaksAppUrl();
-      // Content scripts cannot call chrome.tabs, and this runs from a click, so
-      // the page's own window.open is the right tool.
-      window.open(url, '_blank', 'noopener');
+      // Content scripts cannot call chrome.tabs; the background opens a
+      // temporary background tab, captures the token and closes it, so the
+      // coach's own TrainingPeaks tab is never reloaded or focused.
+      await chrome.runtime.sendMessage<
+        RefreshProviderAuthMessage,
+        AuthRefreshResult
+      >({ type: 'REFRESH_PROVIDER_AUTH', provider: 'trainingpeaks' });
+      await refreshTrainingPeaksAuth();
     })();
-  }, []);
+  }, [refreshTrainingPeaksAuth]);
 
   const handleRecheck = useCallback((): void => {
     void refreshTrainingPeaksAuth();

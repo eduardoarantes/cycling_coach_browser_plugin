@@ -4,7 +4,14 @@
  * Manages export state persistence and badge updates.
  * Allows exports to continue in background and provides status recovery
  * when the popup is reopened.
+ *
+ * The badge itself is owned by `badgeService`: this module paints the
+ * in-progress / completed / failed states directly because they are its own,
+ * but the idle case is delegated to `refreshBadge()`, which knows what else
+ * (the pending captured-workout count) should show once an export is over.
  */
+
+import { BADGE_COLORS, refreshBadge } from './badgeService';
 
 /**
  * Export destination types
@@ -61,6 +68,13 @@ export interface ExportProgressState {
  * Storage key for export progress
  */
 const EXPORT_PROGRESS_KEY = 'export_progress';
+
+/**
+ * How long a completed/failed export keeps the badge before it is
+ * recomputed. Also the window `badgeService` uses to decide whether a
+ * persisted completed/failed state still owns the badge.
+ */
+export const EXPORT_BADGE_LINGER_MS = 5000;
 
 function hasActionApi(): boolean {
   return (
@@ -207,8 +221,8 @@ export async function updateBadge(
   }
 
   if (!state || state.status === 'idle') {
-    // Clear badge
-    await chrome.action.setBadgeText({ text: '' });
+    // Not ours to paint: let the badge owner show whatever else is pending.
+    await refreshBadge();
     return;
   }
 
@@ -216,40 +230,41 @@ export async function updateBadge(
     // Show progress count
     const progress = `${state.completedItems}/${state.totalItems}`;
     await chrome.action.setBadgeText({ text: progress });
-    await chrome.action.setBadgeBackgroundColor({ color: '#3B82F6' }); // Blue
+    await chrome.action.setBadgeBackgroundColor({
+      color: BADGE_COLORS.exportInProgress,
+    });
     return;
   }
 
   if (state.status === 'completed') {
     // Show success indicator
     await chrome.action.setBadgeText({ text: '✓' });
-    await chrome.action.setBadgeBackgroundColor({ color: '#10B981' }); // Green
+    await chrome.action.setBadgeBackgroundColor({
+      color: BADGE_COLORS.exportCompleted,
+    });
     return;
   }
 
   if (state.status === 'failed') {
     // Show failure indicator
     await chrome.action.setBadgeText({ text: '!' });
-    await chrome.action.setBadgeBackgroundColor({ color: '#EF4444' }); // Red
+    await chrome.action.setBadgeBackgroundColor({
+      color: BADGE_COLORS.exportFailed,
+    });
     return;
   }
 }
 
 /**
- * Clear the badge after a delay (for completed/failed states)
+ * Recompute the badge after a delay, once a completed/failed export has had
+ * its linger window. The owner decides what shows next (the pending
+ * captured-workout count, or nothing).
  */
 export async function clearBadgeAfterDelay(
-  delayMs: number = 5000
+  delayMs: number = EXPORT_BADGE_LINGER_MS
 ): Promise<void> {
-  setTimeout(async () => {
-    const state = await getExportProgress();
-    if (
-      hasActionApi() &&
-      state &&
-      (state.status === 'completed' || state.status === 'failed')
-    ) {
-      await chrome.action.setBadgeText({ text: '' });
-    }
+  setTimeout(() => {
+    void refreshBadge();
   }, delayMs);
 }
 

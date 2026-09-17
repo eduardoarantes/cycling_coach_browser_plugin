@@ -7,6 +7,7 @@
  */
 
 import { handleMessage } from './messageHandler';
+import { refreshBadge } from '@/services/badgeService';
 
 const DEBUG = import.meta.env.DEV;
 const logDebug = (...args: unknown[]): void => {
@@ -20,6 +21,14 @@ logDebug('🚀 Background service worker loaded');
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener((details) => {
   logDebug('📦 Extension installed/updated, reason:', details.reason);
+  // Badge text does not survive a restart or reload; recompute it from
+  // stored state (export progress, pending captured workouts).
+  void refreshBadge();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  logDebug('🔁 Browser started');
+  void refreshBadge();
 });
 
 // Listen for messages from content scripts and popup

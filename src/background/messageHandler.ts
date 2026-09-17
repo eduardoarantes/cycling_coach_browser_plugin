@@ -8,6 +8,13 @@ import type {
   RuntimeMessage,
   TrainingPlanExportProgressMessage,
   TrainingPlanExportProgressPayload,
+  WorkoutCapturedMessage,
+  UpdateCapturedWorkoutMessage,
+  CapturedWorkoutsListResult,
+  RemoveCapturedWorkoutsResult,
+  CapturedWorkoutRecord,
+  CapturedWorkoutStatus,
+  AuthRefreshProvider,
 } from '@/types';
 import type {
   UserProfile,
@@ -43,7 +50,19 @@ import {
   createApiHeaders,
   isPlanMyPeakControlOrigin,
   originFromUrl,
+  trainingPeaksEnvironmentForAppOrigin,
 } from '@/utils/constants';
+import {
+  listCapturedWorkouts,
+  removeCapturedWorkouts,
+  storeCapture,
+  updateCapturedWorkout,
+} from '@/services/capturedWorkoutService';
+import { refreshBadge } from '@/services/badgeService';
+import {
+  refreshProviderAuth,
+  type AuthRefreshResult,
+} from '@/services/authRefreshService';
 import {
   isAuthenticated as isTrainingPeaksAuthenticated,
   isTokenExpired as isTrainingPeaksTokenExpired,
@@ -164,6 +183,10 @@ type MessageResponse =
   | ApiResponse<PlanMyPeakIngestAthleteGroupsResponse>
   | ApiResponse<PlanMyPeakCoach>
   | ApiResponse<null>
+  | ApiResponse<CapturedWorkoutsListResult>
+  | ApiResponse<CapturedWorkoutRecord | null>
+  | ApiResponse<RemoveCapturedWorkoutsResult>
+  | AuthRefreshResult
   | SiteControlResponse;
 
 /**
@@ -343,6 +366,30 @@ async function handleValidateToken(): Promise<{
     // On network error, don't clear token (might be temporary)
     return { valid: false };
   }
+}
+
+/**
+ * Handle REFRESH_PROVIDER_AUTH.
+ *
+ * Opens a tab, so it is accepted only from the extension's own pages (no
+ * `sender.tab`) or from the PlanMyPeak overlay on an allowlisted origin —
+ * never from an arbitrary tab.
+ */
+async function handleRefreshProviderAuth(
+  provider: AuthRefreshProvider,
+  sender: chrome.runtime.MessageSender
+): Promise<AuthRefreshResult> {
+  const origin = sender.origin ?? originFromUrl(sender.tab?.url);
+  if (sender.tab && !isPlanMyPeakControlOrigin(origin)) {
+    logger.warn('Rejected REFRESH_PROVIDER_AUTH from an untrusted tab');
+    return { outcome: 'error', error: 'Refresh not allowed from this page' };
+  }
+
+  if (provider !== 'trainingpeaks' && provider !== 'planmypeak') {
+    return { outcome: 'error', error: 'Unknown provider' };
+  }
+
+  return await refreshProviderAuth(provider);
 }
 
 /**
@@ -526,7 +573,8 @@ async function handleDeletePlanMyPeakWorkout(
  */
 async function handleExportWorkoutsToPlanMyPeakLibrary(
   workouts: PlanMyPeakWorkout[],
-  libraryId: string
+  libraryId: string,
+  capturedKeys?: Record<string, string>
 ): Promise<ApiResponse<PlanMyPeakUploadSummary>> {
   logger.debug(
     'Handling EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message:',
@@ -534,7 +582,67 @@ async function handleExportWorkoutsToPlanMyPeakLibrary(
     'workouts -> library',
     libraryId
   );
-  return await exportWorkoutsToPlanMyPeakLibrary(workouts, libraryId);
+  return await exportWorkoutsToPlanMyPeakLibrary(workouts, libraryId, {
+    capturedKeys,
+  });
+}
+
+/**
+ * Handle WORKOUT_CAPTURED from the TrainingPeaks content-script bridge.
+ *
+ * Origin-gated: this message writes durable state that later drives uploads
+ * into the coach's PlanMyPeak account, so it is accepted only from a tab whose
+ * URL origin is a TrainingPeaks app origin. The popup can never send it. The
+ * environment (production / sandbox) is derived from that origin, not from
+ * anything in the message.
+ */
+async function handleWorkoutCaptured(
+  message: WorkoutCapturedMessage,
+  sender: chrome.runtime.MessageSender
+): Promise<{ success: true } | { success: false; error: string }> {
+  const origin = originFromUrl(sender.url ?? sender.tab?.url);
+  const environment = trainingPeaksEnvironmentForAppOrigin(origin);
+
+  if (!sender.tab || !environment) {
+    logger.warn('Rejected WORKOUT_CAPTURED from a non-TrainingPeaks sender');
+    return { success: false, error: 'Capture rejected: untrusted sender' };
+  }
+
+  const stored = await storeCapture(message, environment);
+  if (!stored) {
+    return { success: false, error: 'Capture rejected: invalid payload' };
+  }
+
+  await refreshBadge();
+  return { success: true };
+}
+
+async function handleGetCapturedWorkouts(): Promise<
+  ApiResponse<CapturedWorkoutsListResult>
+> {
+  const list = await listCapturedWorkouts();
+  return { success: true, data: list };
+}
+
+async function handleUpdateCapturedWorkout(
+  message: UpdateCapturedWorkoutMessage
+): Promise<ApiResponse<CapturedWorkoutRecord | null>> {
+  const record = await updateCapturedWorkout(message.key, {
+    status: message.status,
+    planMyPeakWorkoutId: message.planMyPeakWorkoutId,
+    planMyPeakLibraryName: message.planMyPeakLibraryName,
+    lastSendError: message.lastSendError,
+  });
+  await refreshBadge();
+  return { success: true, data: record };
+}
+
+async function handleRemoveCapturedWorkouts(
+  statuses: CapturedWorkoutStatus[]
+): Promise<ApiResponse<RemoveCapturedWorkoutsResult>> {
+  const removed = await removeCapturedWorkouts(statuses);
+  await refreshBadge();
+  return { success: true, data: { removed } };
 }
 
 /**
@@ -1254,6 +1362,9 @@ export async function handleMessage(
     case 'VALIDATE_MY_PEAK_TOKEN':
       return await handleValidateMyPeakToken();
 
+    case 'REFRESH_PROVIDER_AUTH':
+      return await handleRefreshProviderAuth(message.provider, sender);
+
     case 'GET_USER':
       return await handleGetUser();
 
@@ -1275,8 +1386,21 @@ export async function handleMessage(
     case 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY':
       return await handleExportWorkoutsToPlanMyPeakLibrary(
         message.workouts,
-        message.libraryId
+        message.libraryId,
+        message.capturedKeys
       );
+
+    case 'WORKOUT_CAPTURED':
+      return await handleWorkoutCaptured(message, sender);
+
+    case 'GET_CAPTURED_WORKOUTS':
+      return await handleGetCapturedWorkouts();
+
+    case 'UPDATE_CAPTURED_WORKOUT':
+      return await handleUpdateCapturedWorkout(message);
+
+    case 'REMOVE_CAPTURED_WORKOUTS':
+      return await handleRemoveCapturedWorkouts(message.statuses);
 
     case 'GET_PLANMYPEAK_WORKOUTS':
       return await handleGetPlanMyPeakWorkouts({

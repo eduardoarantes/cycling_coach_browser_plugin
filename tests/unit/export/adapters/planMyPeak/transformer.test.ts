@@ -359,6 +359,27 @@ describe('transformToPlanMyPeak', () => {
       expect(result.source_format).toBe('json');
     });
 
+    it('should namespace the provider id and source file when asked', () => {
+      const result = transformToPlanMyPeak(baseLibraryItem, {
+        providerIdNamespace: 'cal',
+      });
+      expect(result.provider_workout_id).toBe('cal:12684302');
+      expect(result.source_file).toBe('workout_cal_12684302.json');
+
+      const sandbox = transformToPlanMyPeak(baseLibraryItem, {
+        providerIdNamespace: 'cal-sandbox',
+      });
+      expect(sandbox.provider_workout_id).toBe('cal-sandbox:12684302');
+    });
+
+    it('should keep the bare provider id when no namespace is set', () => {
+      const result = transformToPlanMyPeak(baseLibraryItem, {
+        providerIdNamespace: '',
+      });
+      expect(result.provider_workout_id).toBe('12684302');
+      expect(result.source_file).toBe('workout_12684302.json');
+    });
+
     it('should generate source_file name', () => {
       const result = transformToPlanMyPeak(baseLibraryItem, defaultConfig);
       expect(result.source_file).toBe('workout_12684302.json');

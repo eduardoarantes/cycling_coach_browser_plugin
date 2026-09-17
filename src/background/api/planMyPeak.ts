@@ -11,6 +11,8 @@ import {
   updateExportItem,
   completeExport,
 } from '@/services/exportProgressService';
+import { updateCapturedWorkout } from '@/services/capturedWorkoutService';
+import { refreshBadge } from '@/services/badgeService';
 import { logger } from '@/utils/logger';
 import {
   PlanMyPeakCoachSchema,
@@ -1384,7 +1386,26 @@ export interface PlanMyPeakUploadSummary {
    */
   destinationEmpty: boolean;
   /** Workouts that could not be uploaded, in submission order. */
-  failures: Array<{ name: string; message: string }>;
+  failures: PlanMyPeakUploadFailure[];
+}
+
+/** One workout that could not be uploaded, identified by provider id. */
+export interface PlanMyPeakUploadFailure {
+  providerWorkoutId: string;
+  name: string;
+  message: string;
+}
+
+/**
+ * True when the upload loop ran and nothing landed: every workout failed.
+ * `success: false` from the upload is reserved for the cases where no upload
+ * was attempted at all (for example a missing library id), so callers that
+ * need to surface "everything failed" as a failure check this instead.
+ */
+export function isTotalUploadFailure(
+  summary: PlanMyPeakUploadSummary
+): boolean {
+  return summary.results.length === 0 && summary.failures.length > 0;
 }
 
 /**
@@ -1402,10 +1423,18 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     targetName?: string;
     sourceName?: string;
     trackProgress?: boolean;
+    /**
+     * Captured-workout record key by `provider_workout_id`. Each keyed
+     * workout's outcome is written to its record right after its POST, before
+     * the next upload starts, so a popup that closes mid-send loses nothing.
+     */
+    capturedKeys?: Record<string, string>;
   }
 ): Promise<ApiResponse<PlanMyPeakUploadSummary>> {
   const trimmedLibraryId = libraryId.trim();
   const trackProgress = options?.trackProgress ?? true;
+  const capturedKeys = options?.capturedKeys ?? {};
+  let touchedCapturedRecords = false;
 
   if (!trimmedLibraryId) {
     return {
@@ -1429,11 +1458,17 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
   }
 
   const results: PlanMyPeakWorkoutUploadResult[] = [];
-  const failures: Array<{ name: string; message: string }> = [];
+  const failures: PlanMyPeakUploadFailure[] = [];
 
   for (let i = 0; i < workouts.length; i++) {
     const workout = workouts[i];
     const requestBody = toCreateWorkoutRequest(workout, trimmedLibraryId);
+    const capturedKey = Object.prototype.hasOwnProperty.call(
+      capturedKeys,
+      workout.provider_workout_id
+    )
+      ? capturedKeys[workout.provider_workout_id]
+      : undefined;
 
     const result = await apiRequestWithStatus(
       WORKOUT_ITEMS_ENDPOINT,
@@ -1446,7 +1481,18 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     );
 
     if (!result.success) {
-      failures.push({ name: workout.name, message: result.error.message });
+      failures.push({
+        providerWorkoutId: workout.provider_workout_id,
+        name: workout.name,
+        message: result.error.message,
+      });
+
+      if (capturedKey) {
+        touchedCapturedRecords = true;
+        await updateCapturedWorkout(capturedKey, {
+          lastSendError: result.error.message,
+        });
+      }
 
       if (exportState) {
         await updateExportItem({
@@ -1466,6 +1512,16 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
       created: result.data.status === 201,
       filedElsewhere: uploaded.library.id !== trimmedLibraryId,
     });
+
+    if (capturedKey) {
+      touchedCapturedRecords = true;
+      await updateCapturedWorkout(capturedKey, {
+        status: 'sent',
+        planMyPeakWorkoutId: uploaded.id,
+        planMyPeakLibraryName: uploaded.library.name,
+        sentAt: Date.now(),
+      });
+    }
 
     if (exportState) {
       await updateExportItem({
@@ -1488,17 +1544,15 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     });
   }
 
-  // Every workout failing is a failure; a partial one is reported through the
-  // summary so the caller can say which workouts landed and which did not.
-  if (failures.length > 0 && results.length === 0) {
-    return {
-      success: false,
-      error: {
-        message: `Failed to upload "${failures[0].name}": ${failures[0].message}`,
-      },
-    };
+  if (touchedCapturedRecords) {
+    // The export badge keeps priority while it lingers; the owner recomputes
+    // the pending count once it clears.
+    await refreshBadge();
   }
 
+  // Every failure is reported through the summary, even when nothing landed:
+  // the caller needs each keyed failure to say which workouts did not make it,
+  // and `isTotalUploadFailure` tells it whether to treat the whole run as one.
   const createdCount = results.filter((entry) => entry.created).length;
 
   return {

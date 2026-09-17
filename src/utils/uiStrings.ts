@@ -145,3 +145,26 @@ export function buildProviderStatusLabel(
   }
   return `${provider}: ${AUTH_STATUS_STRINGS.NOT_AUTHENTICATED}`;
 }
+
+/**
+ * Status lines for the quiet auth refresh (temporary background tab).
+ * Keyed by the background's outcome, plus the in-flight state.
+ */
+export const AUTH_REFRESH_MESSAGES = {
+  trainingpeaks: {
+    refreshing: 'Refreshing TrainingPeaks sign-in in a background tab…',
+    refreshed: 'TrainingPeaks sign-in refreshed.',
+    sign_in_required:
+      'Sign in to TrainingPeaks in the tab we opened, then try again.',
+    cancelled: 'The TrainingPeaks tab was closed before sign-in was captured.',
+    error: 'Could not refresh TrainingPeaks sign-in',
+  },
+  planmypeak: {
+    refreshing: 'Refreshing PlanMyPeak sign-in in a background tab…',
+    refreshed: 'PlanMyPeak sign-in refreshed.',
+    sign_in_required:
+      'Sign in to PlanMyPeak in the tab we opened, then try again.',
+    cancelled: 'The PlanMyPeak tab was closed before sign-in was captured.',
+    error: 'Could not refresh PlanMyPeak sign-in',
+  },
+} as const;
