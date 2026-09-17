@@ -1,9 +1,30 @@
 name: Release Artifact
 
+# Two ways in, one job.
+#
+#   push a v*.*.* tag  - the original path, unchanged
+#   Run workflow       - releases whatever version main currently carries,
+#                        creating and pushing the tag for you
+#
+# The dispatch path deliberately does NOT change the version. main is a
+# protected branch requiring pull requests, with enforce_admins on, so nothing
+# running here can commit to it. Set the version the ordinary way - a PR
+# running `npm run version:patch` - and then release what main says.
+#
+# Deliberately one workflow rather than a "create tag" workflow feeding this
+# one: a tag pushed with GITHUB_TOKEN does not trigger other workflows, so a
+# split would create a tag and then quietly never release it.
+
 on:
   push:
     tags:
-      - "v*.*.*"
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: 'Optional X.Y.Z guard - fails if main is not on this version'
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -22,6 +43,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # A dispatched release tags main; a tag push builds that tag.
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -32,23 +56,49 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Derive release version from tag
+      - name: Derive release version
         id: version
-        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION"
 
       - name: Validate tag matches source versions
         run: |
-          PACKAGE_VERSION=$(node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync('package.json', 'utf8')).version);")
-          MANIFEST_VERSION=$(node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync('public/manifest.json', 'utf8')).version);")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          MANIFEST_VERSION=$(node -p "require('./public/manifest.json').version")
           TAG_VERSION="${{ steps.version.outputs.value }}"
 
           if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "package.json version $PACKAGE_VERSION does not match tag $TAG_VERSION" >&2
+            echo "package.json version $PACKAGE_VERSION does not match $TAG_VERSION" >&2
             exit 1
           fi
 
           if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
-            echo "public/manifest.json version $MANIFEST_VERSION does not match tag $TAG_VERSION" >&2
+            echo "public/manifest.json version $MANIFEST_VERSION does not match $TAG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Check the version is the one expected
+        if: github.event_name == 'workflow_dispatch' && inputs.expected_version != ''
+        run: |
+          if [ "${{ inputs.expected_version }}" != "${{ steps.version.outputs.value }}" ]; then
+            echo "main is on ${{ steps.version.outputs.value }}, not ${{ inputs.expected_version }}." >&2
+            echo "Merge the version bump first, or re-run without the guard." >&2
+            exit 1
+          fi
+
+      - name: Refuse to reuse an existing tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="v${{ steps.version.outputs.value }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists - main has not been bumped since the last release." >&2
+            echo "Merge a version bump (npm run version:patch) before releasing again." >&2
             exit 1
           fi
 
@@ -63,6 +113,19 @@ jobs:
 
       - name: Build production bundle
         run: npm run build:bundle
+
+      # Tagged only after the checks pass, so a failing release leaves no tag
+      # behind to find and delete.
+      - name: Tag the release
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "v${VERSION}" -m "v${VERSION}"
+          git push origin "v${VERSION}"
 
       - name: Package canonical release artifact
         id: package
@@ -85,6 +148,9 @@ jobs:
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
+          # Named explicitly: on a dispatched run the workflow is not triggered
+          # by the tag, so the action cannot infer it.
+          tag_name: v${{ steps.version.outputs.value }}
           files: |
             ${{ steps.package.outputs.artifact_path }}
             ${{ steps.package.outputs.artifact_path }}.sha256
