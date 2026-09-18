@@ -1,19 +1,7 @@
 name: Release Artifact
 
-# Two ways in, one job.
-#
-#   push a v*.*.* tag  - the original path, unchanged
-#   Run workflow       - releases whatever version main currently carries,
-#                        creating and pushing the tag for you
-#
-# The dispatch path deliberately does NOT change the version. main is a
-# protected branch requiring pull requests, with enforce_admins on, so nothing
-# running here can commit to it. Set the version the ordinary way - a PR
-# running `npm run version:patch` - and then release what main says.
-#
-# Deliberately one workflow rather than a "create tag" workflow feeding this
-# one: a tag pushed with GITHUB_TOKEN does not trigger other workflows, so a
-# split would create a tag and then quietly never release it.
+# A requested version is merged through a checked PR before being released.
+# Keep tagging and publishing together: bot tag pushes do not trigger workflows.
 
 on:
   push:
@@ -21,21 +9,29 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
+      new_version:
+        description: 'New version: patch, minor, major, or X.Y.Z; blank publishes current main'
+        type: string
+        required: false
       expected_version:
-        description: 'Optional X.Y.Z guard - fails if main is not on this version'
+        description: 'Optional guard: must match the version being released'
         type: string
         required: false
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: write
+  checks: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && github.ref_type != 'tag' && 'main' || github.ref }}
   cancel-in-progress: false
 
 jobs:
   package:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     env:
       CI: true
       HUSKY: 0
@@ -45,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # A dispatched release tags main; a tag push builds that tag.
-          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref_type != 'tag' && 'main' || github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -53,54 +49,48 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Derive release version
+      - name: Resolve and validate release request
         id: version
+        env:
+          NEW_VERSION: ${{ inputs.new_version }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if [ -n "$NEW_VERSION" ]; then
+              echo 'Leave new_version blank when publishing an existing tag.' >&2
+              exit 1
+            fi
+            VERSION=$(node scripts/release-version.cjs resolve '' "${GITHUB_REF_NAME#v}")
+            node scripts/release-version.cjs resolve '' "$EXPECTED_VERSION"
           else
-            VERSION="${GITHUB_REF_NAME#v}"
+            if [ "$GITHUB_REF" != refs/heads/main ]; then
+              echo 'Run Release Artifact from main.' >&2
+              exit 1
+            fi
+            VERSION=$(node scripts/release-version.cjs resolve "$NEW_VERSION" "$EXPECTED_VERSION")
+          fi
+          git fetch --tags origin
+          if [ "$GITHUB_REF_TYPE" != tag ] && git show-ref --verify --quiet "refs/tags/v$VERSION"; then
+            echo "v$VERSION already exists. Set new_version to patch, minor, major, or a higher X.Y.Z." >&2
+            exit 1
           fi
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION"
 
-      - name: Validate tag matches source versions
-        run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          MANIFEST_VERSION=$(node -p "require('./public/manifest.json').version")
-          TAG_VERSION="${{ steps.version.outputs.value }}"
+      - name: Create, validate, and merge version PR
+        if: github.event_name == 'workflow_dispatch' && github.ref_type != 'tag' && inputs.new_version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: ./scripts/prepare-release-pr.sh
 
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "package.json version $PACKAGE_VERSION does not match $TAG_VERSION" >&2
-            exit 1
-          fi
+      - name: Verify release checkout
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: node scripts/release-version.cjs resolve '' "$RELEASE_VERSION"
 
-          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
-            echo "public/manifest.json version $MANIFEST_VERSION does not match $TAG_VERSION" >&2
-            exit 1
-          fi
-
-      - name: Check the version is the one expected
-        if: github.event_name == 'workflow_dispatch' && inputs.expected_version != ''
-        run: |
-          if [ "${{ inputs.expected_version }}" != "${{ steps.version.outputs.value }}" ]; then
-            echo "main is on ${{ steps.version.outputs.value }}, not ${{ inputs.expected_version }}." >&2
-            echo "Merge the version bump first, or re-run without the guard." >&2
-            exit 1
-          fi
-
-      - name: Refuse to reuse an existing tag
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          TAG="v${{ steps.version.outputs.value }}"
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "$TAG already exists - main has not been bumped since the last release." >&2
-            echo "Merge a version bump (npm run version:patch) before releasing again." >&2
-            exit 1
-          fi
+      - name: Install dependencies
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -117,9 +107,11 @@ jobs:
       # Tagged only after the checks pass, so a failing release leaves no tag
       # behind to find and delete.
       - name: Tag the release
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && github.ref_type != 'tag'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          VERSION="${{ steps.version.outputs.value }}"
+          VERSION="$RELEASE_VERSION"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -129,8 +121,10 @@ jobs:
 
       - name: Package canonical release artifact
         id: package
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          VERSION="${{ steps.version.outputs.value }}"
+          VERSION="$RELEASE_VERSION"
           ARTIFACT="planmypeak-importer-webstore-v${VERSION}.zip"
           ./scripts/package-release-artifact.sh "$VERSION" "$ARTIFACT"
           sha256sum "$ARTIFACT" > "${ARTIFACT}.sha256"
