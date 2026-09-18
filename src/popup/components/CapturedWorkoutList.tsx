@@ -10,9 +10,14 @@
  * TrainingPeaks/PlanMyPeak account mismatch, with the shared banner as the
  * explanation. Send outcomes are written by the background as each upload
  * completes, so the rows reflect storage, not this component's memory.
+ *
+ * Captures stored before ownership existed, or while the extension held no
+ * PlanMyPeak session, belong to no account and stay out of page-driven
+ * imports. The banner is the only way they get one: the coach links them,
+ * explicitly, to the account the background verifies at that moment.
  */
 
-import { useMemo, type ReactElement } from 'react';
+import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import {
   CalendarPlus as CalendarIcon,
   Trash2 as ClearIcon,
@@ -22,13 +27,22 @@ import { useSendCapturedWorkouts } from '@/hooks/useSendCapturedWorkouts';
 import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
 import { useConnectionSettings } from '@/hooks/useConnectionSettings';
 import { usePlanMyPeakAccountMatch } from '@/hooks/usePlanMyPeakAccountMatch';
+import { usePlanMyPeakEnvironment } from '@/hooks/usePlanMyPeakEnvironment';
 import { CapturedWorkoutRow } from './CapturedWorkoutRow';
 import { EmptyState } from './EmptyState';
 import { LoadingSpinner } from './LoadingSpinner';
 
 export function CapturedWorkoutList(): ReactElement {
-  const { records, pendingCount, isLoading, error, dismiss, clearFinished } =
-    useCapturedWorkouts();
+  const {
+    records,
+    pendingCount,
+    unlinkedCount,
+    isLoading,
+    error,
+    claim,
+    dismiss,
+    clearFinished,
+  } = useCapturedWorkouts();
   const {
     send,
     sendAllPending,
@@ -40,6 +54,15 @@ export function CapturedWorkoutList(): ReactElement {
   const { isAuthenticated: isPlanMyPeakAuthenticated } = useMyPeakAuth();
   const { isPlanMyPeakEnabled } = useConnectionSettings();
   const { status: accountMatchStatus } = usePlanMyPeakAccountMatch();
+  const { hostLabel } = usePlanMyPeakEnvironment();
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  const linkUnlinked = useCallback(async () => {
+    setIsLinking(true);
+    setLinkError(await claim());
+    setIsLinking(false);
+  }, [claim]);
 
   const isAccountMismatch = accountMatchStatus === 'mismatch';
 
@@ -128,6 +151,42 @@ export function CapturedWorkoutList(): ReactElement {
         <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           {sendDisabledReason}
         </p>
+      ) : null}
+
+      {unlinkedCount > 0 ? (
+        <div
+          className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          data-testid="captured-unlinked-banner"
+        >
+          <p>
+            {unlinkedCount} captured{' '}
+            {unlinkedCount === 1 ? "workout isn't" : "workouts aren't"} linked
+            to a PlanMyPeak account yet, so {hostLabel} cannot offer to import{' '}
+            {unlinkedCount === 1 ? 'it' : 'them'}.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              void linkUnlinked();
+            }}
+            disabled={
+              !isPlanMyPeakEnabled || !isPlanMyPeakAuthenticated || isLinking
+            }
+            title={
+              !isPlanMyPeakEnabled || !isPlanMyPeakAuthenticated
+                ? 'Connect PlanMyPeak in Settings to link workouts.'
+                : undefined
+            }
+            className="mt-2 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLinking ? 'Linking…' : `Link to my ${hostLabel} account`}
+          </button>
+          {linkError ? (
+            <p className="mt-2 text-red-800" role="alert">
+              {linkError}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {lastSummary && !isSending ? (

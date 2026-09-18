@@ -18,14 +18,12 @@ import { useUser } from '@/hooks/useUser';
 import { usePlanMyPeakCoach } from '@/hooks/usePlanMyPeakCoach';
 import { usePlanMyPeakEnvironment } from '@/hooks/usePlanMyPeakEnvironment';
 import { getCoachTrainingPeaksExternalId } from '@/schemas/planMyPeakApi.schema';
+import {
+  resolveAccountMatch,
+  type AccountMatchStatus,
+} from '@/utils/accountMatch';
 
-export type AccountMatchStatus =
-  | 'matched'
-  | 'mismatch'
-  | 'not-linked'
-  | 'unknown'
-  /** Comparison skipped: the selected PlanMyPeak environment is not production. */
-  | 'not-enforced';
+export type { AccountMatchStatus };
 
 export interface AccountMatchResult {
   status: AccountMatchStatus;
@@ -71,42 +69,18 @@ export function usePlanMyPeakAccountMatch(): AccountMatchResult {
   const tpUserName = joinName(tpUser.firstName, tpUser.lastName);
   const coachName = joinName(coach.firstName, coach.lastName);
 
-  if (environment !== 'production') {
-    return {
-      status: 'not-enforced',
-      hasMismatch: false,
-      tpUserId,
-      linkedTpId,
-      tpUserName,
-      coachName,
-    };
-  }
-
-  if (linkedTpId === null) {
-    return {
-      status: 'not-linked',
-      hasMismatch: true,
-      tpUserId,
-      linkedTpId: null,
-      tpUserName,
-      coachName,
-    };
-  }
-
-  if (linkedTpId === tpUserId) {
-    return {
-      status: 'matched',
-      hasMismatch: false,
-      tpUserId,
-      linkedTpId,
-      tpUserName,
-      coachName,
-    };
-  }
+  // The rule itself lives in `accountMatch.ts` so the background applies the
+  // same one when a PlanMyPeak page asks it to import captured workouts.
+  const status = resolveAccountMatch({
+    environment,
+    tpUserId,
+    linkedTpId,
+    coachKnown: true,
+  });
 
   return {
-    status: 'mismatch',
-    hasMismatch: true,
+    status,
+    hasMismatch: status === 'mismatch' || status === 'not-linked',
     tpUserId,
     linkedTpId,
     tpUserName,

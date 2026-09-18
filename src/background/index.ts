@@ -8,6 +8,7 @@
 
 import { handleMessage } from './messageHandler';
 import { refreshBadge } from '@/services/badgeService';
+import { recoverInterruptedOperations } from './capturedImports/importOperations';
 
 const DEBUG = import.meta.env.DEV;
 const logDebug = (...args: unknown[]): void => {
@@ -17,6 +18,11 @@ const logDebug = (...args: unknown[]): void => {
 };
 
 logDebug('🚀 Background service worker loaded');
+
+// A captured-workout import runs inside this worker and cannot outlive it. On
+// every start, anything storage still calls running is marked interrupted so a
+// PlanMyPeak page polling it is told to retry rather than left waiting.
+void recoverInterruptedOperations();
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener((details) => {

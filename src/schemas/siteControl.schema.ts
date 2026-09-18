@@ -34,6 +34,12 @@ import { SITE_CONTROL_IMPORT_COMPLETED } from '@/types/siteControl.types';
 const IdSchema = z.number().int().positive();
 
 /**
+ * Page-minted correlation handles. Bounded like `requestId`, and never empty:
+ * an empty operation id would make every retry "the same operation".
+ */
+const HandleSchema = z.string().min(1).max(128);
+
+/**
  * Requests that take no arguments still accept an explicit empty object, so the
  * page may send `payload: {}` or omit the key entirely.
  */
@@ -92,6 +98,28 @@ export const SiteControlRequestSchema = z.discriminatedUnion('type', [
         tab: z.enum(SITE_CONTROL_IMPORTER_TABS).optional(),
       })
       .default({}),
+  }),
+  z.object({
+    ...BaseRequestFields,
+    type: z.literal('GET_CAPTURED_WORKOUT_SUMMARY'),
+    payload: EmptyPayloadSchema,
+  }),
+  z.object({
+    ...BaseRequestFields,
+    type: z.literal('IMPORT_MISSING_WORKOUTS'),
+    // Strict: the page must not be able to smuggle a destination, a library id
+    // or an acting coach in alongside the two handles. Unknown keys are an
+    // error here, unlike OPEN_IMPORTER, where an additive hint may degrade.
+    payload: z
+      .object({ contextId: HandleSchema, operationId: HandleSchema })
+      .strict(),
+  }),
+  z.object({
+    ...BaseRequestFields,
+    type: z.literal('GET_CAPTURED_WORKOUT_IMPORT_STATUS'),
+    payload: z
+      .object({ contextId: HandleSchema, operationId: HandleSchema })
+      .strict(),
   }),
 ]);
 

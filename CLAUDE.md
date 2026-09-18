@@ -772,11 +772,21 @@ TrainingPeaks API hosts, via `fetch` and XHR. Full design:
 
 **Rules — do not weaken these when extending the feature**:
 
-- **The capture channel is not page-facing.** `WORKOUT_CAPTURED`,
-  `GET_CAPTURED_WORKOUTS`, `UPDATE_CAPTURED_WORKOUT` and
-  `REMOVE_CAPTURED_WORKOUTS` are `RuntimeMessage` types only. They are not in
-  `PING.supports` and the site-control router does not serve them; the
-  site-control test asserts this.
+- **A page gets counts and handles, never a capture.** `WORKOUT_CAPTURED`,
+  `GET_CAPTURED_WORKOUTS`, `UPDATE_CAPTURED_WORKOUT`, `REMOVE_CAPTURED_WORKOUTS`
+  and `CLAIM_CAPTURED_WORKOUTS` are `RuntimeMessage` types only: not in
+  `PING.supports`, not served by the site-control router, and the site-control
+  test asserts this. What an allowlisted PlanMyPeak page _may_ do is the narrow
+  surface of `GET_CAPTURED_WORKOUT_SUMMARY`, `IMPORT_MISSING_WORKOUTS` and
+  `GET_CAPTURED_WORKOUT_IMPORT_STATUS` (`src/background/capturedImports/`):
+  learn how many captures are missing from _its own verified account's_
+  library, start an import into that account, and poll its counts. No reply
+  carries a capture, an athlete id, a workout body, a record key or a
+  credential; per-workout errors are the title plus a bounded reason. The
+  account is resolved from the stored session on every request — `contextId`
+  is correlation, not authorization — and the page's origin must equal the
+  configured destination. Widening this surface is a security decision, not a
+  convenience.
 - **Captures are origin-gated in the background.** `WORKOUT_CAPTURED` is
   accepted only from a tab whose URL origin is a TrainingPeaks app origin
   (`trainingPeaksEnvironmentForAppOrigin`), and the record's `environment`
@@ -1068,6 +1078,40 @@ storage, and close the tab. Rules:
 - ✅ Strict Content Security Policy
 - ✅ No inline scripts
 - ✅ No `eval()` or remote code execution
+
+### This repository is public: what must never be committed
+
+Everything in this repo, including docs, `openspec/` change notes, test
+fixtures and commit messages, is readable by anyone. Before saving a file,
+check it against this list. When in doubt, describe the thing generically
+("the retired Supabase project", "the PlanMyPeak seed data") instead of naming
+it.
+
+**Never commit**:
+
+- Any credential: TrainingPeaks or PlanMyPeak tokens, Supabase service-role or
+  JWT secrets, Intervals.icu API keys, `.env` contents. The Supabase **anon**
+  key in `src/utils/constants.ts` is the one exception: it is the publishable
+  key already shipped in the portal's browser bundle.
+- Anything about PlanMyPeak that a signed-in coach cannot see in their own
+  browser: private repository names, local filesystem paths, migration or
+  infrastructure file names (`infra/…`, `*.hcl`, `supabase/migrations/…`),
+  PR numbers from other repos, database table or column names, internal
+  admin features, hosts that are defined in infra but not served.
+- Retired or unused hosts and project refs (old Supabase project ids, unused
+  API subdomains). A decommissioned host is a lead for an attacker and
+  useless to a reader.
+- Real user data: coach or athlete names, emails, ids, captured workout
+  bodies, exported debug logs. Fixtures use `example.com` addresses and
+  invented ids.
+
+**Allowed, because the browser already shows it**: the production and staging
+app origins, `/api/backend/*` paths the portal itself calls, request and
+response JSON shapes, and the site-control protocol the page runs.
+
+**Cross-repo notes**: when a file is mirrored in the PlanMyPeak app, say so
+without its path in that repo. Scratch notes belong in the ignored `.tmp/`
+directory, not in `docs/` or `openspec/`.
 
 ---
 

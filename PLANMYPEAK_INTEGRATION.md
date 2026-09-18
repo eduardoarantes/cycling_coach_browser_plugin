@@ -285,16 +285,19 @@ rather than retrying.
 
 ### Request types
 
-| Type                          | Payload                                  | `data` on success                                                                                                           |
-| ----------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `PING`                        | —                                        | `{ protocolVersion, extensionVersion, supports, trainingPeaks: { authenticated }, planMyPeak: { authenticated, coachId } }` |
-| `GET_LIBRARIES`               | —                                        | `Library[]`                                                                                                                 |
-| `GET_LIBRARY_ITEMS`           | `{ libraryId: number }`                  | `LibraryItem[]`                                                                                                             |
-| `GET_TRAINING_PLANS`          | —                                        | `TrainingPlan[]`                                                                                                            |
-| `GET_TRAINING_PLAN_LIBRARIES` | —                                        | `{ id, name, planIds }[]`                                                                                                   |
-| `GET_PLAN_CONTENTS`           | `{ planId: number }`                     | `{ planId, workouts, notes, events, rxWorkouts }`                                                                           |
-| `GET_ATHLETE_GROUPS`          | —                                        | `AthleteGroup[]`                                                                                                            |
-| `OPEN_IMPORTER`               | `{ libraryId?, planId?, groups?, tab? }` | `{ opened: boolean, focused: boolean }`                                                                                     |
+| Type                                 | Payload                                  | `data` on success                                                                                                                                              |
+| ------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PING`                               | —                                        | `{ protocolVersion, extensionVersion, supports, trainingPeaks: { authenticated }, planMyPeak: { authenticated, coachId } }`                                    |
+| `GET_LIBRARIES`                      | —                                        | `Library[]`                                                                                                                                                    |
+| `GET_LIBRARY_ITEMS`                  | `{ libraryId: number }`                  | `LibraryItem[]`                                                                                                                                                |
+| `GET_TRAINING_PLANS`                 | —                                        | `TrainingPlan[]`                                                                                                                                               |
+| `GET_TRAINING_PLAN_LIBRARIES`        | —                                        | `{ id, name, planIds }[]`                                                                                                                                      |
+| `GET_PLAN_CONTENTS`                  | `{ planId: number }`                     | `{ planId, workouts, notes, events, rxWorkouts }`                                                                                                              |
+| `GET_ATHLETE_GROUPS`                 | —                                        | `AthleteGroup[]`                                                                                                                                               |
+| `OPEN_IMPORTER`                      | `{ libraryId?, planId?, groups?, tab? }` | `{ opened: boolean, focused: boolean }`                                                                                                                        |
+| `GET_CAPTURED_WORKOUT_SUMMARY`       | —                                        | `{ contextId, coachId, revision, state, missingCount, unlinkedCount, blockedReason?, activeOperation, latestOperation }`                                       |
+| `IMPORT_MISSING_WORKOUTS`            | `{ contextId, operationId }` (strict)    | `{ operationId, state, blockedReason? }`                                                                                                                       |
+| `GET_CAPTURED_WORKOUT_IMPORT_STATUS` | `{ contextId, operationId }` (strict)    | `{ operationId, contextId, state, totalCount, processedCount, importedCount, alreadyPresentCount, failedCount, blockedReason?, errors, startedAt, updatedAt }` |
 
 `GET_TRAINING_PLANS` is validated row by row: a plan whose shape the extension
 cannot read is left out of the array rather than failing the whole request, so
@@ -321,7 +324,11 @@ Precedence: `groups` → `planId` → `libraryId` → `tab` → Workout Librarie
 
 Unrecognised payload keys are **ignored, never rejected**, so sending `tab` to
 a build that predates it degrades to the default tab rather than failing the
-request. That holds for any additive payload field.
+request. That holds for any additive payload field, with one deliberate
+exception: `IMPORT_MISSING_WORKOUTS` and `GET_CAPTURED_WORKOUT_IMPORT_STATUS`
+are strict and answer `INVALID_REQUEST` to any extra key, because the only
+keys a page could usefully add there (`coachId`, `libraryId`, `destination`)
+are exactly the ones it must never be able to choose.
 
 `GET_ATHLETE_GROUPS` takes no arguments on purpose: the coach whose groups are
 returned is resolved in the background from the captured TrainingPeaks session,
@@ -346,8 +353,8 @@ acting as, or `null` when it could not be resolved.
 
 **Why it exists.** The extension's PlanMyPeak session and the page's are
 independent and can belong to different coaches — a real case on shared or
-agency machines and under admin impersonation. Every ingest endpoint is scoped
-to the token's coach, so an import in that state does not fail: it succeeds
+agency machines. Every write lands in the account the extension's token
+belongs to, so an import in that state does not fail: it succeeds
 into the wrong account, and the coach who clicked sees nothing change on their
 own page. Comparing this id against the page's signed-in coach is the only way
 to catch it.
@@ -412,6 +419,122 @@ const canImportGroups =
 
 Builds older than this field omit it entirely, which the `?? false` reads as
 "not supported" — the correct answer for every type added after them.
+
+### Captured-workout imports
+
+The extension keeps a local copy of workouts a coach creates on a TrainingPeaks
+athlete calendar. Three requests let the page tell the coach that some of those
+are missing from their PlanMyPeak library and import them, without the page
+ever seeing a capture.
+
+What the page gets is **counts, opaque handles and progress**. It never gets a
+workout id, an athlete id, a workout body, or a storage key, and it cannot
+submit, edit, dismiss, delete or link a capture: those remain extension-internal
+messages that the channel answers with `UNSUPPORTED_REQUEST_TYPE`.
+
+Feature-detect all three before showing any of this UI:
+
+```js
+const supports = ping?.data?.supports ?? [];
+const canImportCaptures = [
+  'GET_CAPTURED_WORKOUT_SUMMARY',
+  'IMPORT_MISSING_WORKOUTS',
+  'GET_CAPTURED_WORKOUT_IMPORT_STATUS',
+].every((type) => supports.includes(type));
+```
+
+The exact wire shapes are pinned in
+`tests/fixtures/siteControl/captured-imports.json`, mirrored verbatim in the
+PlanMyPeak app. A change to that file is a protocol change and must land in
+both repositories.
+
+#### `GET_CAPTURED_WORKOUT_SUMMARY`
+
+Takes no payload. The account is resolved from the extension's stored
+PlanMyPeak session and the page's verified origin.
+
+| Field                                 | Meaning                                                                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state`                               | `ready`, `checking` or `blocked`                                                                                                                        |
+| `missingCount`                        | A number only when `ready`; otherwise `null`. **`null` is not zero.**                                                                                   |
+| `unlinkedCount`                       | Pending captures no PlanMyPeak account owns yet. They are not in `missingCount`; the coach links them from the extension popup (New Workouts tab).      |
+| `contextId`                           | Opaque handle for (this PlanMyPeak site, this coach). Hand it back unchanged. `null` when `blocked`.                                                    |
+| `coachId`                             | The coach the extension is acting as, the same value `PING` reports.                                                                                    |
+| `revision`                            | Counter that increases whenever captures or import operations change. Compare two polls to know whether to refetch; it says nothing about what changed. |
+| `activeOperation` / `latestOperation` | `{ operationId, state }` or `null`, so a second tab can attach to a running import and a reloaded page can show the last result.                        |
+| `blockedReason`                       | Present when `blocked`; see below.                                                                                                                      |
+
+A capture is **missing** when it belongs to this coach on this PlanMyPeak
+site, was not dismissed, has not been acknowledged for this site, and its
+exact provider identity (`cal:{workoutId}`, or `cal-sandbox:{workoutId}` for
+the TrainingPeaks sandbox) is in none of the coach's libraries. Title matches
+never count, and neither does a send to another PlanMyPeak site: a capture
+imported into staging is still missing from production until it is found or
+imported there. A capture found already present is acknowledged by the
+extension and leaves the count for good.
+
+`checking` means the scan did not finish inside the extension's 2.5 s budget.
+It continues in the background; poll again and the next answer comes from its
+cache. A lookup that fails produces an **error response** (`API_ERROR`), never
+`missingCount: 0`.
+
+#### `IMPORT_MISSING_WORKOUTS`
+
+Payload `{ contextId, operationId }`. `contextId` comes from the summary;
+`operationId` is minted by the page (any unique non-empty string) and makes the
+request idempotent:
+
+- The same `operationId` again names the same run and returns its current state.
+- A different `operationId` while an import is running **attaches to the running
+  one**: the response carries the running operation's id, which is the one to
+  poll. Always poll the `operationId` in the response, not the one you sent.
+- An `interrupted` run asked for again under its own id is retried. What had
+  already landed is not uploaded twice.
+
+The response is an acknowledgement, not a result: `running` (poll for
+progress), `completed` (there was nothing to import) or `blocked`. The import
+itself runs in the extension's background worker and survives the page
+navigating away.
+
+Workouts go to the coach's default library, through the same upload path as
+every other import from the extension.
+
+#### `GET_CAPTURED_WORKOUT_IMPORT_STATUS`
+
+Payload `{ contextId, operationId }`. Counts always satisfy
+`importedCount + alreadyPresentCount + failedCount === processedCount` and
+`processedCount <= totalCount`.
+
+| `state`       | Meaning                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `running`     | In progress; keep polling.                                                                                   |
+| `completed`   | Finished. `failedCount` may still be above zero.                                                             |
+| `blocked`     | Stopped before or during the run; `blockedReason` says why. Workouts imported before the stop stay imported. |
+| `interrupted` | The extension's worker was restarted mid-run. Offer a retry with the same `operationId`.                     |
+
+`errors` holds at most 20 `{ title, message }` entries: the workout title the
+coach typed and a failure message capped at 300 characters. Treat both as plain
+text.
+
+An unknown operation, or a `contextId` that no longer matches the extension's
+account, is an `INVALID_REQUEST` error. Only the running and the most recent
+finished operation are kept per context.
+
+#### Blocked reasons
+
+| `blockedReason`        | What to tell the coach                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- |
+| `connection_disabled`  | Turn the PlanMyPeak connection on in the extension settings.                                          |
+| `signed_out`           | The extension has no PlanMyPeak session; refresh it from the popup.                                   |
+| `account_unknown`      | The extension could not confirm which coach it is; try again.                                         |
+| `destination_mismatch` | The extension is configured for a different PlanMyPeak environment than this page.                    |
+| `account_mismatch`     | The TrainingPeaks account in the browser is linked to a different PlanMyPeak coach (production only). |
+| `stale_context`        | The account or environment changed since the summary; fetch a new summary and discard the old state.  |
+| `account_changed`      | The account or environment changed while the import was running; it stopped.                          |
+
+Still compare `coachId` with the page session yourself, as for every other
+import: the extension refuses what it can detect, and the page is the only side
+that knows who is signed in to the page.
 
 ### Import completion notification
 

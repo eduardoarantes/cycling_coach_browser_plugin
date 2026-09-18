@@ -19,11 +19,16 @@ import { STORAGE_KEYS, type TrainingPeaksEnvironment } from '@/utils/constants';
 import { logger } from '@/utils/logger';
 import {
   CapturedWorkoutPayloadSchema,
+  acknowledgementKey,
   buildCapturedWorkoutKey,
   countPendingCapturedWorkouts,
+  countUnlinkedCapturedWorkouts,
+  isImportCandidateFor,
   parseCapturedWorkoutsStorage,
   sortCapturedWorkoutsNewestFirst,
+  type CapturedWorkoutAcknowledgement,
   type CapturedWorkoutData,
+  type CapturedWorkoutOwner,
   type CapturedWorkoutPayload,
   type CapturedWorkoutRecord,
   type CapturedWorkoutStatus,
@@ -36,6 +41,8 @@ export interface CapturedWorkoutsList {
   /** Newest first */
   records: CapturedWorkoutRecord[];
   pendingCount: number;
+  /** Records no verified account has claimed; see `claimUnlinkedCapturedWorkouts`. */
+  unlinkedCount: number;
 }
 
 export interface CapturedWorkoutPatch {
@@ -46,6 +53,11 @@ export interface CapturedWorkoutPatch {
   lastSendError?: string | null;
   /** Overrides the timestamp written when `status` becomes `sent`. */
   sentAt?: number;
+  /**
+   * Record what became of this capture in one destination for one coach. Only
+   * ever supplied by the background from its own resolved context.
+   */
+  acknowledge?: Omit<CapturedWorkoutAcknowledgement, 'at'> & { at?: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -73,8 +85,43 @@ async function readMap(): Promise<CapturedWorkoutsStorage> {
   return parseCapturedWorkoutsStorage(data[STORAGE_KEYS.CAPTURED_WORKOUTS]);
 }
 
+/**
+ * Write the map and advance the revision in one storage call, so a reader can
+ * never observe new records under an old revision.
+ */
 async function writeMap(map: CapturedWorkoutsStorage): Promise<void> {
-  await chrome.storage.local.set({ [STORAGE_KEYS.CAPTURED_WORKOUTS]: map });
+  const revision = (await getCapturedRevision()) + 1;
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.CAPTURED_WORKOUTS]: map,
+    [STORAGE_KEYS.CAPTURED_WORKOUTS_REVISION]: revision,
+  });
+}
+
+/**
+ * The current revision: a counter that increases on every captured-workout or
+ * import-operation write. Zero before anything was ever written.
+ */
+export async function getCapturedRevision(): Promise<number> {
+  const data = await chrome.storage.local.get(
+    STORAGE_KEYS.CAPTURED_WORKOUTS_REVISION
+  );
+  const value = data[STORAGE_KEYS.CAPTURED_WORKOUTS_REVISION];
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    ? value
+    : 0;
+}
+
+/**
+ * Advance the revision without touching the records. For writers of sibling
+ * state (import operations) that a page should also notice. Must be called
+ * inside {@link withCapturedWorkoutsLock}, like every other write here.
+ */
+export async function bumpCapturedRevision(): Promise<number> {
+  const revision = (await getCapturedRevision()) + 1;
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.CAPTURED_WORKOUTS_REVISION]: revision,
+  });
+  return revision;
 }
 
 // ---------------------------------------------------------------------------
@@ -211,12 +258,19 @@ export function normalizeCapturedWorkout(
  *   resurface. An unknown key is ignored: edits to workouts that were never
  *   captured are not captures.
  *
+ * `owner` is the PlanMyPeak account and destination the background resolved
+ * from its own stored session at capture time, or null when it could not. It
+ * is written only when the record is created: an existing record keeps
+ * whatever it had, including nothing. Assigning ownership on a later edit
+ * would hand a capture to whichever coach happened to be signed in then.
+ *
  * Returns the stored record, or null when the payload was invalid or the
  * update targeted an unknown key.
  */
 export async function storeCapture(
   message: WorkoutCapturedMessage,
-  environment: TrainingPeaksEnvironment
+  environment: TrainingPeaksEnvironment,
+  owner: CapturedWorkoutOwner | null = null
 ): Promise<CapturedWorkoutRecord | null> {
   const payload = parseCapturedWorkoutPayload(message);
   if (!payload) {
@@ -264,6 +318,7 @@ export async function storeCapture(
       updatedAt: timestamp,
       status: 'pending',
       workout,
+      ...(owner ? { owner } : {}),
     };
     map[key] = record;
     await writeMap(map);
@@ -313,9 +368,50 @@ export async function updateCapturedWorkout(
       updated.lastSendError = patch.lastSendError;
     }
 
+    if (patch.acknowledge !== undefined) {
+      const acknowledgement: CapturedWorkoutAcknowledgement = {
+        ...patch.acknowledge,
+        at: patch.acknowledge.at ?? Date.now(),
+      };
+      updated.acknowledgements = {
+        ...(updated.acknowledgements ?? {}),
+        [acknowledgementKey(acknowledgement)]: acknowledgement,
+      };
+    }
+
     map[key] = updated;
     await writeMap(map);
     return updated;
+  });
+}
+
+/**
+ * Link every record that has no owner to `owner`.
+ *
+ * The explicit recovery path for captures stored before ownership existed, or
+ * while the extension held no PlanMyPeak session. Only the coach can trigger
+ * it, from the popup, under a session the background has verified; nothing
+ * assigns these records automatically. Returns how many were linked.
+ */
+export async function claimUnlinkedCapturedWorkouts(
+  owner: CapturedWorkoutOwner
+): Promise<number> {
+  return withCapturedWorkoutsLock(async () => {
+    const map = await readMap();
+    let claimed = 0;
+
+    for (const [key, record] of Object.entries(map)) {
+      if (record.owner === undefined) {
+        map[key] = { ...record, owner };
+        claimed += 1;
+      }
+    }
+
+    if (claimed > 0) {
+      await writeMap(map);
+      logger.info('Linked unowned captured workouts to a coach:', claimed);
+    }
+    return claimed;
   });
 }
 
@@ -356,10 +452,34 @@ export async function listCapturedWorkouts(): Promise<CapturedWorkoutsList> {
   return {
     records: sortCapturedWorkoutsNewestFirst(records),
     pendingCount: countPendingCapturedWorkouts(records),
+    unlinkedCount: countUnlinkedCapturedWorkouts(records),
   };
 }
 
 export async function getPendingCapturedCount(): Promise<number> {
   const map = await readMap();
   return countPendingCapturedWorkouts(Object.values(map));
+}
+
+/** Records a page acting for `owner` may be told about: see `isImportCandidateFor`. */
+export async function listImportCandidates(
+  owner: CapturedWorkoutOwner
+): Promise<CapturedWorkoutRecord[]> {
+  const map = await readMap();
+  return sortCapturedWorkoutsNewestFirst(
+    Object.values(map).filter((record) => isImportCandidateFor(record, owner))
+  );
+}
+
+/** One record by key, or null. Reads bypass the queue. */
+export async function getCapturedWorkout(
+  key: string
+): Promise<CapturedWorkoutRecord | null> {
+  const map = await readMap();
+  return map[key] ?? null;
+}
+
+export async function getUnlinkedCapturedCount(): Promise<number> {
+  const map = await readMap();
+  return countUnlinkedCapturedWorkouts(Object.values(map));
 }

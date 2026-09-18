@@ -173,4 +173,81 @@ describe('useCapturedWorkouts', () => {
 
     expect(result.current.error).toBe('boom');
   });
+
+  describe('unlinked captures', () => {
+    const owner = {
+      coachId: 'coach-1',
+      destination: 'https://portal.planmypeak.com',
+    };
+
+    it('should count pending records that have no owner', async () => {
+      listResponse = {
+        records: [
+          record(3),
+          record(2, { owner }),
+          record(1, { status: 'sent' }),
+        ],
+        pendingCount: 2,
+      };
+
+      const { result } = renderHook(() => useCapturedWorkouts());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.unlinkedCount).toBe(1);
+    });
+
+    it('should claim through a runtime message that names no account, then reload', async () => {
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+        async (message: unknown) => {
+          const typed = message as Record<string, unknown>;
+          sent.push(typed);
+          return typed.type === 'CLAIM_CAPTURED_WORKOUTS'
+            ? { success: true, data: { claimed: 1 } }
+            : { success: true, data: listResponse };
+        }
+      );
+      const { result } = renderHook(() => useCapturedWorkouts());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      let outcome: string | null = 'unset';
+      await act(async () => {
+        outcome = await result.current.claim();
+      });
+
+      expect(outcome).toBeNull();
+      expect(sent).toEqual([
+        { type: 'GET_CAPTURED_WORKOUTS' },
+        { type: 'CLAIM_CAPTURED_WORKOUTS' },
+        { type: 'GET_CAPTURED_WORKOUTS' },
+      ]);
+      expect(chrome.storage.local.set).not.toHaveBeenCalled();
+    });
+
+    it('should resolve to the background error when the claim is refused', async () => {
+      const { result } = renderHook(() => useCapturedWorkouts());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      let outcome: string | null = null;
+      await act(async () => {
+        outcome = await result.current.claim();
+      });
+
+      expect(outcome).toBe('unhandled');
+    });
+
+    it('should resolve to a message when the background cannot be reached', async () => {
+      const { result } = renderHook(() => useCapturedWorkouts());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      vi.mocked(chrome.runtime.sendMessage).mockRejectedValueOnce(
+        new Error('worker gone')
+      );
+
+      let outcome: string | null = null;
+      await act(async () => {
+        outcome = await result.current.claim();
+      });
+
+      expect(outcome).toBe('worker gone');
+    });
+  });
 });

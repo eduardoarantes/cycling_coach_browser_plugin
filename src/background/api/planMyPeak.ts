@@ -11,7 +11,11 @@ import {
   updateExportItem,
   completeExport,
 } from '@/services/exportProgressService';
-import { updateCapturedWorkout } from '@/services/capturedWorkoutService';
+import {
+  updateCapturedWorkout,
+  type CapturedWorkoutPatch,
+} from '@/services/capturedWorkoutService';
+import { peekCaptureContext } from '@/services/planMyPeakIdentityService';
 import { refreshBadge } from '@/services/badgeService';
 import { logger } from '@/utils/logger';
 import {
@@ -1408,6 +1412,17 @@ export function isTotalUploadFailure(
   return summary.results.length === 0 && summary.failures.length > 0;
 }
 
+/** What the upload loop reports about one workout, as soon as its POST returns. */
+export interface PlanMyPeakUploadItemResult {
+  providerWorkoutId: string;
+  name: string;
+  success: boolean;
+  /** Set on success: newly stored (201) or updated in place (200). */
+  created?: boolean;
+  /** Set on failure. */
+  error?: string;
+}
+
 /**
  * Upload transformed workouts to a PlanMyPeak library.
  *
@@ -1429,12 +1444,33 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
      * the next upload starts, so a popup that closes mid-send loses nothing.
      */
     capturedKeys?: Record<string, string>;
+    /**
+     * Told about each workout right after its POST, before the next begins.
+     * For callers that persist progress of their own (a page-driven import).
+     */
+    onItemResult?: (result: PlanMyPeakUploadItemResult) => Promise<void> | void;
+    /**
+     * Asked before every POST whether the run may continue. A refusal stops
+     * the loop: the remaining workouts are reported as failures carrying the
+     * given reason, and nothing more is written.
+     */
+    shouldContinue?: () => Promise<
+      { ok: true } | { ok: false; reason: string }
+    >;
   }
 ): Promise<ApiResponse<PlanMyPeakUploadSummary>> {
   const trimmedLibraryId = libraryId.trim();
   const trackProgress = options?.trackProgress ?? true;
   const capturedKeys = options?.capturedKeys ?? {};
   let touchedCapturedRecords = false;
+
+  // A captured workout that lands is acknowledged for the destination and
+  // coach it landed in, so the page for that destination stops counting it.
+  // Read once per run from the identity cache, never the network: unknown
+  // means the record is still marked sent (the older, coarser signal) and the
+  // next reconciliation acknowledges it as already present.
+  const acknowledgementContext =
+    Object.keys(capturedKeys).length > 0 ? await peekCaptureContext() : null;
 
   if (!trimmedLibraryId) {
     return {
@@ -1460,6 +1496,9 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
   const results: PlanMyPeakWorkoutUploadResult[] = [];
   const failures: PlanMyPeakUploadFailure[] = [];
 
+  // Once refused, every remaining workout is a failure with the same reason.
+  let stopReason: string | null = null;
+
   for (let i = 0; i < workouts.length; i++) {
     const workout = workouts[i];
     const requestBody = toCreateWorkoutRequest(workout, trimmedLibraryId);
@@ -1469,6 +1508,41 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     )
       ? capturedKeys[workout.provider_workout_id]
       : undefined;
+
+    if (stopReason === null && options?.shouldContinue) {
+      const verdict = await options.shouldContinue();
+      if (!verdict.ok) {
+        stopReason = verdict.reason;
+      }
+    }
+
+    if (stopReason !== null) {
+      failures.push({
+        providerWorkoutId: workout.provider_workout_id,
+        name: workout.name,
+        message: stopReason,
+      });
+      if (capturedKey) {
+        touchedCapturedRecords = true;
+        await updateCapturedWorkout(capturedKey, { lastSendError: stopReason });
+      }
+      if (exportState) {
+        await updateExportItem({
+          exportId: exportState.exportId,
+          itemIndex: i,
+          itemName: workout.name,
+          success: false,
+          error: stopReason,
+        });
+      }
+      await options?.onItemResult?.({
+        providerWorkoutId: workout.provider_workout_id,
+        name: workout.name,
+        success: false,
+        error: stopReason,
+      });
+      continue;
+    }
 
     const result = await apiRequestWithStatus(
       WORKOUT_ITEMS_ENDPOINT,
@@ -1503,24 +1577,41 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
           error: result.error.message,
         });
       }
+      await options?.onItemResult?.({
+        providerWorkoutId: workout.provider_workout_id,
+        name: workout.name,
+        success: false,
+        error: result.error.message,
+      });
       continue;
     }
 
     const uploaded = result.data.value;
+    const created = result.data.status === 201;
     results.push({
       workout: uploaded,
-      created: result.data.status === 201,
+      created,
       filedElsewhere: uploaded.library.id !== trimmedLibraryId,
     });
 
     if (capturedKey) {
       touchedCapturedRecords = true;
-      await updateCapturedWorkout(capturedKey, {
+      const patch: CapturedWorkoutPatch = {
         status: 'sent',
         planMyPeakWorkoutId: uploaded.id,
         planMyPeakLibraryName: uploaded.library.name,
         sentAt: Date.now(),
-      });
+      };
+      if (acknowledgementContext) {
+        patch.acknowledge = {
+          coachId: acknowledgementContext.coachId,
+          destination: acknowledgementContext.destination,
+          reason: 'imported',
+          planMyPeakWorkoutId: uploaded.id,
+          libraryName: uploaded.library.name,
+        };
+      }
+      await updateCapturedWorkout(capturedKey, patch);
     }
 
     if (exportState) {
@@ -1531,6 +1622,12 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
         success: true,
       });
     }
+    await options?.onItemResult?.({
+      providerWorkoutId: workout.provider_workout_id,
+      name: workout.name,
+      success: true,
+      created,
+    });
   }
 
   if (exportState) {

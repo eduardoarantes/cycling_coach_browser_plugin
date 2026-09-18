@@ -51,6 +51,9 @@ export const SITE_CONTROL_REQUEST_TYPES = [
   'GET_PLAN_CONTENTS',
   'GET_ATHLETE_GROUPS',
   'OPEN_IMPORTER',
+  'GET_CAPTURED_WORKOUT_SUMMARY',
+  'IMPORT_MISSING_WORKOUTS',
+  'GET_CAPTURED_WORKOUT_IMPORT_STATUS',
 ] as const;
 
 export type SiteControlRequestType =
@@ -143,6 +146,163 @@ export interface SiteControlOpenImporterPayload {
   tab?: SiteControlImporterTab;
 }
 
+// ---------------------------------------------------------------------------
+// Captured-workout imports (TrainingPeaks calendar captures → PlanMyPeak)
+// ---------------------------------------------------------------------------
+//
+// These three requests are the *only* page-facing surface for captured
+// workouts. The raw capture channel (`WORKOUT_CAPTURED`, `GET_CAPTURED_WORKOUTS`,
+// `UPDATE_CAPTURED_WORKOUT`, `REMOVE_CAPTURED_WORKOUTS`) stays a runtime-message
+// concern: a page can learn how many captures are missing from the coach's
+// library and ask for them to be imported, but it can never read a capture,
+// submit one, patch its status or delete it.
+
+/**
+ * `GET_CAPTURED_WORKOUT_SUMMARY` takes no arguments: the account whose captures
+ * are counted is resolved from the stored PlanMyPeak session, never from the
+ * page.
+ */
+export type SiteControlGetCapturedWorkoutSummaryPayload = Record<string, never>;
+
+/**
+ * `IMPORT_MISSING_WORKOUTS`.
+ *
+ * `contextId` is the opaque handle the summary returned for the verified account
+ * and configured destination. It is correlation, not authorization: the
+ * background re-resolves its own account and refuses a handle that no longer
+ * matches. `operationId` is minted by the page so a retry after a lost
+ * acknowledgement resolves to the same operation instead of starting a second.
+ */
+export interface SiteControlImportMissingWorkoutsPayload {
+  contextId: string;
+  operationId: string;
+}
+
+export interface SiteControlGetCapturedWorkoutImportStatusPayload {
+  contextId: string;
+  operationId: string;
+}
+
+/**
+ * Why a summary or an import is refused. Every value names something the coach
+ * can act on; none of them carries a credential or an account detail.
+ */
+export const CAPTURED_IMPORT_BLOCKED_REASONS = [
+  /** The PlanMyPeak connection is switched off in the extension's settings. */
+  'connection_disabled',
+  /** No PlanMyPeak credential is stored. */
+  'signed_out',
+  /** A credential is stored but the coach it belongs to could not be resolved. */
+  'account_unknown',
+  /**
+   * The signed-in TrainingPeaks account is not the one linked to the PlanMyPeak
+   * coach (production only, as everywhere else in the extension).
+   */
+  'account_mismatch',
+  /** The page's origin is not the destination the extension is configured for. */
+  'destination_mismatch',
+  /** The `contextId` no longer names the extension's current account/destination. */
+  'stale_context',
+  /** The account or destination changed while an import was running. */
+  'account_changed',
+] as const;
+
+export type CapturedImportBlockedReason =
+  (typeof CAPTURED_IMPORT_BLOCKED_REASONS)[number];
+
+/** Lifecycle of one import operation, as reported to the page. */
+export const CAPTURED_IMPORT_STATES = [
+  'running',
+  'completed',
+  'interrupted',
+  'blocked',
+] as const;
+
+export type CapturedImportState = (typeof CAPTURED_IMPORT_STATES)[number];
+
+/** An operation the page may poll, without its counts. */
+export interface SiteControlCapturedImportRef {
+  operationId: string;
+  state: CapturedImportState;
+}
+
+/**
+ * `GET_CAPTURED_WORKOUT_SUMMARY` result.
+ *
+ * `state` is `checking` while the candidate set is still being reconciled
+ * against the destination, `ready` once every candidate has a verified answer,
+ * and `blocked` when nothing can be counted for the reason given. A
+ * `missingCount` is present only when `ready`: an unknown answer is `null`,
+ * never a zero.
+ *
+ * `coachId` is the same opaque id `PING` reports, repeated here so the page
+ * can verify every reply against its own signed-in coach without a race
+ * between two requests. `contextId` is opaque and only meaningful when handed
+ * back to `IMPORT_MISSING_WORKOUTS` / `GET_CAPTURED_WORKOUT_IMPORT_STATUS`.
+ *
+ * `revision` increases whenever stored captures or import operations change,
+ * so a page can tell that something happened between two polls — a popup send,
+ * a recovered run — without being told what.
+ *
+ * `unlinkedCount` is how many captures the extension holds that are not
+ * associated with any verified account and therefore cannot be counted for
+ * this or any page. It exists so the page can point the coach at the popup's
+ * recovery path; it exposes nothing about the captures themselves.
+ */
+export interface SiteControlCapturedWorkoutSummaryResult {
+  contextId: string | null;
+  coachId: string | null;
+  revision: number;
+  state: 'checking' | 'ready' | 'blocked';
+  missingCount: number | null;
+  unlinkedCount: number;
+  blockedReason?: CapturedImportBlockedReason;
+  activeOperation: SiteControlCapturedImportRef | null;
+  latestOperation: SiteControlCapturedImportRef | null;
+}
+
+/**
+ * `IMPORT_MISSING_WORKOUTS` acknowledgement.
+ *
+ * Answered as soon as the operation exists, never after the batch has finished:
+ * the page polls `GET_CAPTURED_WORKOUT_IMPORT_STATUS` for progress. `completed`
+ * on the acknowledgement means the operation id named a run that had already
+ * finished, or that there was nothing to import.
+ */
+export interface SiteControlImportMissingWorkoutsResult {
+  operationId: string;
+  state: 'running' | 'completed' | 'blocked';
+  blockedReason?: CapturedImportBlockedReason;
+}
+
+/** One workout that could not be imported. Title and a safe reason only. */
+export interface SiteControlCapturedImportError {
+  title: string;
+  message: string;
+}
+
+/**
+ * `GET_CAPTURED_WORKOUT_IMPORT_STATUS` result.
+ *
+ * Every count is in workouts. `processedCount` equals `importedCount +
+ * alreadyPresentCount + failedCount` and never exceeds `totalCount`; the page
+ * rejects a reply where that does not hold.
+ */
+export interface SiteControlCapturedWorkoutImportStatusResult {
+  operationId: string;
+  contextId: string;
+  state: CapturedImportState;
+  totalCount: number;
+  processedCount: number;
+  importedCount: number;
+  alreadyPresentCount: number;
+  failedCount: number;
+  blockedReason?: CapturedImportBlockedReason;
+  errors: SiteControlCapturedImportError[];
+  startedAt: number;
+  updatedAt: number;
+}
+
 /** Maps each request type to its payload shape. */
 export interface SiteControlPayloadMap {
   PING: SiteControlPingPayload;
@@ -153,6 +313,9 @@ export interface SiteControlPayloadMap {
   GET_PLAN_CONTENTS: SiteControlGetPlanContentsPayload;
   GET_ATHLETE_GROUPS: SiteControlGetAthleteGroupsPayload;
   OPEN_IMPORTER: SiteControlOpenImporterPayload;
+  GET_CAPTURED_WORKOUT_SUMMARY: SiteControlGetCapturedWorkoutSummaryPayload;
+  IMPORT_MISSING_WORKOUTS: SiteControlImportMissingWorkoutsPayload;
+  GET_CAPTURED_WORKOUT_IMPORT_STATUS: SiteControlGetCapturedWorkoutImportStatusPayload;
 }
 
 /**
@@ -252,8 +415,8 @@ export interface SiteControlPingResult {
      * when it could not be resolved.
      *
      * The extension's PlanMyPeak session and the page's are independent and can
-     * belong to different coaches — a real case on shared machines and under
-     * admin impersonation. The page compares this against its own signed-in
+     * belong to different coaches — a real case on shared or agency machines.
+     * The page compares this against its own signed-in
      * coach and refuses the import when they differ, which is the only way to
      * catch a wrong-account write: everything downstream is scoped to the
      * token's coach, so the write would otherwise succeed silently into the
@@ -298,6 +461,9 @@ export interface SiteControlResultMap {
   GET_PLAN_CONTENTS: SiteControlPlanContentsResult;
   GET_ATHLETE_GROUPS: AthleteGroup[];
   OPEN_IMPORTER: SiteControlOpenImporterResult;
+  GET_CAPTURED_WORKOUT_SUMMARY: SiteControlCapturedWorkoutSummaryResult;
+  IMPORT_MISSING_WORKOUTS: SiteControlImportMissingWorkoutsResult;
+  GET_CAPTURED_WORKOUT_IMPORT_STATUS: SiteControlCapturedWorkoutImportStatusResult;
 }
 
 /**

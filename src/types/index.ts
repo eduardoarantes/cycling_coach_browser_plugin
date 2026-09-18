@@ -163,10 +163,28 @@ export interface CapturedWorkoutsListResult {
   /** Newest first */
   records: CapturedWorkoutRecord[];
   pendingCount: number;
+  /** Records no verified PlanMyPeak account has claimed yet. */
+  unlinkedCount: number;
 }
 
 export interface RemoveCapturedWorkoutsResult {
   removed: number;
+}
+
+/**
+ * Link every capture that has no owner to the PlanMyPeak account the extension
+ * is signed in to right now, on its configured destination.
+ *
+ * The explicit recovery path for captures stored before ownership existed.
+ * Carries nothing: the account is resolved in the background from the stored
+ * session, so the popup cannot name a coach. Accepted from the popup only.
+ */
+export interface ClaimCapturedWorkoutsMessage {
+  type: 'CLAIM_CAPTURED_WORKOUTS';
+}
+
+export interface ClaimCapturedWorkoutsResult {
+  claimed: number;
 }
 
 export type { CapturedWorkoutRecord, CapturedWorkoutStatus };
@@ -524,6 +542,7 @@ export type RuntimeMessage =
   | GetCapturedWorkoutsMessage
   | UpdateCapturedWorkoutMessage
   | RemoveCapturedWorkoutsMessage
+  | ClaimCapturedWorkoutsMessage
   | SiteControlRequestMessage;
 
 export interface FindIntervalsPlanFolderByNameResponse {

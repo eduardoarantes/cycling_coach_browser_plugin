@@ -52,7 +52,7 @@ describe('mypeakAuthDetection', () => {
     it('should NOT match the retired Supabase project host', () => {
       expect(
         isMyPeakSupabaseRequest(
-          'https://yqaskiwzyhhovthbvmqq.supabase.co/auth/v1/user'
+          'https://retiredprojectref.supabase.co/auth/v1/user'
         )
       ).toBe(false);
     });
@@ -79,7 +79,7 @@ describe('mypeakAuthDetection', () => {
         'nwvtltfibnkdogdeeluh.supabase.co'
       );
       expect(MYPEAK_SUPABASE_HOSTS).not.toContain(
-        'yqaskiwzyhhovthbvmqq.supabase.co'
+        'retiredprojectref.supabase.co'
       );
     });
 

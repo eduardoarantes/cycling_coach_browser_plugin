@@ -457,6 +457,18 @@ export const STORAGE_KEYS = {
    * through capturedWorkoutService; the popup reads it and sends messages.
    */
   CAPTURED_WORKOUTS: 'captured_workouts',
+  /**
+   * Monotonic counter bumped on every write to `captured_workouts` and to
+   * `captured_import_operations`. Reported to PlanMyPeak pages so they can tell
+   * that something changed between two polls without being told what.
+   */
+  CAPTURED_WORKOUTS_REVISION: 'captured_workouts_revision',
+  /**
+   * Captured-workout import operations, keyed by context id. Holds only the
+   * active and the latest finished operation per context. Written only by the
+   * background worker through capturedImportOperations.
+   */
+  CAPTURED_IMPORT_OPERATIONS: 'captured_import_operations',
 } as const;
 
 /**

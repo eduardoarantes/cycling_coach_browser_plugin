@@ -573,8 +573,12 @@ so it can be sent later without asking TrainingPeaks for it again.
 8. **Reuse the shared adapter path** and mint identities in the transformer
    via `providerIdNamespace`; have the upload loop persist per-item outcomes
    via `capturedKeys` so a closed popup loses nothing.
-9. **Keep it off the site-control channel.** Captured data is not advertised
-   in `PING.supports` and no page-facing request type reads it.
+9. **Expose counts and handles to the page, never captured data.** The raw
+   capture messages stay off the site-control channel; the page-facing
+   surface is limited to the summary/start/status requests in
+   `src/background/capturedImports/`, which answer for the extension's own
+   verified account only and never carry a capture, athlete id, workout body
+   or credential.
 
 ## Suggested Extension Point for Future Integrations
 
