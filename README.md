@@ -106,8 +106,8 @@ tests, and `npm run build:bundle`.
 2. Set **new_version** to `patch`, `minor`, `major`, or an exact version such as
    `1.21.0` (a leading `v` is also accepted).
 3. Click **Run workflow**. It updates `package.json`, the lockfile root metadata,
-   and `public/manifest.json` in a new PR, explicitly runs CI for that commit,
-   merges when checks pass, then builds and publishes the tagged release.
+   and `public/manifest.json` in a new PR, waits for the required pull-request CI
+   for that commit, merges when checks pass, then builds and publishes the release.
 
 Leave **new_version** blank to publish the version already on `main`, for example
 when retrying after a version PR merged but packaging failed. The optional
@@ -127,9 +127,10 @@ continues to build and publish that exact tag.
 Repository setup: **Settings → Actions → General → Workflow permissions →
 Allow GitHub Actions to create and approve pull requests** must be enabled.
 The workflow uses the built-in token to create and merge its own version PR;
-it does not approve reviews or bypass branch protection. CI has a manual dispatch
-trigger because bot-created PRs cannot rely on automatic CI. No personal access
-token or auto-merge repository setting is required. If additional required reviews
+it does not approve reviews or bypass branch protection. It approves execution
+of the CI run for its own version-only PR when GitHub requires it, then waits for
+that pull-request run. Manually dispatched CI does not satisfy required PR checks.
+No personal access token or auto-merge repository setting is required. If additional required reviews
 or checks are introduced, they must be satisfied before this automation can merge.
 
 The published artifact is `planmypeak-importer-webstore-vX.Y.Z.zip`, attached
