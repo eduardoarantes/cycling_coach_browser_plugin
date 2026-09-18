@@ -102,21 +102,35 @@ tests, and `npm run build:bundle`.
 
 ### Publishing a release
 
-1. Raise a PR that sets the version (`npm run version:patch`, or
-   `version:minor` / `version:major`) and merge it.
-2. In the repository's **Actions** tab, run the **Release Artifact** workflow.
+1. Open **Actions → Release Artifact → Run workflow** and select **main**.
+2. Set **new_version** to `patch`, `minor`, `major`, or an exact version such as
+   `1.21.0` (a leading `v` is also accepted).
+3. Click **Run workflow**. It updates `package.json`, the lockfile root metadata,
+   and `public/manifest.json` in a new PR, explicitly runs CI for that commit,
+   merges when checks pass, then builds and publishes the tagged release.
 
-That releases whatever version `main` currently carries: it re-runs the
-checks, creates and pushes the `vX.Y.Z` tag, packages the store artifact, and
-publishes the GitHub release. Pass the optional `expected_version` input to
-have it fail rather than release if `main` is not on the version you meant.
+Leave **new_version** blank to publish the version already on `main`, for example
+when retrying after a version PR merged but packaging failed. The optional
+**expected_version** is a guard against releasing an unintended version; it is
+checked against the resolved new version, or current `main` when no bump is
+requested. It does not bump the version itself.
 
-Pushing a `vX.Y.Z` tag by hand does the same thing, minus the tagging step.
+The workflow rejects invalid versions, downgrades, and existing release tags
+before opening a PR. If CI fails, the PR remains open for diagnosis and no tag
+is created. If `main` changes while the version PR is being checked, close that
+PR and run the release again; the workflow will not silently release different
+code. If a tag exists but publication failed, dispatch the workflow on that tag with
+no bump: `gh workflow run release.yml --ref v1.21.0`. This rebuilds and publishes
+the tagged commit without changing `main`. Pushing a `vX.Y.Z` tag manually also
+continues to build and publish that exact tag.
 
-The workflow refuses to release if `package.json` and `public/manifest.json`
-disagree, or if the tag already exists — which is what a forgotten version
-bump looks like. It never changes the version itself: `main` requires pull
-requests, so the bump goes through step 1.
+Repository setup: **Settings → Actions → General → Workflow permissions →
+Allow GitHub Actions to create and approve pull requests** must be enabled.
+The workflow uses the built-in token to create and merge its own version PR;
+it does not approve reviews or bypass branch protection. CI has a manual dispatch
+trigger because bot-created PRs cannot rely on automatic CI. No personal access
+token or auto-merge repository setting is required. If additional required reviews
+or checks are introduced, they must be satisfied before this automation can merge.
 
 The published artifact is `planmypeak-importer-webstore-vX.Y.Z.zip`, attached
 to the GitHub release and available as a workflow artifact. That zip is what
