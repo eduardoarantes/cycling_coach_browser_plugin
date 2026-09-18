@@ -353,8 +353,8 @@ acting as, or `null` when it could not be resolved.
 
 **Why it exists.** The extension's PlanMyPeak session and the page's are
 independent and can belong to different coaches — a real case on shared or
-agency machines and under admin impersonation. Every ingest endpoint is scoped
-to the token's coach, so an import in that state does not fail: it succeeds
+agency machines. Every write lands in the account the extension's token
+belongs to, so an import in that state does not fail: it succeeds
 into the wrong account, and the coach who clicked sees nothing change on their
 own page. Comparing this id against the page's signed-in coach is the only way
 to catch it.

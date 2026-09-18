@@ -2,9 +2,9 @@
 
 PlanMyPeak was rewritten (Supabase-auth Next.js web app + separate Fastify API under `/api/backend`) and re-hosted at `https://portal.planmypeak.com/`. The extension's PlanMyPeak auth layer still assumes the old world:
 
-- Production app host `planmypeak.com`; production Supabase `https://yqaskiwzyhhovthbvmqq.supabase.co`.
+- Production app host `planmypeak.com`; production Supabase: the retired project.
 - `mainWorldInterceptor.ts` matches a fixed set of Supabase hosts (incl. local `54361/54341`) plus a `localhost`/`127.0.0.1` + `/auth/v1/` | `/rest/v1/` fallback.
-- `manifest.json` injects content scripts and grants host permissions only for `app.trainingpeaks.com`, `planmypeak.com`, and `yqaskiwzyhhovthbvmqq.supabase.co`.
+- `manifest.json` injects content scripts and grants host permissions only for `app.trainingpeaks.com`, `planmypeak.com`, and the retired Supabase project.
 - `VALIDATE_MY_PEAK_TOKEN` calls `GET {supabaseUrl}/auth/v1/user` with `Authorization: Bearer` + `apikey`, clearing the token on `401`.
 - URL resolution already goes through a configurable target layer (`portConfigService` / constants) with `local` vs `production` targets.
 
@@ -45,7 +45,7 @@ Update the `production` branch of the URL resolution (constants + `portConfigSer
 
 ### Decision: Treat the production Supabase project URL as a confirm-then-set value
 
-The rewritten app uses a different Supabase project than the old `yqaskiwzyhhovthbvmqq.supabase.co`. The confirmed production project is **`https://nwvtltfibnkdogdeeluh.supabase.co`** — set this as the production Supabase default. The project-ref change is the confirmed root cause: portal-issued tokens validated against the old project always returned `401`. The anon-key value and `apikey`-header observability still need confirmation during implementation.
+The rewritten app uses a different Supabase project than the old one. The confirmed production project is **`https://nwvtltfibnkdogdeeluh.supabase.co`** — set this as the production Supabase default. The project-ref change is the confirmed root cause: portal-issued tokens validated against the old project always returned `401`. The anon-key value and `apikey`-header observability still need confirmation during implementation.
 
 - _Alternative considered_: Keep the old Supabase URL. Rejected — confirmed stale; validation fails silently with `401`.
 
@@ -84,7 +84,7 @@ The popup gate trusts stored auth; clearing on `401` is what flips a stale/forei
 
 ## Open Questions
 
-- ~~What is the production Supabase project URL used by `portal.planmypeak.com`?~~ **Resolved:** `https://nwvtltfibnkdogdeeluh.supabase.co` (changed from `yqaskiwzyhhovthbvmqq.supabase.co`). Anon key value still to confirm.
+- ~~What is the production Supabase project URL used by `portal.planmypeak.com`?~~ **Resolved:** `https://nwvtltfibnkdogdeeluh.supabase.co` (the project ref changed). Anon key value still to confirm.
 - On the portal, is the user Supabase token observable on requests to the Supabase origin directly, on `portal.planmypeak.com/api/backend/*`, or both? (Determines which origins host detection must cover.)
 - Is the anon `apikey` still sent as a request header on portal traffic, or only embedded client-side? (Affects whether the validation `apikey` header can be sourced from interception.)
 - Should a separate production API host (if any, e.g. an `api.` subdomain) also be added to host permissions now, or deferred with the rest of the API work?

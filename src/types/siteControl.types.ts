@@ -415,8 +415,8 @@ export interface SiteControlPingResult {
      * when it could not be resolved.
      *
      * The extension's PlanMyPeak session and the page's are independent and can
-     * belong to different coaches — a real case on shared machines and under
-     * admin impersonation. The page compares this against its own signed-in
+     * belong to different coaches — a real case on shared or agency machines.
+     * The page compares this against its own signed-in
      * coach and refuses the import when they differ, which is the only way to
      * catch a wrong-account write: everything downstream is scoped to the
      * token's coach, so the write would otherwise succeed silently into the
