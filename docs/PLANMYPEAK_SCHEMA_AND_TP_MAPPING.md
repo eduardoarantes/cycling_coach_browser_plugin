@@ -4,12 +4,12 @@
 
 PlanMyPeak workout examples were derived from:
 
-- `/Users/eduardo/Documents/projects/cycling-ai-management/web/supabase/migrations/20260223000004_migrate_workout_library_data.sql`
+- the PlanMyPeak workout-library seed data (public workouts), inspected during implementation
 
 Schema compatibility was additionally extended based on:
 
 - the PlanMyPeak API contract used during implementation
-- `athlete_ai_analysis` PR `#337` (multi-sport workout schema/type support)
+- PlanMyPeak's multi-sport workout schema/type update
 
 The migration contains a long set of SQL inserts for public PlanMyPeak workouts. The key field used here is `structure` (`jsonb`).
 
@@ -184,7 +184,7 @@ This is better for correctness while PlanMyPeak multi-sport export support is ro
 
 ## OpenAPI Alignment Update (Issue #326)
 
-After the PlanMyPeak API contract update and backend multi-sport work in PR `#337`, the plugin exporter aligns with:
+After the PlanMyPeak API contract update and backend multi-sport work, the plugin exporter aligns with:
 
 - `WorkoutStructure.primaryIntensityMetric`: `heartRate`
 - `StepTarget.type`: backend PR uses `heartrate` (plugin internal transformer uses `heartRate` and normalizes on API upload)

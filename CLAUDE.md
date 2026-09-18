@@ -1079,6 +1079,40 @@ storage, and close the tab. Rules:
 - ✅ No inline scripts
 - ✅ No `eval()` or remote code execution
 
+### This repository is public: what must never be committed
+
+Everything in this repo, including docs, `openspec/` change notes, test
+fixtures and commit messages, is readable by anyone. Before saving a file,
+check it against this list. When in doubt, describe the thing generically
+("the retired Supabase project", "the PlanMyPeak seed data") instead of naming
+it.
+
+**Never commit**:
+
+- Any credential: TrainingPeaks or PlanMyPeak tokens, Supabase service-role or
+  JWT secrets, Intervals.icu API keys, `.env` contents. The Supabase **anon**
+  key in `src/utils/constants.ts` is the one exception: it is the publishable
+  key already shipped in the portal's browser bundle.
+- Anything about PlanMyPeak that a signed-in coach cannot see in their own
+  browser: private repository names, local filesystem paths, migration or
+  infrastructure file names (`infra/…`, `*.hcl`, `supabase/migrations/…`),
+  PR numbers from other repos, database table or column names, internal
+  admin features, hosts that are defined in infra but not served.
+- Retired or unused hosts and project refs (old Supabase project ids, unused
+  API subdomains). A decommissioned host is a lead for an attacker and
+  useless to a reader.
+- Real user data: coach or athlete names, emails, ids, captured workout
+  bodies, exported debug logs. Fixtures use `example.com` addresses and
+  invented ids.
+
+**Allowed, because the browser already shows it**: the production and staging
+app origins, `/api/backend/*` paths the portal itself calls, request and
+response JSON shapes, and the site-control protocol the page runs.
+
+**Cross-repo notes**: when a file is mirrored in the PlanMyPeak app, say so
+without its path in that repo. Scratch notes belong in the ignored `.tmp/`
+directory, not in `docs/` or `openspec/`.
+
 ---
 
 ## Links & References

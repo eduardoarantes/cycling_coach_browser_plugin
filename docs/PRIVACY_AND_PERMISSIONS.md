@@ -11,8 +11,9 @@ what it sends over the network, and why each permission exists.
 | `tpapi.trainingpeaks.com`          | Read user profile, libraries, workouts, plans, notes, and events     |
 | `api.peakswaresb.com`              | Read RxBuilder structured workout data used by TrainingPeaks         |
 | `api.uat.peakswaresb.com`          | Same RxBuilder data when the TrainingPeaks sandbox environment is on |
-| `planmypeak.com`                   | Observe auth state and export data to PlanMyPeak in production       |
-| `yqaskiwzyhhovthbvmqq.supabase.co` | Validate PlanMyPeak auth in production                               |
+| `portal.planmypeak.com`            | Observe auth state and export data to PlanMyPeak in production       |
+| `staging.app.planmypeak.com`       | Same, when the staging environment is selected                       |
+| `nwvtltfibnkdogdeeluh.supabase.co` | Validate PlanMyPeak auth in production                               |
 | `intervals.icu`                    | Export workout libraries and plans to Intervals.icu                  |
 | `localhost` / `127.0.0.1` ports    | Support local PlanMyPeak and local Supabase development builds       |
 

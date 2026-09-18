@@ -56,7 +56,7 @@ The extension SHALL validate the stored PlanMyPeak token by calling `GET {supaba
 #### Scenario: Validation targets the configured production Supabase URL
 
 - **WHEN** the production target is active
-- **THEN** the validation request is sent to the configured production Supabase project URL, not the former `yqaskiwzyhhovthbvmqq.supabase.co` value if that project no longer issues the portal's tokens
+- **THEN** the validation request is sent to the configured production Supabase project URL, not a former project that no longer issues the portal's tokens
 
 ### Requirement: Clear stored auth on rejected token
 

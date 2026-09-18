@@ -1,5 +1,5 @@
 {
-  "$comment": "Wire fixtures for the captured-workout import requests on the PlanMyPeak site-control channel. Mirrored verbatim in the PlanMyPeak app at apps/web/src/lib/extension/__fixtures__/captured-imports.json; both repositories test against this file, so a change here is a protocol change and must land in both.",
+  "$comment": "Wire fixtures for the captured-workout import requests on the PlanMyPeak site-control channel. Mirrored verbatim in the PlanMyPeak app; both repositories test against this file, so a change here is a protocol change and must land in both.",
   "protocolVersion": 1,
   "requestTypes": [
     "GET_CAPTURED_WORKOUT_SUMMARY",

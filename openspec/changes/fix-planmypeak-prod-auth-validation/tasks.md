@@ -1,6 +1,6 @@
 ## 1. Confirm production auth facts (do first — blocks correctness)
 
-- [x] 1.1 Determine the production Supabase project URL used by `https://portal.planmypeak.com`. **Confirmed: `https://nwvtltfibnkdogdeeluh.supabase.co`** (changed from `yqaskiwzyhhovthbvmqq.supabase.co` — this is the root cause).
+- [x] 1.1 Determine the production Supabase project URL used by `https://portal.planmypeak.com`. **Confirmed: `https://nwvtltfibnkdogdeeluh.supabase.co`** (the project ref changed — this is the root cause).
 - [x] 1.2 Anon key is captured dynamically from the `apikey` request header (never hardcoded), so its literal value is not needed. Live confirmation that the header is present on portal traffic folds into manual verification (6.2).
 - [x] 1.3 Addressed defensively: host detection now captures from BOTH the Supabase project origin (`/auth/v1/*`, `/rest/v1/*`) and the `portal.planmypeak.com` app origin (Bearer on `/api/backend`), so the user token is captured regardless of which origin carries it. Any separate `api.` subdomain (if discovered during 6.2) can be added to `MYPEAK_APP_HOSTS` + host permissions.
 
@@ -33,7 +33,7 @@
 
 Discovered during manual testing (popup showed "not authenticated" on 1.11.84): the rewritten portal restores its Supabase session from `localStorage` (no network call) and routes data through its own `/api/backend`, so the anon `apikey` header is essentially never emitted on intercepted traffic. The user token IS captured (from `portal.planmypeak.com/api/backend/*`), but `handleValidateMyPeakToken` bailed at `if (!apiKey)`.
 
-- [x] 5b.1 Added `PLANMYPEAK_SUPABASE_ANON_KEY` constant (`src/utils/constants.ts`) — the public, static production publishable key baked into the portal browser build (project ref `nwvtltfibnkdogdeeluh`, confirmed from the PlanMyPeak repo `infra/live/prod/env.hcl`). Empty for local builds.
+- [x] 5b.1 Added `PLANMYPEAK_SUPABASE_ANON_KEY` constant (`src/utils/constants.ts`) — the public, static production publishable key baked into the portal browser build (project ref `nwvtltfibnkdogdeeluh`, confirmed against the portal's deployed configuration). Empty for local builds.
 - [x] 5b.2 `handleValidateMyPeakToken` now uses `capturedApiKey || PLANMYPEAK_SUPABASE_ANON_KEY` so production validation works without capturing the anon key; local still relies on the captured key.
 - [x] 5b.3 Confirmed via build that the anon key + Supabase host are baked into `dist/`. (Compile-time target flag makes the production fallback path not unit-testable in the DEV test env; covered by existing handler tests + build verification + manual 6.2.)
 
@@ -41,7 +41,7 @@ Discovered during manual testing (popup showed "not authenticated" on 1.11.84): 
 
 Second manual test (1.11.85) showed `chrome.storage.local` empty for all `mypeak_*` keys → the token was never captured — even though `portal.planmypeak.com` was already in the match list. So the host list is NOT the problem.
 
-A brief detour added `api.planmypeak.com` (from the repo's `infra/live/prod/env.hcl`), but the user confirmed their deployment serves everything from `portal.planmypeak.com` (no separate API host). That change was **reverted**.
+A brief detour added a separate API host, but the user confirmed their deployment serves everything from `portal.planmypeak.com` (no separate API host). That change was **reverted**.
 
 Diagnosed on the live portal (via a temporary always-on diagnostic build, since production logging is off):
 
