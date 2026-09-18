@@ -295,7 +295,7 @@ rather than retrying.
 | `GET_PLAN_CONTENTS`                  | `{ planId: number }`                     | `{ planId, workouts, notes, events, rxWorkouts }`                                                                                                              |
 | `GET_ATHLETE_GROUPS`                 | —                                        | `AthleteGroup[]`                                                                                                                                               |
 | `OPEN_IMPORTER`                      | `{ libraryId?, planId?, groups?, tab? }` | `{ opened: boolean, focused: boolean }`                                                                                                                        |
-| `GET_CAPTURED_WORKOUT_SUMMARY`       | —                                        | `{ contextId, coachId, revision, state, missingCount, pendingCount, unlinkedCount, blockedReason?, activeOperation, latestOperation }`                                       |
+| `GET_CAPTURED_WORKOUT_SUMMARY`       | —                                        | `{ contextId, coachId, revision, state, missingCount, pendingCount, unlinkedCount, blockedReason?, activeOperation, latestOperation }`                         |
 | `IMPORT_MISSING_WORKOUTS`            | `{ contextId, operationId }` (strict)    | `{ operationId, state, blockedReason? }`                                                                                                                       |
 | `GET_CAPTURED_WORKOUT_IMPORT_STATUS` | `{ contextId, operationId }` (strict)    | `{ operationId, contextId, state, totalCount, processedCount, importedCount, alreadyPresentCount, failedCount, blockedReason?, errors, startedAt, updatedAt }` |
 
@@ -453,17 +453,17 @@ both repositories.
 Takes no payload. The account is resolved from the extension's stored
 PlanMyPeak session and the page's verified origin.
 
-| Field                                 | Meaning                                                                                                                                                 |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `state`                               | `ready`, `checking` or `blocked`                                                                                                                        |
-| `missingCount`                        | A number only when `ready`; otherwise `null`. **`null` is not zero.**                                                                                   |
-| `pendingCount` | All valid local records with status `pending`, across historical coaches and source environments. Available even when blocked; never a destination-library claim. |
-| `unlinkedCount`                       | Deprecated informational count of pending captures without coach metadata. These records are eligible for import without linking.      |
-| `contextId`                           | Opaque handle for (this PlanMyPeak site, this coach). Hand it back unchanged. `null` when `blocked`.                                                    |
-| `coachId`                             | The coach the extension is acting as, the same value `PING` reports.                                                                                    |
-| `revision`                            | Counter that increases whenever captures or import operations change. Compare two polls to know whether to refetch; it says nothing about what changed. |
-| `activeOperation` / `latestOperation` | `{ operationId, state }` or `null`, so a second tab can attach to a running import and a reloaded page can show the last result.                        |
-| `blockedReason`                       | Present when `blocked`; see below.                                                                                                                      |
+| Field                                 | Meaning                                                                                                                                                           |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state`                               | `ready`, `checking` or `blocked`                                                                                                                                  |
+| `missingCount`                        | A number only when `ready`; otherwise `null`. **`null` is not zero.**                                                                                             |
+| `pendingCount`                        | All valid local records with status `pending`, across historical coaches and source environments. Available even when blocked; never a destination-library claim. |
+| `unlinkedCount`                       | Deprecated informational count of pending captures without coach metadata. These records are eligible for import without linking.                                 |
+| `contextId`                           | Opaque handle for (this PlanMyPeak site, this coach). Hand it back unchanged. `null` when `blocked`.                                                              |
+| `coachId`                             | The coach the extension is acting as, the same value `PING` reports.                                                                                              |
+| `revision`                            | Counter that increases whenever captures or import operations change. Compare two polls to know whether to refetch; it says nothing about what changed.           |
+| `activeOperation` / `latestOperation` | `{ operationId, state }` or `null`, so a second tab can attach to a running import and a reloaded page can show the last result.                                  |
+| `blockedReason`                       | Present when `blocked`; see below.                                                                                                                                |
 
 A capture is **missing** when it was not dismissed, has not been acknowledged
 for the currently verified destination account and site, and its
@@ -481,8 +481,13 @@ cache. A lookup failure returns `state: "blocked"`, `blockedReason:
 
 Query this summary even when a supported `PING` reports expired authentication,
 null coach identity, or a different account. The configured allowlisted page
-origin can read local availability without a live session; other origins
-receive no count. Feature-detect `pendingCount`: retain the old behavior when
+origin can read local availability without a live session. An allowlisted
+origin that is not the configured destination gets a `FORBIDDEN_ORIGIN` error
+for the summary, never a count; non-allowlisted origins get no answer at all.
+Extensions released before `pendingCount` answered that case with a `blocked`
+summary and `blockedReason: "destination_mismatch"`, and a page must still read
+it. `IMPORT_MISSING_WORKOUTS` keeps its `destination_mismatch` block, because
+an import start carries no local count. Feature-detect `pendingCount`: retain the old behavior when
 absent. When present, retain the navigation dot and explicit import action for
 positive pending availability, omit Link instructions, and disable importing
 until destination authentication can be verified. Label this as saved workouts,
@@ -534,15 +539,16 @@ finished operation are kept per context.
 
 #### Blocked reasons
 
-| `blockedReason`        | What to tell the coach                                                                                |
-| ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| `connection_disabled`  | Turn the PlanMyPeak connection on in the extension settings.                                          |
-| `signed_out`           | The extension has no PlanMyPeak session; refresh it from the popup.                                   |
-| `account_unknown`      | The extension could not confirm which coach it is; try again.                                         |
-| `destination_mismatch` | The extension is configured for a different PlanMyPeak environment than this page.                    |
-| `account_mismatch`     | The TrainingPeaks account in the browser is linked to a different PlanMyPeak coach (production only). |
-| `stale_context`        | The account or environment changed since the summary; fetch a new summary and discard the old state.  |
-| `account_changed`      | The account or environment changed while the import was running; it stopped.                          |
+| `blockedReason`        | What to tell the coach                                                                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection_disabled`  | Turn the PlanMyPeak connection on in the extension settings.                                                                                                               |
+| `signed_out`           | The extension has no PlanMyPeak session; refresh it from the popup.                                                                                                        |
+| `account_unknown`      | The extension could not confirm which coach it is; try again.                                                                                                              |
+| `destination_mismatch` | The extension is configured for a different PlanMyPeak environment than this page. Import requests only; current extensions refuse such a summary with `FORBIDDEN_ORIGIN`. |
+| `lookup_failed`        | The destination library could not be checked. Summary only; `pendingCount` is still reported and `missingCount` stays null. Poll again.                                    |
+| `account_mismatch`     | The TrainingPeaks account in the browser is linked to a different PlanMyPeak coach (production only).                                                                      |
+| `stale_context`        | The account or environment changed since the summary; fetch a new summary and discard the old state.                                                                       |
+| `account_changed`      | The account or environment changed while the import was running; it stopped.                                                                                               |
 
 Still compare `coachId` with the page session yourself, as for every other
 import: the extension refuses what it can detect, and the page is the only side

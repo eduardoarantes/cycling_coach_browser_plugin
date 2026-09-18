@@ -36,7 +36,7 @@ export interface UseCapturedWorkoutsReturn {
   /** Newest first */
   records: CapturedWorkoutRecord[];
   pendingCount: number;
-  /** Pending records no PlanMyPeak account owns yet; see `claim`. */
+  /** Informational only: pending records without coach metadata. */
   unlinkedCount: number;
   isLoading: boolean;
   error: string | null;
@@ -44,6 +44,9 @@ export interface UseCapturedWorkoutsReturn {
    * Link every unowned record to the PlanMyPeak account the extension is
    * signed in to. The background resolves that account; nothing is named here.
    * Resolves to an error message, or null when it worked.
+   *
+   * @deprecated Unused since the Link banner was removed; see
+   * `ClaimCapturedWorkoutsMessage`. Remove with that message.
    */
   claim: () => Promise<string | null>;
   /** Mark one record dismissed. */

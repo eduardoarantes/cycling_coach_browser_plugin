@@ -218,6 +218,13 @@ export interface RemoveCapturedWorkoutsResult {
  * The explicit recovery path for captures stored before ownership existed.
  * Carries nothing: the account is resolved in the background from the stored
  * session, so the popup cannot name a coach. Accepted from the popup only.
+ *
+ * @deprecated No surface calls this since the popup's Link banner was removed
+ * (persist-capture-coach-and-show-all-pending): unowned captures are visible
+ * and importable as they are, and owners are filled automatically. Kept, and
+ * idempotent, for compatibility only. Remove together with
+ * `CLAIM_CAPTURED_WORKOUTS`, its handler, `claimUnlinkedCapturedWorkouts` and
+ * the `claim` hook member.
  */
 export interface ClaimCapturedWorkoutsMessage {
   type: 'CLAIM_CAPTURED_WORKOUTS';

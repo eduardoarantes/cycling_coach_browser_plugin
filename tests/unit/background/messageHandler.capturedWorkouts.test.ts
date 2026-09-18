@@ -29,6 +29,7 @@ import type {
 import type { ApiResponse } from '@/types/api.types';
 import type { CapturedWorkoutsListResult } from '@/types';
 import { STORAGE_KEYS } from '@/utils/constants';
+import { capturedRecord, seedRecords } from './capturedImports/fixtures';
 
 function tabSender(url: string): chrome.runtime.MessageSender {
   return {
@@ -84,6 +85,7 @@ describe('messageHandler captured workouts', () => {
   beforeEach(async () => {
     await chrome.storage.local.clear();
     identityService.resetPlanMyPeakIdentityCache();
+    coachRefresh.resetCaptureCoachEnrichment();
     vi.clearAllMocks();
     refreshBadge = vi
       .spyOn(badgeService, 'refreshBadge')
@@ -330,6 +332,27 @@ describe('messageHandler captured workouts', () => {
         coachId: 'coach-1',
         destination: 'https://portal.planmypeak.com',
       });
+    });
+
+    it("finishes this worker's start-up enrichment inside the capture event", async () => {
+      await seedRecords([capturedRecord(1, { owner: undefined })]);
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.CAPTURE_COACH_CACHE]: {
+          version: 1,
+          coachId: context.coachId,
+          destination: context.destination,
+          verifiedAt: 1,
+        },
+      });
+
+      expect(await handleMessage(capture(), tp)).toEqual({ success: true });
+
+      // The legacy record was enriched by the start-up backfill the handler
+      // awaited, not by anything the test ran afterwards.
+      expect((await list()).records.map((record) => record.owner)).toEqual([
+        { coachId: 'coach-1', destination: 'https://portal.planmypeak.com' },
+        { coachId: 'coach-1', destination: 'https://portal.planmypeak.com' },
+      ]);
     });
 
     it('should ignore an owner supplied in the message', async () => {

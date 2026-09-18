@@ -4,7 +4,10 @@
  * Handles messages from content scripts and popup
  */
 
-import { refreshCaptureCoachIfDue } from '@/services/captureCoachRefreshService';
+import {
+  refreshCaptureCoachIfDue,
+  resumeCaptureCoachEnrichment,
+} from '@/services/captureCoachRefreshService';
 import type {
   RuntimeMessage,
   TrainingPlanExportProgressMessage,
@@ -282,6 +285,7 @@ async function handleMyPeakAuthFound(
       logger.debug('No MyPeak auth fields to store (message ignored)');
     } else if (outcome === 'stored') {
       logger.info('✅ MyPeak auth details stored successfully');
+      await resumeCaptureCoachEnrichment();
       await refreshCaptureCoachIfDue();
     }
   } catch (error) {
@@ -719,6 +723,8 @@ async function handleWorkoutCaptured(
   }
 
   await refreshBadge();
+  // Only after the save and badge: enrichment is never a capture prerequisite.
+  await resumeCaptureCoachEnrichment();
   await refreshCaptureCoachIfDue();
   return { success: true };
 }
@@ -737,6 +743,13 @@ async function handleGetCapturedWorkouts(): Promise<
  * script on any site must not be able to hand unowned captures to the current
  * session. The account is resolved here, freshly, from the stored credential;
  * a session that cannot be verified links nothing.
+ *
+ * @deprecated No surface calls this since the popup's Link banner was removed
+ * (persist-capture-coach-and-show-all-pending): unowned captures are visible
+ * and importable as they are, and owners are filled automatically. Kept, and
+ * idempotent, for compatibility only. Remove together with
+ * `CLAIM_CAPTURED_WORKOUTS`, its handler, `claimUnlinkedCapturedWorkouts` and
+ * the `claim` hook member.
  */
 async function handleClaimCapturedWorkouts(
   sender: chrome.runtime.MessageSender

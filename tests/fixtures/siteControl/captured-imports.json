@@ -63,7 +63,9 @@
           "version": 1,
           "requestId": "req-bad-1",
           "type": "IMPORT_MISSING_WORKOUTS",
-          "payload": { "contextId": "ctx_0123456789abcdef" }
+          "payload": {
+            "contextId": "ctx_0123456789abcdef"
+          }
         }
       },
       {
@@ -74,7 +76,10 @@
           "version": 1,
           "requestId": "req-bad-2",
           "type": "IMPORT_MISSING_WORKOUTS",
-          "payload": { "contextId": "", "operationId": "op-1" }
+          "payload": {
+            "contextId": "",
+            "operationId": "op-1"
+          }
         }
       },
       {
@@ -115,7 +120,9 @@
           "version": 1,
           "requestId": "req-bad-5",
           "type": "GET_CAPTURED_WORKOUT_IMPORT_STATUS",
-          "payload": { "operationId": "op-1" }
+          "payload": {
+            "operationId": "op-1"
+          }
         }
       },
       {
@@ -150,6 +157,7 @@
           "revision": 12,
           "state": "ready",
           "missingCount": 3,
+          "pendingCount": 3,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
@@ -163,9 +171,13 @@
           "revision": 13,
           "state": "ready",
           "missingCount": 0,
+          "pendingCount": 0,
           "unlinkedCount": 0,
           "activeOperation": null,
-          "latestOperation": { "operationId": "op-7f3a", "state": "completed" }
+          "latestOperation": {
+            "operationId": "op-7f3a",
+            "state": "completed"
+          }
         }
       },
       {
@@ -176,9 +188,16 @@
           "revision": 14,
           "state": "ready",
           "missingCount": 2,
+          "pendingCount": 2,
           "unlinkedCount": 0,
-          "activeOperation": { "operationId": "op-7f3a", "state": "running" },
-          "latestOperation": { "operationId": "op-7f3a", "state": "running" }
+          "activeOperation": {
+            "operationId": "op-7f3a",
+            "state": "running"
+          },
+          "latestOperation": {
+            "operationId": "op-7f3a",
+            "state": "running"
+          }
         }
       },
       {
@@ -189,19 +208,21 @@
           "revision": 12,
           "state": "checking",
           "missingCount": null,
+          "pendingCount": 5,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
         }
       },
       {
-        "name": "ready with legacy captures the popup must link first",
+        "name": "ready with captures that have no coach attached (unlinkedCount is informational, no link step)",
         "data": {
           "contextId": "ctx_0123456789abcdef",
           "coachId": "coach-a",
           "revision": 12,
           "state": "ready",
           "missingCount": 0,
+          "pendingCount": 4,
           "unlinkedCount": 4,
           "activeOperation": null,
           "latestOperation": null
@@ -215,6 +236,7 @@
           "revision": 12,
           "state": "blocked",
           "missingCount": null,
+          "pendingCount": 4,
           "unlinkedCount": 4,
           "blockedReason": "signed_out",
           "activeOperation": null,
@@ -222,15 +244,31 @@
         }
       },
       {
-        "name": "blocked because the page is not the configured destination",
+        "name": "blocked because the destination library could not be checked, local pending still reported",
         "data": {
           "contextId": null,
           "coachId": "coach-a",
           "revision": 12,
           "state": "blocked",
           "missingCount": null,
+          "pendingCount": 3,
           "unlinkedCount": 0,
-          "blockedReason": "destination_mismatch",
+          "blockedReason": "lookup_failed",
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "blocked because the connection is switched off, local pending still reported",
+        "data": {
+          "contextId": null,
+          "coachId": null,
+          "revision": 12,
+          "state": "blocked",
+          "missingCount": null,
+          "pendingCount": 2,
+          "unlinkedCount": 1,
+          "blockedReason": "connection_disabled",
           "activeOperation": null,
           "latestOperation": null
         }
@@ -245,6 +283,7 @@
           "revision": 12,
           "state": "checking",
           "missingCount": 0,
+          "pendingCount": 1,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
@@ -258,6 +297,7 @@
           "revision": 12,
           "state": "ready",
           "missingCount": null,
+          "pendingCount": 1,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
@@ -271,6 +311,7 @@
           "revision": 12,
           "state": "ready",
           "missingCount": -1,
+          "pendingCount": 1,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
@@ -284,6 +325,7 @@
           "revision": 12,
           "state": "ready",
           "missingCount": 1.5,
+          "pendingCount": 1,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
@@ -297,6 +339,7 @@
           "revision": 12,
           "state": "done",
           "missingCount": 0,
+          "pendingCount": 1,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
@@ -310,6 +353,7 @@
           "revision": 12,
           "state": "blocked",
           "missingCount": null,
+          "pendingCount": 1,
           "unlinkedCount": 0,
           "activeOperation": null,
           "latestOperation": null
@@ -323,6 +367,7 @@
           "revision": 12,
           "state": "blocked",
           "missingCount": null,
+          "pendingCount": 1,
           "unlinkedCount": 0,
           "blockedReason": "because",
           "activeOperation": null,
@@ -337,8 +382,12 @@
           "revision": 12,
           "state": "ready",
           "missingCount": 0,
+          "pendingCount": 1,
           "unlinkedCount": 0,
-          "activeOperation": { "operationId": "op-1", "state": "queued" },
+          "activeOperation": {
+            "operationId": "op-1",
+            "state": "queued"
+          },
           "latestOperation": null
         }
       },
@@ -349,7 +398,109 @@
           "coachId": "coach-a",
           "state": "ready",
           "missingCount": 0,
+          "pendingCount": 1,
           "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "negative pending count",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 1,
+          "pendingCount": -1,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "fractional pending count",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 1,
+          "pendingCount": 1.5,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "pending count as a string",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 1,
+          "pendingCount": "3",
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "null pending count",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 1,
+          "pendingCount": null,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "a lookup failure claiming a missing count",
+        "data": {
+          "contextId": null,
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "blocked",
+          "missingCount": 0,
+          "pendingCount": 3,
+          "unlinkedCount": 0,
+          "blockedReason": "lookup_failed",
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      }
+    ],
+    "$legacyComment": "Replies emitted by extensions released before pendingCount existed. The page must keep reading them; the current extension never emits them, and its contract schema refuses them.",
+    "legacy": [
+      {
+        "name": "ready from an extension that predates pendingCount",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 3,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "blocked because the page is not the configured destination (older extensions only; current extensions refuse this summary with FORBIDDEN_ORIGIN before exposing any count)",
+        "data": {
+          "contextId": null,
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "blocked",
+          "missingCount": null,
+          "unlinkedCount": 0,
+          "blockedReason": "destination_mismatch",
           "activeOperation": null,
           "latestOperation": null
         }
@@ -360,11 +511,17 @@
     "valid": [
       {
         "name": "started",
-        "data": { "operationId": "op-7f3a", "state": "running" }
+        "data": {
+          "operationId": "op-7f3a",
+          "state": "running"
+        }
       },
       {
         "name": "nothing left to import, or a repeat of a finished run",
-        "data": { "operationId": "op-7f3a", "state": "completed" }
+        "data": {
+          "operationId": "op-7f3a",
+          "state": "completed"
+        }
       },
       {
         "name": "refused for a stale context",
@@ -378,15 +535,24 @@
     "invalid": [
       {
         "name": "blocked without a reason",
-        "data": { "operationId": "op-7f3a", "state": "blocked" }
+        "data": {
+          "operationId": "op-7f3a",
+          "state": "blocked"
+        }
       },
       {
         "name": "interrupted is not a start state",
-        "data": { "operationId": "op-7f3a", "state": "interrupted" }
+        "data": {
+          "operationId": "op-7f3a",
+          "state": "interrupted"
+        }
       },
       {
         "name": "empty operation id",
-        "data": { "operationId": "", "state": "running" }
+        "data": {
+          "operationId": "",
+          "state": "running"
+        }
       }
     ]
   },
@@ -571,7 +737,12 @@
           "importedCount": 0,
           "alreadyPresentCount": 0,
           "failedCount": 1,
-          "errors": [{ "title": "Ride", "message": "" }],
+          "errors": [
+            {
+              "title": "Ride",
+              "message": ""
+            }
+          ],
           "startedAt": 1758100000000,
           "updatedAt": 1758100002000
         }

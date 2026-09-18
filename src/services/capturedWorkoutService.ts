@@ -397,6 +397,13 @@ export async function updateCapturedWorkout(
  *
  * Legacy popup compatibility only. Normal capture and import require no
  * manual claim; cache publication and startup enrich absent owners.
+ *
+ * @deprecated No surface calls this since the popup's Link banner was removed
+ * (persist-capture-coach-and-show-all-pending): unowned captures are visible
+ * and importable as they are, and owners are filled automatically. Kept, and
+ * idempotent, for compatibility only. Remove together with
+ * `CLAIM_CAPTURED_WORKOUTS`, its handler, `claimUnlinkedCapturedWorkouts` and
+ * the `claim` hook member.
  */
 export async function claimUnlinkedCapturedWorkouts(
   owner: CapturedWorkoutOwner

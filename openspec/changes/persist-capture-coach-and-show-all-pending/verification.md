@@ -4,10 +4,11 @@ Implemented on `feat/personal-capture-pending`, based on extension `origin/main`
 
 ## Automated checks
 
-- Extension unit tests: 114 files passed; 1710 tests passed, 3 existing skips.
+- Extension unit tests: 114 files passed; 1723 tests passed, 3 existing skips.
+- Contract: `CapturedWorkoutSummaryResultSchema` requires `pendingCount`, and every successful handler reply in the site-control handler tests is parsed against the contract schemas (not done before this change either). The shared fixture carries `pendingCount` on current summaries, `lookup_failed` and `connection_disabled` availability cases, invalid `pendingCount` values, and a labelled `summary.legacy` section (pre-`pendingCount` replies, including the old summary `destination_mismatch`) that the page must read and the extension schema refuses. Both repositories carry the same fixture content.
 - Extension production bundle (including TypeScript compilation): passed.
 - Extension ESLint: passed.
-- Companion contract, observer, and page-control suites: 80 tests passed. Web type checking and changed-file ESLint passed.
+- Companion extension-integration suites: 127 tests passed, including legacy fixture acceptance. Web type checking and changed-file ESLint passed.
 - Both OpenSpecs pass strict validation.
 - Broader legacy component suite: 65 passed, 77 failed. Running the identical suite on a clean archive of base `cfad660` reproduced the same 77 failing test cases (5 files); these are pre-existing failures, not introduced here.
 

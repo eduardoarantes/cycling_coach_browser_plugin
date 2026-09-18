@@ -83,6 +83,17 @@ describe('captured-workout import contract fixture', () => {
         );
       }
     );
+
+    // Older extensions sent these and the page still reads them; this build
+    // must never emit one, so its schema refuses them.
+    it.each(fixture.summary.legacy.map((entry) => [entry.name, entry.data]))(
+      'does not emit legacy %s',
+      (_name, data) => {
+        expect(CapturedWorkoutSummaryResultSchema.safeParse(data).success).toBe(
+          false
+        );
+      }
+    );
   });
 
   describe('import start result', () => {

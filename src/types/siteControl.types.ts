@@ -189,7 +189,6 @@ export interface SiteControlGetCapturedWorkoutImportStatusPayload {
  */
 export const CAPTURED_IMPORT_BLOCKED_REASONS = [
   /** The PlanMyPeak connection is switched off in the extension's settings. */
-  'lookup_failed',
   'connection_disabled',
   /** No PlanMyPeak credential is stored. */
   'signed_out',
@@ -200,12 +199,25 @@ export const CAPTURED_IMPORT_BLOCKED_REASONS = [
    * coach (production only, as everywhere else in the extension).
    */
   'account_mismatch',
-  /** The page's origin is not the destination the extension is configured for. */
+  /**
+   * The page's origin is not the destination the extension is configured for.
+   *
+   * Import requests only. A summary from such a page is refused with a
+   * `FORBIDDEN_ORIGIN` error instead, before any local count is read, because
+   * a blocked summary would carry `pendingCount`. Extensions released before
+   * `pendingCount` also sent this on summaries.
+   */
   'destination_mismatch',
   /** The `contextId` no longer names the extension's current account/destination. */
   'stale_context',
   /** The account or destination changed while an import was running. */
   'account_changed',
+  /**
+   * The destination library could not be checked. Summaries only: local
+   * availability (`pendingCount`) is still reported, `missingCount` stays null,
+   * and the next poll retries.
+   */
+  'lookup_failed',
 ] as const;
 
 export type CapturedImportBlockedReason =

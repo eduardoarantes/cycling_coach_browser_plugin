@@ -6,10 +6,13 @@ import {
   publishCaptureCoachCache,
   readCaptureCoachCache,
   storeCapture,
+  withCapturedWorkoutsLock,
   type CaptureCoachCache,
 } from '@/services/capturedWorkoutService';
 import {
   refreshCaptureCoachIfDue,
+  resetCaptureCoachEnrichment,
+  resumeCaptureCoachEnrichment,
   CAPTURE_COACH_REFRESH_TIMEOUT_MS,
 } from '@/services/captureCoachRefreshService';
 import {
@@ -45,6 +48,7 @@ function profileResponse(id = 'coach-new'): Response {
 describe('durable capture coach metadata', () => {
   beforeEach(async () => {
     resetPlanMyPeakIdentityCache();
+    resetCaptureCoachEnrichment();
     await chrome.storage.local.set({
       [STORAGE_KEYS.PLANMYPEAK_ENVIRONMENT]: 'production',
     });
@@ -226,5 +230,71 @@ describe('durable capture coach metadata', () => {
     });
     await refreshCaptureCoachIfDue();
     expect(await readCaptureCoachCache()).toEqual(cache);
+  });
+
+  it('runs start-up enrichment once per worker: backfill first, then one due refresh', async () => {
+    await seedRecords([capturedRecord(1, { owner: undefined })]);
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.CAPTURE_COACH_CACHE]: cache,
+      [STORAGE_KEYS.MYPEAK_AUTH_TOKEN]: 'test-token',
+    });
+    const fetch = vi.fn().mockResolvedValue(profileResponse(OWNER.coachId));
+    vi.stubGlobal('fetch', fetch);
+
+    const first = resumeCaptureCoachEnrichment();
+    expect(resumeCaptureCoachEnrichment()).toBe(first);
+    await first;
+
+    expect((await storedRecord('production:1:1'))?.owner).toEqual(OWNER);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await resumeCaptureCoachEnrichment();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('never rejects start-up enrichment when storage fails', async () => {
+    const get = chrome.storage.local.get;
+    chrome.storage.local.get = vi
+      .fn()
+      .mockRejectedValue(new Error('storage unavailable'));
+    try {
+      await expect(resumeCaptureCoachEnrichment()).resolves.toBeUndefined();
+    } finally {
+      chrome.storage.local.get = get;
+    }
+  });
+
+  it('holds a profile response behind a busy capture lock without losing either write', async () => {
+    await seedRecords([capturedRecord(1, { owner: undefined })]);
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.MYPEAK_AUTH_TOKEN]: 'test-token',
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(profileResponse()));
+
+    let release!: () => void;
+    const busy = withCapturedWorkoutsLock(
+      () => new Promise<void>((resolve) => (release = resolve))
+    );
+    let settled = false;
+    const lookup = fetchPlanMyPeakCoach().then((result) => {
+      settled = true;
+      return result;
+    });
+    const captured = storeCapture(capture, 'production');
+
+    // Publication waits for the lock, so the profile response does too: this
+    // is the latency coupling, pinned so a change to it is deliberate.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
+
+    release();
+    await busy;
+    expect((await lookup).success).toBe(true);
+    await captured;
+    expect((await storedRecord('production:1:1'))?.owner?.coachId).toBe(
+      'coach-new'
+    );
+    expect((await storedRecord('production:1:2'))?.owner?.coachId).toBe(
+      'coach-new'
+    );
   });
 });

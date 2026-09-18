@@ -1,6 +1,7 @@
 /** Opportunistic metadata refresh. Never renews auth or opens a tab. */
 import { z } from 'zod';
 import { fetchPlanMyPeakCoach } from '@/background/api/planMyPeak';
+import { backfillCachedCaptureCoach } from '@/services/capturedWorkoutService';
 import { resolveCredential } from '@/background/api/planMyPeakAuthRecovery';
 import { getPlanMyPeakAppUrl } from '@/services/planMyPeakConfigService';
 import { STORAGE_KEYS } from '@/utils/constants';
@@ -71,4 +72,26 @@ export async function refreshCaptureCoachIfDue(): Promise<void> {
     // Identity metadata is best effort and must never fail capture or import.
     logger.warn('Could not refresh capture coach metadata');
   }
+}
+
+let workerEnrichment: Promise<void> | null = null;
+
+/**
+ * This worker's start-up enrichment: resume any backfill a previous worker
+ * left unfinished, then refresh the coach if due. Started once per worker.
+ *
+ * A promise started at worker load belongs to no event, so the worker may be
+ * stopped under it. Handlers that run later await it after their own writes,
+ * which ties it to a tracked message lifetime. It never rejects.
+ */
+export function resumeCaptureCoachEnrichment(): Promise<void> {
+  workerEnrichment ??= backfillCachedCaptureCoach().then(() =>
+    refreshCaptureCoachIfDue()
+  );
+  return workerEnrichment;
+}
+
+/** Test seam: forget this worker's start-up enrichment. */
+export function resetCaptureCoachEnrichment(): void {
+  workerEnrichment = null;
 }

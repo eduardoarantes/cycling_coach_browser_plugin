@@ -26,6 +26,11 @@ import {
   type CapturedImportOperation,
 } from '@/background/capturedImports/importOperations';
 import { acknowledgementFor } from '@/schemas/capturedWorkout.schema';
+import {
+  CapturedWorkoutImportStatusResultSchema,
+  CapturedWorkoutSummaryResultSchema,
+  ImportMissingWorkoutsResultSchema,
+} from '@/schemas/capturedImportContract';
 import { TRAINING_PEAKS_PROVIDER_CODE } from '@/schemas/planMyPeakApi.schema';
 import type { CaptureContext } from '@/services/planMyPeakIdentityService';
 import type {
@@ -77,6 +82,34 @@ function data<T>(response: SiteControlResponse): T {
     throw new Error(`expected ok, got ${response.error.code}`);
   }
   return response.data as T;
+}
+
+/**
+ * Every successful reply is checked against the wire contract the PlanMyPeak
+ * page is pinned to, so a handler cannot drift from the shared fixture.
+ */
+function summaryData(
+  response: SiteControlResponse
+): SiteControlCapturedWorkoutSummaryResult {
+  const result = data<SiteControlCapturedWorkoutSummaryResult>(response);
+  CapturedWorkoutSummaryResultSchema.parse(result);
+  return result;
+}
+
+function startData(
+  response: SiteControlResponse
+): SiteControlImportMissingWorkoutsResult {
+  const result = data<SiteControlImportMissingWorkoutsResult>(response);
+  ImportMissingWorkoutsResultSchema.parse(result);
+  return result;
+}
+
+function statusData(
+  response: SiteControlResponse
+): SiteControlCapturedWorkoutImportStatusResult {
+  const result = data<SiteControlCapturedWorkoutImportStatusResult>(response);
+  CapturedWorkoutImportStatusResultSchema.parse(result);
+  return result;
 }
 
 async function waitForIdle(): Promise<void> {
@@ -169,7 +202,7 @@ describe('captured-import site-control handlers', () => {
           coachId: reason === 'destination_mismatch' ? COACH_ID : null,
         });
 
-        const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+        const summary = summaryData(
           await handleCapturedWorkoutSummary('r1', DESTINATION)
         );
 
@@ -192,8 +225,24 @@ describe('captured-import site-control handlers', () => {
       expect(resolveRequestContext).not.toHaveBeenCalled();
     });
 
+    it('should refuse an allowlisted page that is not the configured destination, with no count', async () => {
+      await seedRecords([capturedRecord(1)]);
+
+      // Configured for production; the request comes from staging.
+      const response = await handleCapturedWorkoutSummary(
+        'r1',
+        'https://staging.app.planmypeak.com'
+      );
+
+      expect(response.ok).toBe(false);
+      if (response.ok) return;
+      expect(response.error.code).toBe('FORBIDDEN_ORIGIN');
+      expect(JSON.stringify(response)).not.toContain('pendingCount');
+      expect(resolveRequestContext).not.toHaveBeenCalled();
+    });
+
     it('should answer ready with zero and no lookups when there are no candidates', async () => {
-      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+      const summary = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -231,7 +280,7 @@ describe('captured-import site-control handlers', () => {
         capturedRecord(6, { owner: undefined }),
       ]);
 
-      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+      const summary = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -249,7 +298,7 @@ describe('captured-import site-control handlers', () => {
 
       const response = await handleCapturedWorkoutSummary('r1', DESTINATION);
 
-      expect(Object.keys(data<object>(response)).sort()).toEqual(
+      expect(Object.keys(summaryData(response)).sort()).toEqual(
         [
           'activeOperation',
           'coachId',
@@ -274,7 +323,7 @@ describe('captured-import site-control handlers', () => {
         data: id === 'cal:1' ? remoteWorkout('cal:1') : null,
       }));
 
-      const first = data<SiteControlCapturedWorkoutSummaryResult>(
+      const first = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -285,7 +334,7 @@ describe('captured-import site-control handlers', () => {
         'already_present'
       );
 
-      const second = data<SiteControlCapturedWorkoutSummaryResult>(
+      const second = summaryData(
         await handleCapturedWorkoutSummary('r2', DESTINATION)
       );
       expect(second.missingCount).toBe(1);
@@ -304,7 +353,7 @@ describe('captured-import site-control handlers', () => {
         return { success: true, data: remoteWorkout('cal:1') };
       });
 
-      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+      const summary = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -333,7 +382,7 @@ describe('captured-import site-control handlers', () => {
         }),
       ]);
 
-      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+      const summary = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -347,7 +396,7 @@ describe('captured-import site-control handlers', () => {
         data: remoteWorkout('cal:1'),
       });
 
-      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+      const summary = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -408,7 +457,7 @@ describe('captured-import site-control handlers', () => {
 
       const pending = handleCapturedWorkoutSummary('r1', DESTINATION);
       await vi.advanceTimersByTimeAsync(SUMMARY_RECONCILE_BUDGET_MS);
-      const checking = data<SiteControlCapturedWorkoutSummaryResult>(
+      const checking = summaryData(
         await pending
       );
 
@@ -416,7 +465,7 @@ describe('captured-import site-control handlers', () => {
 
       finishLookup();
       await vi.advanceTimersByTimeAsync(0);
-      const ready = data<SiteControlCapturedWorkoutSummaryResult>(
+      const ready = summaryData(
         await handleCapturedWorkoutSummary('r2', DESTINATION)
       );
 
@@ -427,7 +476,7 @@ describe('captured-import site-control handlers', () => {
     it('should name the latest finished operation for the context', async () => {
       await saveOperation(finishedOperation());
 
-      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+      const summary = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -441,7 +490,7 @@ describe('captured-import site-control handlers', () => {
     it('should report a run that died with a previous worker as interrupted, not active', async () => {
       await saveOperation(finishedOperation({ state: 'running' }));
 
-      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+      const summary = summaryData(
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
@@ -459,7 +508,7 @@ describe('captured-import site-control handlers', () => {
     it('should acknowledge at once and import in the background', async () => {
       await seedRecords([capturedRecord(1), capturedRecord(2)]);
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts('r1', payload, DESTINATION)
       );
 
@@ -473,7 +522,7 @@ describe('captured-import site-control handlers', () => {
     });
 
     it('should complete immediately when there is nothing to import', async () => {
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts('r1', payload, DESTINATION)
       );
 
@@ -495,7 +544,7 @@ describe('captured-import site-control handlers', () => {
         coachId: null,
       });
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts('r1', payload, DESTINATION)
       );
 
@@ -510,7 +559,7 @@ describe('captured-import site-control handlers', () => {
     it('should refuse a context id the extension no longer resolves to', async () => {
       await seedRecords([capturedRecord(1)]);
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts(
           'r1',
           { contextId: 'ctx-previous-coach', operationId: 'op-1' },
@@ -532,7 +581,7 @@ describe('captured-import site-control handlers', () => {
         data: { userId: 999 } as never,
       });
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts('r1', payload, DESTINATION)
       );
 
@@ -550,7 +599,7 @@ describe('captured-import site-control handlers', () => {
         error: { message: 'no token' },
       });
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts('r1', payload, DESTINATION)
       );
 
@@ -568,7 +617,7 @@ describe('captured-import site-control handlers', () => {
         data: { userId: 999 } as never,
       });
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts('r1', payload, DESTINATION)
       );
 
@@ -582,7 +631,7 @@ describe('captured-import site-control handlers', () => {
       await waitForIdle();
       await seedRecords([capturedRecord(1), capturedRecord(2)]);
 
-      const again = data<SiteControlImportMissingWorkoutsResult>(
+      const again = startData(
         await handleImportMissingWorkouts('r2', payload, DESTINATION)
       );
 
@@ -595,7 +644,7 @@ describe('captured-import site-control handlers', () => {
       await saveOperation(finishedOperation({ state: 'running' }));
       markOperationLive('op-1');
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts(
           'r1',
           { contextId: CONTEXT_ID, operationId: 'op-2' },
@@ -626,7 +675,7 @@ describe('captured-import site-control handlers', () => {
       await waitForIdle();
 
       const acks = [a, b].map((response) =>
-        data<SiteControlImportMissingWorkoutsResult>(response)
+        startData(response)
       );
       expect(new Set(acks.map((ack) => ack.operationId)).size).toBe(1);
       expect(api.exportWorkoutsToPlanMyPeakLibrary).toHaveBeenCalledTimes(1);
@@ -639,7 +688,7 @@ describe('captured-import site-control handlers', () => {
       await seedRecords([capturedRecord(1)]);
       await saveOperation(finishedOperation({ state: 'interrupted' }));
 
-      const ack = data<SiteControlImportMissingWorkoutsResult>(
+      const ack = startData(
         await handleImportMissingWorkouts('r1', payload, DESTINATION)
       );
 
@@ -657,12 +706,14 @@ describe('captured-import site-control handlers', () => {
     it('should report the persisted progress of a known operation', async () => {
       await saveOperation(
         finishedOperation({
+          totalCount: 2,
+          processedCount: 2,
           failedCount: 1,
           errors: [{ title: 'Intervals 1', message: 'HTTP 422' }],
         })
       );
 
-      const status = data<SiteControlCapturedWorkoutImportStatusResult>(
+      const status = statusData(
         await handleCapturedWorkoutImportStatus('r1', payload, DESTINATION)
       );
 
@@ -681,7 +732,7 @@ describe('captured-import site-control handlers', () => {
     it('should report a run with no live loop as interrupted', async () => {
       await saveOperation(finishedOperation({ state: 'running' }));
 
-      const status = data<SiteControlCapturedWorkoutImportStatusResult>(
+      const status = statusData(
         await handleCapturedWorkoutImportStatus('r1', payload, DESTINATION)
       );
 

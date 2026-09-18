@@ -50,6 +50,12 @@ export const CapturedWorkoutSummaryResultSchema = z
     revision: NonNegativeInt,
     state: z.enum(['checking', 'ready', 'blocked']),
     missingCount: NonNegativeInt.nullable(),
+    /**
+     * Required in what this build emits. Replies from extensions that predate
+     * it are the fixture's `summary.legacy` cases: the page still reads them,
+     * this schema refuses them.
+     */
+    pendingCount: NonNegativeInt,
     unlinkedCount: NonNegativeInt,
     blockedReason: CapturedImportBlockedReasonSchema.optional(),
     activeOperation: CapturedImportRefSchema.nullable(),
