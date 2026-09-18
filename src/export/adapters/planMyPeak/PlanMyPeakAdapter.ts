@@ -8,21 +8,13 @@
 
 import type { LibraryItem } from '@/types';
 import type {
-  CreatePlanMyPeakLibraryMessage,
-  DeletePlanMyPeakLibraryMessage,
-  DeletePlanMyPeakWorkoutMessage,
-  ExportWorkoutsToPlanMyPeakLibraryMessage,
-  GetPlanMyPeakLibrariesMessage,
-  GetPlanMyPeakWorkoutsMessage,
-} from '@/types';
-import type {
   ExportAdapter,
   ExportItemResult,
   ExportResult,
   ValidationMessage,
   ValidationResult,
 } from '../base';
-import type { ApiResponse } from '@/types/api.types';
+import { runtimeMessageTransport, type PlanMyPeakTransport } from './transport';
 import type {
   PlanMyPeakExportConfig,
   PlanMyPeakWorkout,
@@ -30,7 +22,6 @@ import type {
 import {
   TRAINING_PEAKS_PROVIDER_CODE,
   type PlanMyPeakLibrary,
-  type PlanMyPeakWorkoutLibraryItem,
 } from '@/schemas/planMyPeakApi.schema';
 import {
   isTotalUploadFailure,
@@ -60,13 +51,17 @@ export class PlanMyPeakAdapter implements ExportAdapter<
   readonly icon = '🚴';
   private lastTransformWarnings: ValidationMessage[] = [];
 
+  /**
+   * @param transport how the API is reached — runtime messages from the popup
+   *   and overlay (the default), or the API client directly when this adapter
+   *   runs inside the background worker, which cannot message itself.
+   */
+  constructor(
+    private readonly transport: PlanMyPeakTransport = runtimeMessageTransport
+  ) {}
+
   private async getLibraries(): Promise<PlanMyPeakLibrary[]> {
-    const response = await chrome.runtime.sendMessage<
-      GetPlanMyPeakLibrariesMessage,
-      ApiResponse<PlanMyPeakLibrary[]>
-    >({
-      type: 'GET_PLANMYPEAK_LIBRARIES',
-    });
+    const response = await this.transport.getLibraries();
 
     if (!response.success) {
       throw new Error(
@@ -78,13 +73,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
   }
 
   private async createLibrary(name: string): Promise<PlanMyPeakLibrary> {
-    const response = await chrome.runtime.sendMessage<
-      CreatePlanMyPeakLibraryMessage,
-      ApiResponse<PlanMyPeakLibrary>
-    >({
-      type: 'CREATE_PLANMYPEAK_LIBRARY',
-      name,
-    });
+    const response = await this.transport.createLibrary(name);
 
     if (!response.success) {
       throw new Error(
@@ -96,13 +85,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
   }
 
   private async deleteLibrary(libraryId: string): Promise<void> {
-    const response = await chrome.runtime.sendMessage<
-      DeletePlanMyPeakLibraryMessage,
-      ApiResponse<null>
-    >({
-      type: 'DELETE_PLANMYPEAK_LIBRARY',
-      libraryId,
-    });
+    const response = await this.transport.deleteLibrary(libraryId);
 
     if (!response.success) {
       throw new Error(
@@ -220,11 +203,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
   ): Promise<ValidationMessage[]> {
     const warnings: ValidationMessage[] = [];
 
-    const response = await chrome.runtime.sendMessage<
-      GetPlanMyPeakWorkoutsMessage,
-      ApiResponse<PlanMyPeakWorkoutLibraryItem[]>
-    >({
-      type: 'GET_PLANMYPEAK_WORKOUTS',
+    const response = await this.transport.getWorkouts({
       libraryId,
       provider: TRAINING_PEAKS_PROVIDER_CODE,
     });
@@ -245,13 +224,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
     );
 
     for (const workout of stale) {
-      const deleted = await chrome.runtime.sendMessage<
-        DeletePlanMyPeakWorkoutMessage,
-        ApiResponse<null>
-      >({
-        type: 'DELETE_PLANMYPEAK_WORKOUT',
-        workoutId: workout.id,
-      });
+      const deleted = await this.transport.deleteWorkout(workout.id);
 
       if (!deleted.success) {
         warnings.push({
@@ -473,19 +446,11 @@ export class PlanMyPeakAdapter implements ExportAdapter<
       const { library: targetLibrary, createdByUs } =
         await this.resolveTargetLibrary(config);
 
-      const uploadMessage: ExportWorkoutsToPlanMyPeakLibraryMessage = {
-        type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
+      const uploadResult = await this.transport.uploadWorkouts(
         workouts,
-        libraryId: targetLibrary.id,
-      };
-      if (config.capturedKeys) {
-        uploadMessage.capturedKeys = config.capturedKeys;
-      }
-
-      const uploadResult = await chrome.runtime.sendMessage<
-        ExportWorkoutsToPlanMyPeakLibraryMessage,
-        ApiResponse<PlanMyPeakUploadSummary>
-      >(uploadMessage);
+        targetLibrary.id,
+        config.capturedKeys
+      );
 
       if (!uploadResult.success) {
         logger.error(

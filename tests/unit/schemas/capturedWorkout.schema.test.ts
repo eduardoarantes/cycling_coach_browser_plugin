@@ -2,8 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   CapturedWorkoutPayloadSchema,
   CapturedWorkoutRecordSchema,
+  acknowledgementFor,
+  acknowledgementKey,
   buildCapturedWorkoutKey,
   countPendingCapturedWorkouts,
+  countUnlinkedCapturedWorkouts,
+  isImportCandidateFor,
+  isOwnedBy,
   parseCapturedWorkoutsStorage,
   sortCapturedWorkoutsNewestFirst,
   type CapturedWorkoutRecord,
@@ -211,6 +216,98 @@ describe('capturedWorkout.schema', () => {
         'production:1:1',
       ]);
       expect(countPendingCapturedWorkouts([older, newer])).toBe(1);
+    });
+  });
+
+  describe('ownership', () => {
+    const owner = {
+      coachId: 'coach-1',
+      destination: 'https://portal.planmypeak.com',
+    };
+    const acknowledged = {
+      [acknowledgementKey(owner)]: {
+        ...owner,
+        reason: 'imported' as const,
+        at: 1,
+      },
+    };
+
+    it('should read a record stored before ownership existed', () => {
+      const parsed = CapturedWorkoutRecordSchema.parse(record());
+
+      expect(parsed.owner).toBeUndefined();
+      expect(parsed.acknowledgements).toBeUndefined();
+    });
+
+    it('should keep an owner and acknowledgements through a parse', () => {
+      const parsed = CapturedWorkoutRecordSchema.parse(
+        record({ owner, acknowledgements: acknowledged })
+      );
+
+      expect(parsed.owner).toEqual(owner);
+      expect(acknowledgementFor(parsed, owner)?.reason).toBe('imported');
+    });
+
+    it('should reject an owner with an empty coach id', () => {
+      expect(
+        CapturedWorkoutRecordSchema.safeParse(
+          record({ owner: { ...owner, coachId: '' } })
+        ).success
+      ).toBe(false);
+    });
+
+    it('should own a record only for the same coach on the same destination', () => {
+      const owned = record({ owner });
+
+      expect(isOwnedBy(owned, owner)).toBe(true);
+      expect(isOwnedBy(owned, { ...owner, coachId: 'coach-2' })).toBe(false);
+      expect(
+        isOwnedBy(owned, {
+          ...owner,
+          destination: 'https://staging.app.planmypeak.com',
+        })
+      ).toBe(false);
+      expect(isOwnedBy(record(), owner)).toBe(false);
+    });
+
+    it('should key acknowledgements per destination and coach', () => {
+      const staging = {
+        ...owner,
+        destination: 'https://staging.app.planmypeak.com',
+      };
+
+      expect(acknowledgementKey(owner)).not.toBe(acknowledgementKey(staging));
+      expect(
+        acknowledgementFor(record({ acknowledgements: acknowledged }), staging)
+      ).toBeUndefined();
+    });
+
+    it('should treat only pending, owned, unacknowledged records as import candidates', () => {
+      expect(isImportCandidateFor(record({ owner }), owner)).toBe(true);
+      expect(isImportCandidateFor(record(), owner)).toBe(false);
+      expect(
+        isImportCandidateFor(record({ owner, status: 'sent' }), owner)
+      ).toBe(false);
+      expect(
+        isImportCandidateFor(record({ owner, status: 'dismissed' }), owner)
+      ).toBe(false);
+      expect(
+        isImportCandidateFor(
+          record({ owner, acknowledgements: acknowledged }),
+          owner
+        )
+      ).toBe(false);
+    });
+
+    it('should count as unlinked only pending records with no owner', () => {
+      expect(
+        countUnlinkedCapturedWorkouts([
+          record(),
+          record({ owner }),
+          record({ status: 'sent' }),
+          record({ status: 'dismissed' }),
+        ])
+      ).toBe(1);
     });
   });
 });

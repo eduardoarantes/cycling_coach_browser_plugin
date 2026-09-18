@@ -12,6 +12,11 @@ import {
   listCapturedWorkouts,
   storeCapture,
 } from '@/services/capturedWorkoutService';
+import {
+  primePlanMyPeakIdentity,
+  resetPlanMyPeakIdentityCache,
+} from '@/services/planMyPeakIdentityService';
+import { acknowledgementFor } from '@/schemas/capturedWorkout.schema';
 import type { PlanMyPeakWorkout } from '@/types/planMyPeak.types';
 import type { WorkoutCapturedMessage } from '@/types';
 import { STORAGE_KEYS } from '@/utils/constants';
@@ -140,6 +145,7 @@ describe('exportWorkoutsToPlanMyPeakLibrary with capturedKeys', () => {
     });
     await storeCapture(capture(1), 'production');
     await storeCapture(capture(2), 'production');
+    resetPlanMyPeakIdentityCache();
   });
 
   it('writes each outcome before the next upload starts', async () => {
@@ -282,5 +288,185 @@ describe('exportWorkoutsToPlanMyPeakLibrary with capturedKeys', () => {
     expect((await recordByKey('production:1:2'))?.lastSendError).toBe(
       'rejected'
     );
+  });
+
+  describe('onItemResult', () => {
+    it('should report each workout right after its POST, in order', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(okResponse('w-1', 'cal:1'))
+        .mockResolvedValueOnce(failResponse('rejected'));
+      const onItemResult = vi.fn();
+
+      await exportWorkoutsToPlanMyPeakLibrary(
+        [
+          makeWorkout({ provider_workout_id: 'cal:1', name: 'One' }),
+          makeWorkout({ provider_workout_id: 'cal:2', name: 'Two' }),
+        ],
+        TARGET_LIBRARY_ID,
+        { onItemResult }
+      );
+
+      expect(onItemResult.mock.calls.map(([result]) => result)).toEqual([
+        {
+          providerWorkoutId: 'cal:1',
+          name: 'One',
+          success: true,
+          created: true,
+        },
+        {
+          providerWorkoutId: 'cal:2',
+          name: 'Two',
+          success: false,
+          error: 'rejected',
+        },
+      ]);
+    });
+
+    it('should wait for the callback before the next POST', async () => {
+      const order: string[] = [];
+      global.fetch = vi.fn().mockImplementation(async () => {
+        order.push('post');
+        return okResponse('w', 'cal:1');
+      });
+
+      await exportWorkoutsToPlanMyPeakLibrary(
+        [
+          makeWorkout({ provider_workout_id: 'cal:1' }),
+          makeWorkout({ provider_workout_id: 'cal:2' }),
+        ],
+        TARGET_LIBRARY_ID,
+        {
+          onItemResult: async () => {
+            await new Promise((resolve) => setTimeout(resolve, 1));
+            order.push('reported');
+          },
+        }
+      );
+
+      expect(order).toEqual(['post', 'reported', 'post', 'reported']);
+    });
+  });
+
+  describe('shouldContinue', () => {
+    it('should stop writing once refused and fail the rest with the reason', async () => {
+      global.fetch = vi.fn().mockResolvedValue(okResponse('w-1', 'cal:1'));
+      const shouldContinue = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValue({ ok: false, reason: 'account changed' });
+      const onItemResult = vi.fn();
+
+      const result = await exportWorkoutsToPlanMyPeakLibrary(
+        [
+          makeWorkout({ provider_workout_id: 'cal:1', name: 'One' }),
+          makeWorkout({ provider_workout_id: 'cal:2', name: 'Two' }),
+          makeWorkout({ provider_workout_id: 'cal:3', name: 'Three' }),
+        ],
+        TARGET_LIBRARY_ID,
+        {
+          capturedKeys: {
+            'cal:1': 'production:1:1',
+            'cal:2': 'production:1:2',
+          },
+          shouldContinue,
+          onItemResult,
+        }
+      );
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      // Asked again only until the first refusal.
+      expect(shouldContinue).toHaveBeenCalledTimes(2);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data.results).toHaveLength(1);
+      expect(result.data.failures).toEqual([
+        { providerWorkoutId: 'cal:2', name: 'Two', message: 'account changed' },
+        {
+          providerWorkoutId: 'cal:3',
+          name: 'Three',
+          message: 'account changed',
+        },
+      ]);
+      expect(onItemResult).toHaveBeenCalledTimes(3);
+      expect((await recordByKey('production:1:1'))?.status).toBe('sent');
+      const stopped = await recordByKey('production:1:2');
+      expect(stopped?.status).toBe('pending');
+      expect(stopped?.lastSendError).toBe('account changed');
+    });
+
+    it('should write nothing when refused before the first POST', async () => {
+      global.fetch = vi.fn();
+
+      const result = await exportWorkoutsToPlanMyPeakLibrary(
+        [makeWorkout({ provider_workout_id: 'cal:1' })],
+        TARGET_LIBRARY_ID,
+        { shouldContinue: async () => ({ ok: false, reason: 'stopped' }) }
+      );
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(result.success && isTotalUploadFailure(result.data)).toBe(true);
+    });
+  });
+
+  describe('destination acknowledgement', () => {
+    const owner = {
+      coachId: 'coach-1',
+      destination: 'https://portal.planmypeak.com',
+    };
+
+    beforeEach(async () => {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.PLANMYPEAK_ENVIRONMENT]: 'production',
+      });
+    });
+
+    it('should acknowledge a landed capture for the cached coach and destination', async () => {
+      primePlanMyPeakIdentity('token-123', 'coach-1');
+      global.fetch = vi.fn().mockResolvedValue(okResponse('w-1', 'cal:1'));
+
+      await exportWorkoutsToPlanMyPeakLibrary(
+        [makeWorkout({ provider_workout_id: 'cal:1' })],
+        TARGET_LIBRARY_ID,
+        { capturedKeys: { 'cal:1': 'production:1:1' } }
+      );
+
+      const record = await recordByKey('production:1:1');
+      expect(record && acknowledgementFor(record, owner)).toMatchObject({
+        reason: 'imported',
+        planMyPeakWorkoutId: 'w-1',
+        libraryName: 'My Library',
+      });
+    });
+
+    it('should mark the capture sent without an acknowledgement, and without a lookup, when the coach is not cached', async () => {
+      global.fetch = vi.fn().mockResolvedValue(okResponse('w-1', 'cal:1'));
+
+      await exportWorkoutsToPlanMyPeakLibrary(
+        [makeWorkout({ provider_workout_id: 'cal:1' })],
+        TARGET_LIBRARY_ID,
+        { capturedKeys: { 'cal:1': 'production:1:1' } }
+      );
+
+      const record = await recordByKey('production:1:1');
+      expect(record?.status).toBe('sent');
+      expect(record?.acknowledgements).toBeUndefined();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not use an identity cached for a different token', async () => {
+      primePlanMyPeakIdentity('some-older-token', 'coach-1');
+      global.fetch = vi.fn().mockResolvedValue(okResponse('w-1', 'cal:1'));
+
+      await exportWorkoutsToPlanMyPeakLibrary(
+        [makeWorkout({ provider_workout_id: 'cal:1' })],
+        TARGET_LIBRARY_ID,
+        { capturedKeys: { 'cal:1': 'production:1:1' } }
+      );
+
+      expect(
+        (await recordByKey('production:1:1'))?.acknowledgements
+      ).toBeUndefined();
+    });
   });
 });

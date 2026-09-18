@@ -1,0 +1,592 @@
+{
+  "$comment": "Wire fixtures for the captured-workout import requests on the PlanMyPeak site-control channel. Mirrored verbatim in the PlanMyPeak app at apps/web/src/lib/extension/__fixtures__/captured-imports.json; both repositories test against this file, so a change here is a protocol change and must land in both.",
+  "protocolVersion": 1,
+  "requestTypes": [
+    "GET_CAPTURED_WORKOUT_SUMMARY",
+    "IMPORT_MISSING_WORKOUTS",
+    "GET_CAPTURED_WORKOUT_IMPORT_STATUS"
+  ],
+  "requests": {
+    "valid": [
+      {
+        "name": "summary with payload omitted",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-summary-1",
+          "type": "GET_CAPTURED_WORKOUT_SUMMARY"
+        }
+      },
+      {
+        "name": "summary with empty payload",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-summary-2",
+          "type": "GET_CAPTURED_WORKOUT_SUMMARY",
+          "payload": {}
+        }
+      },
+      {
+        "name": "import start",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-start-1",
+          "type": "IMPORT_MISSING_WORKOUTS",
+          "payload": {
+            "contextId": "ctx_0123456789abcdef",
+            "operationId": "op-7f3a"
+          }
+        }
+      },
+      {
+        "name": "import status",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-status-1",
+          "type": "GET_CAPTURED_WORKOUT_IMPORT_STATUS",
+          "payload": {
+            "contextId": "ctx_0123456789abcdef",
+            "operationId": "op-7f3a"
+          }
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "import start without an operation id",
+        "expectedCode": "INVALID_REQUEST",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-bad-1",
+          "type": "IMPORT_MISSING_WORKOUTS",
+          "payload": { "contextId": "ctx_0123456789abcdef" }
+        }
+      },
+      {
+        "name": "import start with an empty context id",
+        "expectedCode": "INVALID_REQUEST",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-bad-2",
+          "type": "IMPORT_MISSING_WORKOUTS",
+          "payload": { "contextId": "", "operationId": "op-1" }
+        }
+      },
+      {
+        "name": "import start smuggling a destination",
+        "expectedCode": "INVALID_REQUEST",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-bad-3",
+          "type": "IMPORT_MISSING_WORKOUTS",
+          "payload": {
+            "contextId": "ctx_0123456789abcdef",
+            "operationId": "op-1",
+            "libraryId": "lib-9"
+          }
+        }
+      },
+      {
+        "name": "import start smuggling an acting coach",
+        "expectedCode": "INVALID_REQUEST",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-bad-4",
+          "type": "IMPORT_MISSING_WORKOUTS",
+          "payload": {
+            "contextId": "ctx_0123456789abcdef",
+            "operationId": "op-1",
+            "coachId": "coach-b"
+          }
+        }
+      },
+      {
+        "name": "status without a context id",
+        "expectedCode": "INVALID_REQUEST",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-bad-5",
+          "type": "GET_CAPTURED_WORKOUT_IMPORT_STATUS",
+          "payload": { "operationId": "op-1" }
+        }
+      },
+      {
+        "name": "summary on a protocol version this build does not speak",
+        "expectedCode": "UNSUPPORTED_VERSION",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 2,
+          "requestId": "req-bad-6",
+          "type": "GET_CAPTURED_WORKOUT_SUMMARY"
+        }
+      },
+      {
+        "name": "the raw capture channel is not a site-control request",
+        "expectedCode": "UNSUPPORTED_REQUEST_TYPE",
+        "envelope": {
+          "source": "planmypeak-site-control",
+          "version": 1,
+          "requestId": "req-bad-7",
+          "type": "GET_CAPTURED_WORKOUTS"
+        }
+      }
+    ]
+  },
+  "summary": {
+    "valid": [
+      {
+        "name": "ready with missing workouts",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 3,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "ready with nothing missing and a finished run to show",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 13,
+          "state": "ready",
+          "missingCount": 0,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": { "operationId": "op-7f3a", "state": "completed" }
+        }
+      },
+      {
+        "name": "ready while an import is still running",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 14,
+          "state": "ready",
+          "missingCount": 2,
+          "unlinkedCount": 0,
+          "activeOperation": { "operationId": "op-7f3a", "state": "running" },
+          "latestOperation": { "operationId": "op-7f3a", "state": "running" }
+        }
+      },
+      {
+        "name": "checking a large candidate set",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "checking",
+          "missingCount": null,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "ready with legacy captures the popup must link first",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 0,
+          "unlinkedCount": 4,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "blocked because the importer is signed out",
+        "data": {
+          "contextId": null,
+          "coachId": null,
+          "revision": 12,
+          "state": "blocked",
+          "missingCount": null,
+          "unlinkedCount": 4,
+          "blockedReason": "signed_out",
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "blocked because the page is not the configured destination",
+        "data": {
+          "contextId": null,
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "blocked",
+          "missingCount": null,
+          "unlinkedCount": 0,
+          "blockedReason": "destination_mismatch",
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "a count while still checking",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "checking",
+          "missingCount": 0,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "ready without a count",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": null,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "negative count",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": -1,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "fractional count",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 1.5,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "unknown state",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "done",
+          "missingCount": 0,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "blocked without a reason",
+        "data": {
+          "contextId": null,
+          "coachId": null,
+          "revision": 12,
+          "state": "blocked",
+          "missingCount": null,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "unknown blocked reason",
+        "data": {
+          "contextId": null,
+          "coachId": null,
+          "revision": 12,
+          "state": "blocked",
+          "missingCount": null,
+          "unlinkedCount": 0,
+          "blockedReason": "because",
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "operation reference with an unknown state",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "revision": 12,
+          "state": "ready",
+          "missingCount": 0,
+          "unlinkedCount": 0,
+          "activeOperation": { "operationId": "op-1", "state": "queued" },
+          "latestOperation": null
+        }
+      },
+      {
+        "name": "missing revision",
+        "data": {
+          "contextId": "ctx_0123456789abcdef",
+          "coachId": "coach-a",
+          "state": "ready",
+          "missingCount": 0,
+          "unlinkedCount": 0,
+          "activeOperation": null,
+          "latestOperation": null
+        }
+      }
+    ]
+  },
+  "importStart": {
+    "valid": [
+      {
+        "name": "started",
+        "data": { "operationId": "op-7f3a", "state": "running" }
+      },
+      {
+        "name": "nothing left to import, or a repeat of a finished run",
+        "data": { "operationId": "op-7f3a", "state": "completed" }
+      },
+      {
+        "name": "refused for a stale context",
+        "data": {
+          "operationId": "op-7f3a",
+          "state": "blocked",
+          "blockedReason": "stale_context"
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "blocked without a reason",
+        "data": { "operationId": "op-7f3a", "state": "blocked" }
+      },
+      {
+        "name": "interrupted is not a start state",
+        "data": { "operationId": "op-7f3a", "state": "interrupted" }
+      },
+      {
+        "name": "empty operation id",
+        "data": { "operationId": "", "state": "running" }
+      }
+    ]
+  },
+  "importStatus": {
+    "valid": [
+      {
+        "name": "running, two of five processed",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "running",
+          "totalCount": 5,
+          "processedCount": 2,
+          "importedCount": 1,
+          "alreadyPresentCount": 1,
+          "failedCount": 0,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      },
+      {
+        "name": "completed with one failure",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "completed",
+          "totalCount": 3,
+          "processedCount": 3,
+          "importedCount": 2,
+          "alreadyPresentCount": 0,
+          "failedCount": 1,
+          "errors": [
+            {
+              "title": "Sweet Spot 3x12",
+              "message": "Skipped \"Sweet Spot 3x12\" - a bike workout of this type must prescribe at least one segment, and it has none"
+            }
+          ],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100009000
+        }
+      },
+      {
+        "name": "interrupted by a worker restart",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "interrupted",
+          "totalCount": 6,
+          "processedCount": 4,
+          "importedCount": 4,
+          "alreadyPresentCount": 0,
+          "failedCount": 0,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100030000
+        }
+      },
+      {
+        "name": "blocked mid-run because the account changed",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "blocked",
+          "totalCount": 6,
+          "processedCount": 2,
+          "importedCount": 2,
+          "alreadyPresentCount": 0,
+          "failedCount": 0,
+          "blockedReason": "account_changed",
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100004000
+        }
+      },
+      {
+        "name": "completed with nothing to do",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "completed",
+          "totalCount": 0,
+          "processedCount": 0,
+          "importedCount": 0,
+          "alreadyPresentCount": 0,
+          "failedCount": 0,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100000000
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "name": "processed does not add up",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "running",
+          "totalCount": 5,
+          "processedCount": 3,
+          "importedCount": 1,
+          "alreadyPresentCount": 1,
+          "failedCount": 0,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      },
+      {
+        "name": "processed beyond the total",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "completed",
+          "totalCount": 2,
+          "processedCount": 3,
+          "importedCount": 3,
+          "alreadyPresentCount": 0,
+          "failedCount": 0,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      },
+      {
+        "name": "negative failed count",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "completed",
+          "totalCount": 2,
+          "processedCount": 1,
+          "importedCount": 2,
+          "alreadyPresentCount": 0,
+          "failedCount": -1,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      },
+      {
+        "name": "unknown state",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "cancelled",
+          "totalCount": 2,
+          "processedCount": 2,
+          "importedCount": 2,
+          "alreadyPresentCount": 0,
+          "failedCount": 0,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      },
+      {
+        "name": "blocked without a reason",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "blocked",
+          "totalCount": 2,
+          "processedCount": 1,
+          "importedCount": 1,
+          "alreadyPresentCount": 0,
+          "failedCount": 0,
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      },
+      {
+        "name": "error entry without a message",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "completed",
+          "totalCount": 1,
+          "processedCount": 1,
+          "importedCount": 0,
+          "alreadyPresentCount": 0,
+          "failedCount": 1,
+          "errors": [{ "title": "Ride", "message": "" }],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      },
+      {
+        "name": "missing counts",
+        "data": {
+          "operationId": "op-7f3a",
+          "contextId": "ctx_0123456789abcdef",
+          "state": "completed",
+          "errors": [],
+          "startedAt": 1758100000000,
+          "updatedAt": 1758100002000
+        }
+      }
+    ]
+  }
+}

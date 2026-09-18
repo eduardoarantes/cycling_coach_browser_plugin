@@ -6,7 +6,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { handleMessage } from '@/background/messageHandler';
 import * as badgeService from '@/services/badgeService';
+import * as identityService from '@/services/planMyPeakIdentityService';
+import * as planMyPeakApi from '@/background/api/planMyPeak';
+import {
+  markOperationLive,
+  resetLiveOperations,
+} from '@/background/capturedImports/importOperations';
+import {
+  isPopupCapturedSendInFlight,
+  resetPopupCapturedSend,
+} from '@/background/capturedImports/importRunner';
 import type {
+  ClaimCapturedWorkoutsMessage,
+  ClaimCapturedWorkoutsResult,
+  ExportWorkoutsToPlanMyPeakLibraryMessage,
   GetCapturedWorkoutsMessage,
   RemoveCapturedWorkoutsMessage,
   UpdateCapturedWorkoutMessage,
@@ -267,6 +280,208 @@ describe('messageHandler captured workouts', () => {
       expect(record?.status).toBe('dismissed');
       expect(record?.workout.title).toBe('Edited');
       expect(record?.updatedAt).toBe(900);
+    });
+  });
+
+  describe('ownership at capture time', () => {
+    const tp = tabSender('https://app.trainingpeaks.com/calendar');
+    const context: identityService.CaptureContext = {
+      coachId: 'coach-1',
+      destination: 'https://portal.planmypeak.com',
+      environment: 'production',
+      contextId: 'ctx-a',
+    };
+
+    it('should stamp the capture with the account resolved from the stored session', async () => {
+      vi.spyOn(identityService, 'resolveCaptureContext').mockResolvedValue(
+        context
+      );
+
+      await handleMessage(capture(), tp);
+
+      const [record] = (await list()).records;
+      expect(record.owner).toEqual({
+        coachId: 'coach-1',
+        destination: 'https://portal.planmypeak.com',
+      });
+    });
+
+    it('should ignore an owner supplied in the message', async () => {
+      vi.spyOn(identityService, 'resolveCaptureContext').mockResolvedValue(
+        null
+      );
+
+      await handleMessage(
+        {
+          ...capture(),
+          owner: { coachId: 'coach-9', destination: 'https://evil.test' },
+        } as WorkoutCapturedMessage,
+        tp
+      );
+
+      const result = await list();
+      expect(result.records[0]).not.toHaveProperty('owner');
+      expect(result.unlinkedCount).toBe(1);
+    });
+
+    it('should still store the capture when the account cannot be resolved', async () => {
+      vi.spyOn(identityService, 'resolveCaptureContext').mockResolvedValue(
+        null
+      );
+
+      const response = await handleMessage(capture(), tp);
+
+      expect(response).toMatchObject({ success: true });
+      expect((await list()).records).toHaveLength(1);
+    });
+  });
+
+  describe('CLAIM_CAPTURED_WORKOUTS', () => {
+    const claim: ClaimCapturedWorkoutsMessage = {
+      type: 'CLAIM_CAPTURED_WORKOUTS',
+    };
+    const tp = tabSender('https://app.trainingpeaks.com/calendar');
+
+    beforeEach(async () => {
+      vi.spyOn(identityService, 'resolveCaptureContext').mockResolvedValue(
+        null
+      );
+      await handleMessage(capture({ workoutId: 1 }), tp);
+      await handleMessage(capture({ workoutId: 2 }), tp);
+    });
+
+    it('should link unowned captures to the verified session from the popup', async () => {
+      vi.spyOn(identityService, 'resolveCaptureContext').mockResolvedValue({
+        coachId: 'coach-1',
+        destination: 'https://portal.planmypeak.com',
+        environment: 'production',
+        contextId: 'ctx-a',
+      });
+
+      const response = (await handleMessage(
+        claim,
+        popupSender
+      )) as ApiResponse<ClaimCapturedWorkoutsResult>;
+
+      expect(response).toEqual({ success: true, data: { claimed: 2 } });
+      const result = await list();
+      expect(result.unlinkedCount).toBe(0);
+      expect(result.records.every((r) => r.owner?.coachId === 'coach-1')).toBe(
+        true
+      );
+    });
+
+    it.each([
+      ['a TrainingPeaks tab', 'https://app.trainingpeaks.com/calendar'],
+      ['a PlanMyPeak tab', 'https://portal.planmypeak.com/workout-library'],
+    ])('should refuse a claim from %s', async (_label, url) => {
+      vi.spyOn(identityService, 'resolveCaptureContext').mockResolvedValue({
+        coachId: 'coach-1',
+        destination: 'https://portal.planmypeak.com',
+        environment: 'production',
+        contextId: 'ctx-a',
+      });
+
+      const response = await handleMessage(claim, tabSender(url));
+
+      expect(response).toMatchObject({ success: false });
+      expect((await list()).unlinkedCount).toBe(2);
+    });
+
+    it('should link nothing when the session cannot be verified', async () => {
+      const response = await handleMessage(claim, popupSender);
+
+      expect(response).toMatchObject({
+        success: false,
+        error: { code: 'NO_TOKEN' },
+      });
+      expect((await list()).unlinkedCount).toBe(2);
+    });
+  });
+
+  describe('one captured-workout import at a time', () => {
+    const exportMessage = (
+      capturedKeys?: Record<string, string>
+    ): ExportWorkoutsToPlanMyPeakLibraryMessage => ({
+      type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
+      workouts: [],
+      libraryId: 'lib-1',
+      ...(capturedKeys ? { capturedKeys } : {}),
+    });
+
+    let upload: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      resetLiveOperations();
+      resetPopupCapturedSend();
+      upload = vi
+        .spyOn(planMyPeakApi, 'exportWorkoutsToPlanMyPeakLibrary')
+        .mockResolvedValue({
+          success: true,
+          data: {
+            results: [],
+            createdCount: 0,
+            updatedCount: 0,
+            destinationEmpty: false,
+            failures: [],
+          },
+        });
+    });
+
+    afterEach(() => {
+      resetLiveOperations();
+      resetPopupCapturedSend();
+    });
+
+    it('should refuse a popup send of captures while a page import is running', async () => {
+      markOperationLive('op-1');
+
+      const response = await handleMessage(
+        exportMessage({ 'cal:1': 'production:1:1' }),
+        popupSender
+      );
+
+      expect(response).toMatchObject({
+        success: false,
+        error: { code: 'IMPORT_IN_PROGRESS' },
+      });
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it('should not hold up an ordinary library export', async () => {
+      markOperationLive('op-1');
+
+      const response = await handleMessage(exportMessage(), popupSender);
+
+      expect(response).toMatchObject({ success: true });
+      expect(upload).toHaveBeenCalledTimes(1);
+    });
+
+    it('should register a popup send of captures for the page import to wait on', async () => {
+      let inFlightDuringUpload = false;
+      upload.mockImplementation(async () => {
+        await Promise.resolve();
+        inFlightDuringUpload = isPopupCapturedSendInFlight();
+        return {
+          success: true,
+          data: {
+            results: [],
+            createdCount: 0,
+            updatedCount: 0,
+            destinationEmpty: false,
+            failures: [],
+          },
+        };
+      });
+
+      await handleMessage(
+        exportMessage({ 'cal:1': 'production:1:1' }),
+        popupSender
+      );
+      await Promise.resolve();
+
+      expect(inFlightDuringUpload).toBe(true);
+      expect(isPopupCapturedSendInFlight()).toBe(false);
     });
   });
 });

@@ -12,6 +12,7 @@ import type {
   UpdateCapturedWorkoutMessage,
   CapturedWorkoutsListResult,
   RemoveCapturedWorkoutsResult,
+  ClaimCapturedWorkoutsResult,
   CapturedWorkoutRecord,
   CapturedWorkoutStatus,
   AuthRefreshProvider,
@@ -53,11 +54,24 @@ import {
   trainingPeaksEnvironmentForAppOrigin,
 } from '@/utils/constants';
 import {
+  claimUnlinkedCapturedWorkouts,
   listCapturedWorkouts,
   removeCapturedWorkouts,
   storeCapture,
   updateCapturedWorkout,
 } from '@/services/capturedWorkoutService';
+import {
+  primePlanMyPeakIdentity,
+  resolveCaptureContext,
+  resolvePlanMyPeakCoachId,
+} from '@/services/planMyPeakIdentityService';
+import {
+  handleCapturedWorkoutImportStatus,
+  handleCapturedWorkoutSummary,
+  handleImportMissingWorkouts,
+  isSiteControlCapturedImportActive,
+} from './capturedImports/siteControlHandlers';
+import { trackPopupCapturedSend } from './capturedImports/importRunner';
 import { refreshBadge } from '@/services/badgeService';
 import {
   refreshProviderAuth,
@@ -186,6 +200,7 @@ type MessageResponse =
   | ApiResponse<CapturedWorkoutsListResult>
   | ApiResponse<CapturedWorkoutRecord | null>
   | ApiResponse<RemoveCapturedWorkoutsResult>
+  | ApiResponse<ClaimCapturedWorkoutsResult>
   | AuthRefreshResult
   | SiteControlResponse;
 
@@ -531,7 +546,14 @@ async function handleGetPlanMyPeakCoach(): Promise<
   ApiResponse<PlanMyPeakCoach>
 > {
   logger.debug('Handling GET_PLANMYPEAK_COACH message');
-  return await fetchPlanMyPeakCoach();
+  const coach = await fetchPlanMyPeakCoach();
+  if (coach.success) {
+    // The popup asks for the coach before it sends anything, so a later
+    // upload can acknowledge captures for this account without a lookup.
+    const token = await getPlanMyPeakAuthToken();
+    if (token) primePlanMyPeakIdentity(token, coach.data.id);
+  }
+  return coach;
 }
 
 /**
@@ -582,9 +604,33 @@ async function handleExportWorkoutsToPlanMyPeakLibrary(
     'workouts -> library',
     libraryId
   );
-  return await exportWorkoutsToPlanMyPeakLibrary(workouts, libraryId, {
+
+  // One captured-workout import per account at a time, whichever surface
+  // started it. A popup send racing a page-driven run would upload the same
+  // captures twice into the same upsert and report both as its own.
+  if (capturedKeys && Object.keys(capturedKeys).length > 0) {
+    const active = await isSiteControlCapturedImportActive();
+    if (active) {
+      return {
+        success: false,
+        error: {
+          message:
+            'PlanMyPeak is already importing these workouts. Wait for that import to finish, then try again.',
+          code: 'IMPORT_IN_PROGRESS',
+        },
+      };
+    }
+  }
+
+  const upload = exportWorkoutsToPlanMyPeakLibrary(workouts, libraryId, {
     capturedKeys,
   });
+
+  // Registered so a page-driven import started meanwhile waits for this send
+  // instead of uploading the same captures alongside it.
+  return capturedKeys && Object.keys(capturedKeys).length > 0
+    ? await trackPopupCapturedSend(upload)
+    : await upload;
 }
 
 /**
@@ -608,7 +654,16 @@ async function handleWorkoutCaptured(
     return { success: false, error: 'Capture rejected: untrusted sender' };
   }
 
-  const stored = await storeCapture(message, environment);
+  // Who this capture belongs to is decided now, from the stored PlanMyPeak
+  // session, and never revisited. If it cannot be resolved the record is
+  // stored unowned and stays private to the popup until the coach links it.
+  const owner = await resolveCaptureContext();
+
+  const stored = await storeCapture(
+    message,
+    environment,
+    owner ? { coachId: owner.coachId, destination: owner.destination } : null
+  );
   if (!stored) {
     return { success: false, error: 'Capture rejected: invalid payload' };
   }
@@ -622,6 +677,46 @@ async function handleGetCapturedWorkouts(): Promise<
 > {
   const list = await listCapturedWorkouts();
   return { success: true, data: list };
+}
+
+/**
+ * Handle CLAIM_CAPTURED_WORKOUTS from the popup.
+ *
+ * Accepted only from the extension's own pages (no `sender.tab`): a content
+ * script on any site must not be able to hand unowned captures to the current
+ * session. The account is resolved here, freshly, from the stored credential;
+ * a session that cannot be verified links nothing.
+ */
+async function handleClaimCapturedWorkouts(
+  sender: chrome.runtime.MessageSender
+): Promise<ApiResponse<ClaimCapturedWorkoutsResult>> {
+  if (sender.tab) {
+    logger.warn('Rejected CLAIM_CAPTURED_WORKOUTS from a tab');
+    return {
+      success: false,
+      error: {
+        message: 'Captured workouts can only be linked from the extension',
+      },
+    };
+  }
+
+  const context = await resolveCaptureContext();
+  if (!context) {
+    return {
+      success: false,
+      error: {
+        message:
+          'Sign in to PlanMyPeak in the extension before linking captured workouts.',
+        code: 'NO_TOKEN',
+      },
+    };
+  }
+
+  const claimed = await claimUnlinkedCapturedWorkouts({
+    coachId: context.coachId,
+    destination: context.destination,
+  });
+  return { success: true, data: { claimed } };
 }
 
 async function handleUpdateCapturedWorkout(
@@ -1025,62 +1120,6 @@ function toSiteControlResponse<T>(
 }
 
 /**
- * How long PING will wait for the coach lookup.
- *
- * PING is how the page decides whether the extension exists at all, and a page
- * that gets no reply concludes it is not installed. The identity lookup must
- * never be what makes that happen, so it is bounded well inside a page's
- * detection timeout and degrades to `null` rather than delaying the answer.
- */
-const PING_COACH_LOOKUP_TIMEOUT_MS = 1200;
-
-/**
- * Cached coach id, so repeat PINGs on the same page do not each hit the network.
- *
- * Keyed by the token it was resolved from, which is what makes it safe: a new
- * or cleared token simply misses, so the cache can never report a coach the
- * extension has stopped acting as. It lives in the service worker only and dies
- * with it.
- */
-let cachedPlanMyPeakCoachId: { token: string; coachId: string } | null = null;
-
-/**
- * Resolve which PlanMyPeak coach the extension is currently acting as.
- *
- * Returns `null` whenever the answer is not known for certain — an unreachable
- * API, a timeout, an invalid token. Callers must treat `null` as unknown and
- * fail closed rather than assuming a match.
- */
-async function resolvePlanMyPeakCoachId(): Promise<string | null> {
-  try {
-    const token = await getPlanMyPeakAuthToken();
-    if (!token) {
-      return null;
-    }
-
-    // Keyed by the token itself, so a re-auth as a different coach cannot be
-    // answered from the previous coach's cache entry.
-    if (cachedPlanMyPeakCoachId?.token === token) {
-      return cachedPlanMyPeakCoachId.coachId;
-    }
-
-    const coach = await fetchPlanMyPeakCoach({
-      signal: AbortSignal.timeout(PING_COACH_LOOKUP_TIMEOUT_MS),
-    });
-
-    if (!coach.success) {
-      return null;
-    }
-
-    cachedPlanMyPeakCoachId = { token, coachId: coach.data.id };
-    return coach.data.id;
-  } catch (error) {
-    logger.warn('Could not resolve the PlanMyPeak coach id for PING:', error);
-    return null;
-  }
-}
-
-/**
  * Build the PING result.
  *
  * Reports readiness only — never a token, key, or user identifier. A stored but
@@ -1106,6 +1145,9 @@ async function buildSiteControlPingResult(): Promise<SiteControlPingResult> {
     },
     planMyPeak: {
       authenticated: planMyPeakHasToken,
+      // Bounded and cached per token in the identity service, so a slow or
+      // unreachable PlanMyPeak degrades to `null` rather than delaying PING
+      // past the page's detection timeout.
       coachId: planMyPeakHasToken ? await resolvePlanMyPeakCoachId() : null,
     },
   };
@@ -1324,6 +1366,27 @@ async function handleSiteControlRequest(
         code: 'INTERNAL_ERROR',
         message: 'OPEN_IMPORTER is handled in the page context',
       });
+
+    // Captured-workout imports. The origin passed along is the verified
+    // sender origin, so the handlers can insist the page is the destination
+    // the extension is configured for — the summary must never describe
+    // production captures to a staging page.
+    case 'GET_CAPTURED_WORKOUT_SUMMARY':
+      return await handleCapturedWorkoutSummary(request.requestId, origin);
+
+    case 'IMPORT_MISSING_WORKOUTS':
+      return await handleImportMissingWorkouts(
+        request.requestId,
+        request.payload,
+        origin
+      );
+
+    case 'GET_CAPTURED_WORKOUT_IMPORT_STATUS':
+      return await handleCapturedWorkoutImportStatus(
+        request.requestId,
+        request.payload,
+        origin
+      );
   }
 }
 
@@ -1401,6 +1464,9 @@ export async function handleMessage(
 
     case 'REMOVE_CAPTURED_WORKOUTS':
       return await handleRemoveCapturedWorkouts(message.statuses);
+
+    case 'CLAIM_CAPTURED_WORKOUTS':
+      return await handleClaimCapturedWorkouts(sender);
 
     case 'GET_PLANMYPEAK_WORKOUTS':
       return await handleGetPlanMyPeakWorkouts({

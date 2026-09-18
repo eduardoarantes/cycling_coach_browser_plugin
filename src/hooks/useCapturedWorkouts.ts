@@ -15,6 +15,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   CapturedWorkoutRecord,
   CapturedWorkoutsListResult,
+  ClaimCapturedWorkoutsMessage,
+  ClaimCapturedWorkoutsResult,
   GetCapturedWorkoutsMessage,
   RemoveCapturedWorkoutsMessage,
   RemoveCapturedWorkoutsResult,
@@ -23,6 +25,7 @@ import type {
 import type { ApiResponse } from '@/types/api.types';
 import {
   countPendingCapturedWorkouts,
+  countUnlinkedCapturedWorkouts,
   parseCapturedWorkoutsStorage,
   sortCapturedWorkoutsNewestFirst,
 } from '@/schemas/capturedWorkout.schema';
@@ -33,8 +36,16 @@ export interface UseCapturedWorkoutsReturn {
   /** Newest first */
   records: CapturedWorkoutRecord[];
   pendingCount: number;
+  /** Pending records no PlanMyPeak account owns yet; see `claim`. */
+  unlinkedCount: number;
   isLoading: boolean;
   error: string | null;
+  /**
+   * Link every unowned record to the PlanMyPeak account the extension is
+   * signed in to. The background resolves that account; nothing is named here.
+   * Resolves to an error message, or null when it worked.
+   */
+  claim: () => Promise<string | null>;
   /** Mark one record dismissed. */
   dismiss: (key: string) => Promise<void>;
   /** Remove every sent and dismissed record. */
@@ -84,6 +95,22 @@ export function useCapturedWorkouts(): UseCapturedWorkoutsReturn {
     [refresh]
   );
 
+  const claim = useCallback(async (): Promise<string | null> => {
+    try {
+      const response = await chrome.runtime.sendMessage<
+        ClaimCapturedWorkoutsMessage,
+        ApiResponse<ClaimCapturedWorkoutsResult>
+      >({ type: 'CLAIM_CAPTURED_WORKOUTS' });
+      await refresh();
+      return response.success ? null : response.error.message;
+    } catch (claimError) {
+      logger.error('Failed to link captured workouts:', claimError);
+      return claimError instanceof Error
+        ? claimError.message
+        : 'Failed to link captured workouts';
+    }
+  }, [refresh]);
+
   const clearFinished = useCallback(async () => {
     await chrome.runtime.sendMessage<
       RemoveCapturedWorkoutsMessage,
@@ -121,11 +148,18 @@ export function useCapturedWorkouts(): UseCapturedWorkoutsReturn {
     [records]
   );
 
+  const unlinkedCount = useMemo(
+    () => countUnlinkedCapturedWorkouts(records),
+    [records]
+  );
+
   return {
     records,
     pendingCount,
+    unlinkedCount,
     isLoading,
     error,
+    claim,
     dismiss,
     clearFinished,
     refresh,
