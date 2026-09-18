@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  IS_LOCAL_PLANMYPEAK_TARGET,
   isValidPort,
   parsePort,
+  planMyPeakEnvironmentForAppOrigin,
   resolvePlanMyPeakTarget,
 } from '@/utils/constants';
 
@@ -77,5 +79,65 @@ describe('parsePort', () => {
     expect(parsePort('')).toBeNull();
     expect(parsePort('   ')).toBeNull();
     expect(parsePort('abc')).toBeNull();
+  });
+});
+
+describe('planMyPeakEnvironmentForAppOrigin', () => {
+  it('should map the portal origin to production', () => {
+    expect(
+      planMyPeakEnvironmentForAppOrigin('https://portal.planmypeak.com')
+    ).toBe('production');
+  });
+
+  it('should map the production Supabase project host to production', () => {
+    expect(
+      planMyPeakEnvironmentForAppOrigin(
+        'https://nwvtltfibnkdogdeeluh.supabase.co'
+      )
+    ).toBe('production');
+  });
+
+  it('should map the staging origin to staging', () => {
+    expect(
+      planMyPeakEnvironmentForAppOrigin('https://staging.app.planmypeak.com')
+    ).toBe('staging');
+  });
+
+  it('should not accept a lookalike origin with a first-party host as a prefix', () => {
+    expect(
+      planMyPeakEnvironmentForAppOrigin(
+        'https://portal.planmypeak.com.evil.test'
+      )
+    ).toBeNull();
+    expect(
+      planMyPeakEnvironmentForAppOrigin(
+        'https://staging.app.planmypeak.com.evil.test'
+      )
+    ).toBeNull();
+  });
+
+  it('should not accept an origin carrying a path', () => {
+    expect(
+      planMyPeakEnvironmentForAppOrigin('https://portal.planmypeak.com/x')
+    ).toBeNull();
+  });
+
+  it('should map nothing for an unrelated or absent origin', () => {
+    expect(planMyPeakEnvironmentForAppOrigin('https://example.com')).toBeNull();
+    expect(planMyPeakEnvironmentForAppOrigin(null)).toBeNull();
+    expect(planMyPeakEnvironmentForAppOrigin(undefined)).toBeNull();
+  });
+
+  it('should map loopback origins to local only in local-target builds', () => {
+    const expected = IS_LOCAL_PLANMYPEAK_TARGET ? 'local' : null;
+    expect(planMyPeakEnvironmentForAppOrigin('https://localhost:3002')).toBe(
+      expected
+    );
+    expect(planMyPeakEnvironmentForAppOrigin('http://127.0.0.1:4100')).toBe(
+      expected
+    );
+    expect(
+      planMyPeakEnvironmentForAppOrigin('https://localhost.evil.test')
+    ).toBeNull();
   });
 });

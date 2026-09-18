@@ -103,6 +103,33 @@ describe('useOverlayImport', () => {
     expect(planMyPeakAdapter.export).toHaveBeenCalledTimes(1);
   });
 
+  it('should stay passive: no recovery run on any request or export config', async () => {
+    // The overlay shares the export transport and the duplicate preflight with
+    // the popup, but it runs in a page and must never be able to open a
+    // sign-in tab. Do not add a run id here for symmetry with the popup.
+    mockLibrariesResponse([]);
+    const { result } = renderHook(() => useOverlayImport(vi.fn()));
+
+    await act(async () => {
+      await result.current.startImport({
+        selection: selectionWithLibrary(),
+        loadedItems: loaded(),
+      });
+    });
+
+    await waitFor(() => expect(result.current.phase).toBe('result'));
+    const messages = vi
+      .mocked(chrome.runtime.sendMessage)
+      .mock.calls.map((call) => call[0] as Record<string, unknown>);
+    expect(messages.some((m) => m.type === 'BEGIN_PLANMYPEAK_AUTH_RUN')).toBe(
+      false
+    );
+    expect(messages.every((m) => !('authRunId' in m))).toBe(true);
+    for (const call of vi.mocked(planMyPeakAdapter.export).mock.calls) {
+      expect(call[1]).not.toHaveProperty('authRunId');
+    }
+  });
+
   it('should pause on a duplicate instead of uploading', async () => {
     mockLibrariesResponse([existingLibrary('Base Training')]);
     const { result } = renderHook(() => useOverlayImport());

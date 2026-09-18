@@ -10,7 +10,7 @@
 
 import { STORAGE_KEYS } from '@/utils/constants';
 import { parseConnectionSettings } from '@/schemas/storage.schema';
-import { isAuthenticated as isPlanMyPeakAuthenticated } from '@/services/myPeakAuthService';
+import { resolveCredential } from '@/background/api/planMyPeakAuthRecovery';
 import {
   resolveCaptureContext,
   type CaptureContext,
@@ -49,7 +49,9 @@ export async function resolveRequestContext(
     return { ok: false, reason: 'connection_disabled', coachId: null };
   }
 
-  if (!(await isPlanMyPeakAuthenticated())) {
+  // Passive: answered from stored state, never refreshed, never a tab. A page
+  // can reach this, so it must not be able to trigger recovery.
+  if (!(await resolveCredential()).usable) {
     return { ok: false, reason: 'signed_out', coachId: null };
   }
 

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { ExportResult as ExportResultType } from '@/export/adapters/base';
+import { PlanMyPeakSignInPrompt } from './PlanMyPeakSignInPrompt';
 
 interface MultiExportResultProps {
   results: ExportResultType[];
@@ -22,6 +23,8 @@ export function MultiExportResult({
   onClose,
 }: MultiExportResultProps): ReactElement {
   const totalLibraries = results.length;
+  // One prompt for the batch: it stopped at the first auth failure.
+  const authFailure = results.find((result) => result.authFailure)?.authFailure;
   const successCount = results.filter((result) => result.success).length;
   const failureCount = totalLibraries - successCount;
   const totalWorkouts = results.reduce(
@@ -111,6 +114,7 @@ export function MultiExportResult({
         </div>
 
         <div className="px-6 py-4 space-y-4 overflow-y-auto">
+          {authFailure && <PlanMyPeakSignInPrompt authFailure={authFailure} />}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-gray-50 rounded-md p-3">
               <p className="text-xs text-gray-500">Libraries</p>

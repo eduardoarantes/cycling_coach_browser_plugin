@@ -29,59 +29,113 @@ import type {
 } from '@/schemas/planMyPeakApi.schema';
 import type { PlanMyPeakUploadSummary } from '@/background/api/planMyPeak';
 
+/**
+ * Per-call options. `authRunId` lets a request recover a PlanMyPeak
+ * credential; only the popup export sets it. A transport that cannot recover
+ * (the background one used by page-driven imports) ignores it.
+ */
+export interface PlanMyPeakTransportCallOptions {
+  authRunId?: string;
+}
+
 export interface PlanMyPeakTransport {
-  getLibraries(): Promise<ApiResponse<PlanMyPeakLibrary[]>>;
-  createLibrary(name: string): Promise<ApiResponse<PlanMyPeakLibrary>>;
-  deleteLibrary(libraryId: string): Promise<ApiResponse<null>>;
-  getWorkouts(filters: {
-    libraryId?: string;
-    provider?: string;
-  }): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>>;
-  deleteWorkout(workoutId: string): Promise<ApiResponse<null>>;
+  getLibraries(
+    options?: PlanMyPeakTransportCallOptions
+  ): Promise<ApiResponse<PlanMyPeakLibrary[]>>;
+  createLibrary(
+    name: string,
+    options?: PlanMyPeakTransportCallOptions
+  ): Promise<ApiResponse<PlanMyPeakLibrary>>;
+  deleteLibrary(
+    libraryId: string,
+    options?: PlanMyPeakTransportCallOptions
+  ): Promise<ApiResponse<null>>;
+  getWorkouts(
+    filters: {
+      libraryId?: string;
+      provider?: string;
+    },
+    options?: PlanMyPeakTransportCallOptions
+  ): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>>;
+  deleteWorkout(
+    workoutId: string,
+    options?: PlanMyPeakTransportCallOptions
+  ): Promise<ApiResponse<null>>;
   uploadWorkouts(
     workouts: PlanMyPeakWorkout[],
     libraryId: string,
-    capturedKeys?: Record<string, string>
+    capturedKeys?: Record<string, string>,
+    options?: PlanMyPeakTransportCallOptions
   ): Promise<ApiResponse<PlanMyPeakUploadSummary>>;
+}
+
+/**
+ * The run field for a message: present only when there is a run, so a
+ * passive request is byte-for-byte what it was before runs existed.
+ */
+export function authRunField(authRunId: string | null | undefined): {
+  authRunId?: string;
+} {
+  return authRunId ? { authRunId } : {};
 }
 
 /** The popup/overlay transport: every call is a runtime message. */
 export const runtimeMessageTransport: PlanMyPeakTransport = {
-  getLibraries: () =>
+  getLibraries: (options) =>
     chrome.runtime.sendMessage<
       GetPlanMyPeakLibrariesMessage,
       ApiResponse<PlanMyPeakLibrary[]>
-    >({ type: 'GET_PLANMYPEAK_LIBRARIES' }),
+    >({
+      type: 'GET_PLANMYPEAK_LIBRARIES',
+      ...authRunField(options?.authRunId),
+    }),
 
-  createLibrary: (name) =>
+  createLibrary: (name, options) =>
     chrome.runtime.sendMessage<
       CreatePlanMyPeakLibraryMessage,
       ApiResponse<PlanMyPeakLibrary>
-    >({ type: 'CREATE_PLANMYPEAK_LIBRARY', name }),
+    >({
+      type: 'CREATE_PLANMYPEAK_LIBRARY',
+      name,
+      ...authRunField(options?.authRunId),
+    }),
 
-  deleteLibrary: (libraryId) =>
+  deleteLibrary: (libraryId, options) =>
     chrome.runtime.sendMessage<
       DeletePlanMyPeakLibraryMessage,
       ApiResponse<null>
-    >({ type: 'DELETE_PLANMYPEAK_LIBRARY', libraryId }),
+    >({
+      type: 'DELETE_PLANMYPEAK_LIBRARY',
+      libraryId,
+      ...authRunField(options?.authRunId),
+    }),
 
-  getWorkouts: (filters) =>
+  getWorkouts: (filters, options) =>
     chrome.runtime.sendMessage<
       GetPlanMyPeakWorkoutsMessage,
       ApiResponse<PlanMyPeakWorkoutLibraryItem[]>
-    >({ type: 'GET_PLANMYPEAK_WORKOUTS', ...filters }),
+    >({
+      type: 'GET_PLANMYPEAK_WORKOUTS',
+      ...filters,
+      ...authRunField(options?.authRunId),
+    }),
 
-  deleteWorkout: (workoutId) =>
+  deleteWorkout: (workoutId, options) =>
     chrome.runtime.sendMessage<
       DeletePlanMyPeakWorkoutMessage,
       ApiResponse<null>
-    >({ type: 'DELETE_PLANMYPEAK_WORKOUT', workoutId }),
+    >({
+      type: 'DELETE_PLANMYPEAK_WORKOUT',
+      workoutId,
+      ...authRunField(options?.authRunId),
+    }),
 
-  uploadWorkouts: (workouts, libraryId, capturedKeys) => {
+  uploadWorkouts: (workouts, libraryId, capturedKeys, options) => {
     const message: ExportWorkoutsToPlanMyPeakLibraryMessage = {
       type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
       workouts,
       libraryId,
+      ...authRunField(options?.authRunId),
     };
     if (capturedKeys) {
       message.capturedKeys = capturedKeys;

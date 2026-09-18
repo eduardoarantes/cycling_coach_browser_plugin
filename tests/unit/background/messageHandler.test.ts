@@ -512,6 +512,7 @@ describe('messageHandler', () => {
       expect(mockRemove).toHaveBeenCalledWith([
         'mypeak_auth_token',
         'mypeak_token_timestamp',
+        'mypeak_token_environment',
       ]);
     });
   });

@@ -35,6 +35,8 @@ import type { ExportResult as ExportResultType } from '@/export/adapters/base';
 import type { ValidationMessage } from '@/export/adapters/base';
 import type { ExportDestination } from '@/types/export.types';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import type { PlanMyPeakAuthFailure } from '@/utils/planMyPeakAuthErrors';
+import { PLANMYPEAK_AUTH_MESSAGES } from '@/utils/uiStrings';
 import { exportTrainingPlanClassicWorkoutsToPlanMyPeak } from '@/export/adapters/planMyPeak';
 import type {
   IntervalsIcuExportConfig,
@@ -589,10 +591,23 @@ export function TrainingPlanList({
     let completedSteps = 0;
     const warnings: ValidationMessage[] = [];
     const errors: string[] = [];
+    let authFailure: PlanMyPeakAuthFailure | undefined;
 
     for (let i = 0; i < bundles.length; i++) {
       const bundle = bundles[i];
       const planName = bundle.trainingPlan.title;
+
+      // The credential is gone for the rest of the batch; say so once per
+      // plan not reached instead of repeating the auth error for each.
+      if (authFailure) {
+        warnings.push({
+          field: 'trainingPlans',
+          severity: 'warning',
+          message: `${planName}: ${PLANMYPEAK_AUTH_MESSAGES.STOPPED_AFTER_AUTH_FAILURE}`,
+        });
+        continue;
+      }
+
       const context: ActiveBatchTrainingPlanProgressContext = {
         completedStepsBeforePlan: completedSteps,
         batchOverallTotal,
@@ -629,6 +644,8 @@ export function TrainingPlanList({
             );
           },
         });
+
+        authFailure = result.authFailure;
 
         if (result.success) {
           successCount += 1;
@@ -690,6 +707,7 @@ export function TrainingPlanList({
         itemsExported: 0,
         warnings: [],
         errors,
+        ...(authFailure ? { authFailure } : {}),
       });
       return;
     }
@@ -708,6 +726,7 @@ export function TrainingPlanList({
       format: 'api',
       itemsExported: exportedWorkoutCount,
       warnings,
+      ...(authFailure ? { authFailure } : {}),
     });
   };
 

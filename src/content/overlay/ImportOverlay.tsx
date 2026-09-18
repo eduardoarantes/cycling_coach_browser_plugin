@@ -30,7 +30,7 @@ import {
   type OverlaySelection,
 } from './selection';
 import { useOverlayImport } from './useOverlayImport';
-import { ConnectionGate } from './components/ConnectionGate';
+import { ConnectionGate } from '@/components/ConnectionGate';
 import { LibraryBrowser } from './components/LibraryBrowser';
 import { PlanBrowser } from './components/PlanBrowser';
 import { GroupBrowser } from './components/GroupBrowser';

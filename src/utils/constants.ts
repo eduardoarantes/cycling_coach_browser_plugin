@@ -359,6 +359,47 @@ export function isPlanMyPeakControlOrigin(
 }
 
 /**
+ * The Supabase project host the production portal authenticates against. A
+ * request observed there carries a production credential.
+ */
+const PLANMYPEAK_PRODUCTION_SUPABASE_ORIGIN =
+  'https://nwvtltfibnkdogdeeluh.supabase.co';
+
+/**
+ * Which PlanMyPeak environment an observed credential belongs to, from the
+ * origin it was observed on, or null when the origin maps to none.
+ *
+ * Exact match for the portal and staging, so a lookalike such as
+ * `https://portal.planmypeak.com.evil.test` maps to nothing. In local-target
+ * builds any loopback port maps to `local`, mirroring
+ * {@link isLocalPlanMyPeakControlOrigin}.
+ */
+export function planMyPeakEnvironmentForAppOrigin(
+  origin: string | null | undefined
+): PlanMyPeakEnvironment | null {
+  if (!origin) {
+    return null;
+  }
+
+  if (
+    origin === PLANMYPEAK_PRODUCTION_ORIGIN ||
+    origin === PLANMYPEAK_PRODUCTION_SUPABASE_ORIGIN
+  ) {
+    return 'production';
+  }
+
+  if (origin === PLANMYPEAK_STAGING_ORIGIN) {
+    return 'staging';
+  }
+
+  if (isLocalPlanMyPeakControlOrigin(origin)) {
+    return 'local';
+  }
+
+  return null;
+}
+
+/**
  * Resolve a URL to its origin, returning null for values that are not valid
  * absolute URLs. Used to derive an origin from `sender.tab.url`.
  */
@@ -383,7 +424,7 @@ export function originFromUrl(url: string | null | undefined): string | null {
  */
 export const PLANMYPEAK_AUTH_BASE_URL = IS_LOCAL_PLANMYPEAK_TARGET
   ? `http://localhost:${DEFAULT_PLANMYPEAK_SUPABASE_PORT}`
-  : 'https://nwvtltfibnkdogdeeluh.supabase.co';
+  : PLANMYPEAK_PRODUCTION_SUPABASE_ORIGIN;
 
 /**
  * PlanMyPeak Supabase anon (publishable) key, used as the `apikey` header when
@@ -443,6 +484,12 @@ export const STORAGE_KEYS = {
   TRAININGPEAKS_API_LOGS: 'trainingpeaks_api_logs',
   MYPEAK_AUTH_TOKEN: 'mypeak_auth_token',
   MYPEAK_TOKEN_TIMESTAMP: 'mypeak_token_timestamp',
+  /**
+   * PlanMyPeak environment the stored credential was observed on, or
+   * `unknown` when its origin mapped to none. Absent for credentials stored
+   * before environments were recorded; those stay usable.
+   */
+  MYPEAK_TOKEN_ENVIRONMENT: 'mypeak_token_environment',
   MYPEAK_SUPABASE_API_KEY: 'mypeak_supabase_api_key',
   INTERVALS_API_KEY: 'intervals_api_key',
   CONNECTION_ENABLE_PLANMYPEAK: 'connection_enable_planmypeak',

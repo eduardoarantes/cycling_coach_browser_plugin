@@ -6,6 +6,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import type { ExportResult as ExportResultType } from '@/export/adapters/base';
+import { PlanMyPeakSignInPrompt } from './PlanMyPeakSignInPrompt';
 
 interface ExportResultProps {
   /** Export result data */
@@ -92,6 +93,9 @@ export function ExportResult({
 
         {/* Body */}
         <div className="px-6 py-4 space-y-3">
+          {result.authFailure && (
+            <PlanMyPeakSignInPrompt authFailure={result.authFailure} />
+          )}
           {result.success ? (
             <>
               {/* File info */}

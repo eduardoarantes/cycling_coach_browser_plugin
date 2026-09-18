@@ -15,6 +15,8 @@ import type { TrainingPlanExportProgressDialogState } from '@/types/export.types
 import { planMyPeakAdapter } from '@/export/adapters/planMyPeak';
 import { intervalsIcuAdapter } from '@/export/adapters/intervalsicu';
 import { logger } from '@/utils/logger';
+import { PLANMYPEAK_AUTH_MESSAGES } from '@/utils/uiStrings';
+import type { PlanMyPeakAuthFailure } from '@/utils/planMyPeakAuthErrors';
 import {
   logApiResponseError,
   logErrorWithAuthDowngrade,
@@ -189,6 +191,25 @@ async function fetchLibraryItems(libraryId: number): Promise<LibraryItem[]> {
       response.error.message || `Failed to fetch library ${libraryId}`
     );
   }
+}
+
+/**
+ * Results for the libraries a batch did not reach because PlanMyPeak refused
+ * the credential: one shared reason, not the same auth error per library.
+ */
+export function stoppedAfterAuthFailure(
+  remaining: ReadonlyArray<Pick<Library, 'libraryName'>>,
+  authFailure: PlanMyPeakAuthFailure
+): ExportResultType[] {
+  return remaining.map((library) => ({
+    success: false,
+    fileName: library.libraryName,
+    format: 'api',
+    itemsExported: 0,
+    warnings: [],
+    errors: [PLANMYPEAK_AUTH_MESSAGES.STOPPED_AFTER_AUTH_FAILURE],
+    authFailure,
+  }));
 }
 
 /**
@@ -517,6 +538,22 @@ export function useMultiLibraryExport(): UseMultiLibraryExportReturn {
                 libraryConfig
               );
               results.push(result);
+
+              // The credential is gone for the rest of the batch. Stop here
+              // rather than let each remaining library repeat the same auth
+              // error; what already landed stays in the results.
+              if (result.authFailure) {
+                results.push(
+                  ...stoppedAfterAuthFailure(
+                    libraryIds
+                      .slice(i + 1)
+                      .map((id) => libraryMap.get(id))
+                      .filter((lib): lib is Library => lib !== undefined),
+                    result.authFailure
+                  )
+                );
+                break;
+              }
               setDetailedProgress((prev) =>
                 updateDetailedProgress(prev, {
                   overallCurrent: i * 4 + 4,

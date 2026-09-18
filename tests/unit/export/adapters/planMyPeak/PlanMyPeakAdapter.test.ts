@@ -63,6 +63,7 @@ function createUploadSummary(
       providerWorkoutId: string;
       name: string;
       message: string;
+      code?: string;
     }>;
   } = {}
 ) {
@@ -1091,5 +1092,268 @@ describe('PlanMyPeakAdapter per-item results', () => {
     expect(result.success).toBe(true);
     expect(exportMessages[0].libraryId).toBe('lib-b');
     expect(result.fileName).toBe('Renamed');
+  });
+});
+
+describe('PlanMyPeakAdapter auth failures', () => {
+  const workout = (id: string): PlanMyPeakWorkout =>
+    ({
+      id: `tp-${id}`,
+      name: `Workout ${id}`,
+      detailed_description: null,
+      sport_type: 'cycling',
+      discipline: 'bike',
+      type: 'endurance',
+      intensity: 'easy',
+      suitable_phases: [],
+      suitable_weekdays: null,
+      structure: {
+        primaryIntensityMetric: 'percentOfFtp',
+        primaryLengthMetric: 'duration',
+        structure: [],
+      },
+      base_duration_min: 60,
+      base_tss: 50,
+      variable_components: null,
+      source_file: `workout_${id}.json`,
+      source_format: 'json',
+      signature: id,
+      provider_workout_id: id,
+      provider_item_type: 'WorkoutTemplate',
+    }) as PlanMyPeakWorkout;
+
+  let messages: Array<Record<string, unknown>>;
+
+  beforeEach(() => {
+    messages = [];
+  });
+
+  it('should record the auth failure while reporting the five workouts that landed', async () => {
+    const landed = ['1', '2', '3', '4', '5'].map((id) =>
+      createUploadedWorkout({
+        id: `pmp-${id}`,
+        name: `Workout ${id}`,
+        providerWorkoutId: id,
+        library: { id: 'lib-default', name: 'TrainingPeaks Library' },
+      })
+    );
+    const failures = ['6', '7', '8'].map((id) => ({
+      providerWorkoutId: id,
+      name: `Workout ${id}`,
+      message: 'PlanMyPeak sign-in required.',
+      code: 'UNAUTHORIZED',
+    }));
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+      async (message: unknown) => {
+        const typed = message as { type: string };
+        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+          return { success: true, data: [createLibrary()] };
+        }
+        if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+          return {
+            success: true,
+            data: createUploadSummary(landed, { failures }),
+          };
+        }
+        return { success: false, error: { message: 'unhandled' } };
+      }
+    );
+
+    const result = await new PlanMyPeakAdapter().export(
+      ['1', '2', '3', '4', '5', '6', '7', '8'].map(workout),
+      { createFolder: true, targetLibraryName: 'TrainingPeaks Library' }
+    );
+
+    expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+    expect(result.itemsExported).toBe(5);
+    expect(result.itemResults?.filter((item) => item.success)).toHaveLength(5);
+    expect(result.warnings.some((w) => w.field === 'upload')).toBe(true);
+  });
+
+  it('should record a structured auth failure when library lookup fails before any upload', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({
+      success: false,
+      error: { message: 'PlanMyPeak sign-in required.', code: 'NO_TOKEN' },
+    });
+
+    const result = await new PlanMyPeakAdapter().export([workout('1')], {
+      createFolder: true,
+      targetLibraryName: 'Base',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+    expect(result.itemResults).toBeUndefined();
+  });
+
+  it('should record a structured auth failure when library creation fails', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+      async (message: unknown) => {
+        const typed = message as { type: string };
+        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+          return { success: true, data: [] };
+        }
+        return {
+          success: false,
+          error: { message: 'Wrong environment', code: 'ENVIRONMENT_MISMATCH' },
+        };
+      }
+    );
+
+    const result = await new PlanMyPeakAdapter().export([workout('1')], {
+      createFolder: true,
+      targetLibraryName: 'Base',
+    });
+
+    expect(result.authFailure).toEqual({ reason: 'environment_mismatch' });
+  });
+
+  it('should keep a Replace reconciliation auth failure alongside the uploaded count', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+      async (message: unknown) => {
+        const typed = message as { type: string };
+        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+          return { success: true, data: [createLibrary({ name: 'Base' })] };
+        }
+        if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+          return {
+            success: true,
+            data: createUploadSummary([
+              createUploadedWorkout({ providerWorkoutId: '1' }),
+            ]),
+          };
+        }
+        if (typed.type === 'GET_PLANMYPEAK_WORKOUTS') {
+          return {
+            success: false,
+            error: {
+              message: 'PlanMyPeak sign-in required.',
+              code: 'NO_TOKEN',
+            },
+          };
+        }
+        return { success: false, error: { message: 'unhandled' } };
+      }
+    );
+
+    const result = await new PlanMyPeakAdapter().export([workout('1')], {
+      createFolder: true,
+      targetLibraryName: 'Base',
+      existingLibraryAction: 'replace',
+    });
+
+    expect(result.itemsExported).toBe(1);
+    expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+  });
+
+  it('should keep an auth failure from deleting a stale workout during Replace', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+      async (message: unknown) => {
+        const typed = message as { type: string };
+        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+          return { success: true, data: [createLibrary({ name: 'Base' })] };
+        }
+        if (typed.type === 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY') {
+          return {
+            success: true,
+            data: createUploadSummary([
+              createUploadedWorkout({ providerWorkoutId: '1' }),
+            ]),
+          };
+        }
+        if (typed.type === 'GET_PLANMYPEAK_WORKOUTS') {
+          return {
+            success: true,
+            data: [{ id: 'stale-1', name: 'Old', providerWorkoutId: '99' }],
+          };
+        }
+        if (typed.type === 'DELETE_PLANMYPEAK_WORKOUT') {
+          return {
+            success: false,
+            error: { message: 'Rejected', code: 'UNAUTHORIZED', status: 401 },
+          };
+        }
+        return { success: false, error: { message: 'unhandled' } };
+      }
+    );
+
+    const result = await new PlanMyPeakAdapter().export([workout('1')], {
+      createFolder: true,
+      targetLibraryName: 'Base',
+      existingLibraryAction: 'replace',
+    });
+
+    expect(result.itemsExported).toBe(1);
+    expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+  });
+
+  it('should not set an auth failure for a genuine API error', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({
+      success: false,
+      error: { message: 'Internal Server Error', status: 500 },
+    });
+
+    const result = await new PlanMyPeakAdapter().export([workout('1')], {
+      createFolder: true,
+      targetLibraryName: 'Base',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.authFailure).toBeUndefined();
+  });
+
+  it('should carry the run id on every request of the export', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+      async (message: unknown) => {
+        const typed = message as { type: string; [key: string]: unknown };
+        messages.push(typed);
+        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+          return { success: true, data: [] };
+        }
+        if (typed.type === 'CREATE_PLANMYPEAK_LIBRARY') {
+          return { success: true, data: createLibrary({ name: 'Base' }) };
+        }
+        return {
+          success: true,
+          data: createUploadSummary([createUploadedWorkout()]),
+        };
+      }
+    );
+
+    await new PlanMyPeakAdapter().export([workout('1')], {
+      createFolder: true,
+      targetLibraryName: 'Base',
+      authRunId: 'run-1',
+    });
+
+    expect(messages.map((m) => m.type)).toEqual([
+      'GET_PLANMYPEAK_LIBRARIES',
+      'CREATE_PLANMYPEAK_LIBRARY',
+      'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
+    ]);
+    expect(messages.every((m) => m.authRunId === 'run-1')).toBe(true);
+  });
+
+  it('should send no run id when the export has none, as the overlay does', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(
+      async (message: unknown) => {
+        const typed = message as { type: string; [key: string]: unknown };
+        messages.push(typed);
+        if (typed.type === 'GET_PLANMYPEAK_LIBRARIES') {
+          return { success: true, data: [createLibrary()] };
+        }
+        return {
+          success: true,
+          data: createUploadSummary([createUploadedWorkout()]),
+        };
+      }
+    );
+
+    await new PlanMyPeakAdapter().export([workout('1')], {
+      createFolder: false,
+    });
+
+    expect(messages.length).toBeGreaterThan(0);
+    expect(messages.every((m) => !('authRunId' in m))).toBe(true);
   });
 });

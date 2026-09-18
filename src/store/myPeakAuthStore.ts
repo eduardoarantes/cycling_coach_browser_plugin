@@ -57,7 +57,9 @@ export const useMyPeakAuthStore = create<MyPeakAuthState>((set, get) => ({
       const isExpired = await myPeakAuthService.isTokenExpired();
 
       if (isExpired) {
-        await myPeakAuthService.clearAuth();
+        // The background owns the credential: it removes it only if it is
+        // still the stale one, so a replacement captured meanwhile survives.
+        await myPeakAuthService.discardStaleToken();
         set({
           isAuthenticated: false,
           token: null,
