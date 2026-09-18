@@ -323,7 +323,7 @@ describe('importRunner', () => {
       });
       expect(result.errors.map((error) => error.message)).toEqual([
         'This workout is no longer in the extension.',
-        'This workout is no longer pending in the extension (dismissed).',
+        'This workout was dismissed in the extension.',
       ]);
       expect(api.exportWorkoutsToPlanMyPeakLibrary).not.toHaveBeenCalled();
     });
@@ -347,6 +347,67 @@ describe('importRunner', () => {
       expect(api.exportWorkoutsToPlanMyPeakLibrary).not.toHaveBeenCalled();
     });
 
+    it('should not acknowledge a positive answer scanned under a changed session', async () => {
+      await seedRecords([capturedRecord(1)]);
+      // Another coach's library has the same identity; the lookups ran there.
+      api.fetchPlanMyPeakWorkoutByProviderId.mockResolvedValue({
+        success: true,
+        data: remoteWorkout('cal:1'),
+      });
+      verifyOperationContext.mockResolvedValue({
+        ok: false,
+        reason: 'account_changed',
+      });
+      const shared = reconciler();
+
+      const result = await runCapturedImport(operation(['production:1:1']), {
+        reconciler: shared,
+      });
+
+      expect(result).toMatchObject({
+        state: 'blocked',
+        blockedReason: 'account_changed',
+        alreadyPresentCount: 0,
+        processedCount: 0,
+      });
+      const record = await storedRecord('production:1:1');
+      expect(record?.status).toBe('pending');
+      expect(record?.acknowledgements).toBeUndefined();
+
+      // Nothing scanned under the wrong session survives for the retry.
+      verifyOperationContext.mockResolvedValue({ ok: true });
+      api.fetchPlanMyPeakWorkoutByProviderId.mockResolvedValue({
+        success: true,
+        data: null,
+      });
+      const retry = await runCapturedImport(operation(['production:1:1']), {
+        reconciler: shared,
+      });
+      expect(retry).toMatchObject({ state: 'completed', importedCount: 1 });
+    });
+
+    it('should import a record sent to another destination but not acknowledged here', async () => {
+      await seedRecords([
+        capturedRecord(1, {
+          status: 'sent',
+          acknowledgements: {
+            'https://staging.app.planmypeak.com::coach-1': {
+              coachId: COACH_ID,
+              destination: 'https://staging.app.planmypeak.com',
+              reason: 'imported',
+              at: 1,
+            },
+          },
+        }),
+      ]);
+
+      const result = await runCapturedImport(operation(['production:1:1']), {
+        reconciler: reconciler(),
+      });
+
+      expect(result).toMatchObject({ state: 'completed', importedCount: 1 });
+    });
+
     it('should stop mid-batch when the account changes, keeping what already landed', async () => {
       await seedRecords([
         capturedRecord(1),
@@ -354,7 +415,8 @@ describe('importRunner', () => {
         capturedRecord(3),
       ]);
       verifyOperationContext
-        .mockResolvedValueOnce({ ok: true }) // after reconciling
+        .mockResolvedValueOnce({ ok: true }) // after the scan, before acknowledging
+        .mockResolvedValueOnce({ ok: true }) // before uploading
         .mockResolvedValueOnce({ ok: true }) // before the first POST
         .mockResolvedValue({ ok: false, reason: 'account_changed' });
 

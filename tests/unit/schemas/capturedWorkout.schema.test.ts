@@ -282,12 +282,34 @@ describe('capturedWorkout.schema', () => {
       ).toBeUndefined();
     });
 
-    it('should treat only pending, owned, unacknowledged records as import candidates', () => {
+    it('should treat owned, undismissed records not acknowledged here as import candidates', () => {
       expect(isImportCandidateFor(record({ owner }), owner)).toBe(true);
       expect(isImportCandidateFor(record(), owner)).toBe(false);
+      // Sent somewhere, but not acknowledged for this destination: still a
+      // candidate, to be checked against the destination rather than assumed.
       expect(
         isImportCandidateFor(record({ owner, status: 'sent' }), owner)
-      ).toBe(false);
+      ).toBe(true);
+      expect(
+        isImportCandidateFor(
+          record({
+            owner,
+            status: 'sent',
+            acknowledgements: {
+              [acknowledgementKey({
+                ...owner,
+                destination: 'https://staging.app.planmypeak.com',
+              })]: {
+                ...owner,
+                destination: 'https://staging.app.planmypeak.com',
+                reason: 'imported',
+                at: 1,
+              },
+            },
+          }),
+          owner
+        )
+      ).toBe(true);
       expect(
         isImportCandidateFor(record({ owner, status: 'dismissed' }), owner)
       ).toBe(false);

@@ -82,6 +82,7 @@ describe('messageHandler captured workouts', () => {
 
   beforeEach(async () => {
     await chrome.storage.local.clear();
+    identityService.resetPlanMyPeakIdentityCache();
     vi.clearAllMocks();
     refreshBadge = vi
       .spyOn(badgeService, 'refreshBadge')
@@ -396,6 +397,40 @@ describe('messageHandler captured workouts', () => {
         error: { code: 'NO_TOKEN' },
       });
       expect((await list()).unlinkedCount).toBe(2);
+    });
+  });
+
+  describe('GET_PLANMYPEAK_COACH identity priming', () => {
+    beforeEach(async () => {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.MYPEAK_AUTH_TOKEN]: 'token-a',
+      });
+    });
+
+    it('should prime the identity cache for the token the lookup ran under', async () => {
+      vi.spyOn(planMyPeakApi, 'fetchPlanMyPeakCoach').mockResolvedValue({
+        success: true,
+        data: { id: 'coach-a' } as never,
+      });
+
+      await handleMessage({ type: 'GET_PLANMYPEAK_COACH' }, popupSender);
+
+      expect(await identityService.peekPlanMyPeakCoachId()).toBe('coach-a');
+    });
+
+    it('should not bind coach A to token B when the session changes mid-request', async () => {
+      vi.spyOn(planMyPeakApi, 'fetchPlanMyPeakCoach').mockImplementation(
+        async () => {
+          await chrome.storage.local.set({
+            [STORAGE_KEYS.MYPEAK_AUTH_TOKEN]: 'token-b',
+          });
+          return { success: true, data: { id: 'coach-a' } as never };
+        }
+      );
+
+      await handleMessage({ type: 'GET_PLANMYPEAK_COACH' }, popupSender);
+
+      expect(await identityService.peekPlanMyPeakCoachId()).toBeNull();
     });
   });
 

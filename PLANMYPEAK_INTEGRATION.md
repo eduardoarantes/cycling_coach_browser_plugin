@@ -464,11 +464,14 @@ PlanMyPeak session and the page's verified origin.
 | `activeOperation` / `latestOperation` | `{ operationId, state }` or `null`, so a second tab can attach to a running import and a reloaded page can show the last result.                        |
 | `blockedReason`                       | Present when `blocked`; see below.                                                                                                                      |
 
-A capture is **missing** when it is pending, belongs to this coach on this
-PlanMyPeak site, and its exact provider identity (`cal:{workoutId}`, or
-`cal-sandbox:{workoutId}` for the TrainingPeaks sandbox) is in none of the
-coach's libraries. Title matches never count. A capture found already present
-is acknowledged by the extension and leaves the count for good.
+A capture is **missing** when it belongs to this coach on this PlanMyPeak
+site, was not dismissed, has not been acknowledged for this site, and its
+exact provider identity (`cal:{workoutId}`, or `cal-sandbox:{workoutId}` for
+the TrainingPeaks sandbox) is in none of the coach's libraries. Title matches
+never count, and neither does a send to another PlanMyPeak site: a capture
+imported into staging is still missing from production until it is found or
+imported there. A capture found already present is acknowledged by the
+extension and leaves the count for good.
 
 `checking` means the scan did not finish inside the extension's 2.5 s budget.
 It continues in the background; poll again and the next answer comes from its

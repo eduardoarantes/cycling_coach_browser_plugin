@@ -5,6 +5,7 @@ import {
   peekCaptureContext,
   peekPlanMyPeakCoachId,
   primePlanMyPeakIdentity,
+  primePlanMyPeakIdentityIfCurrent,
   resetPlanMyPeakIdentityCache,
   resolveCaptureContext,
   resolvePlanMyPeakCoachId,
@@ -76,6 +77,21 @@ describe('planMyPeakIdentityService', () => {
       expect(await resolvePlanMyPeakCoachId()).toBe('coach-1');
     });
 
+    it('should discard a profile fetched before the session changed, and cache nothing', async () => {
+      await signIn('token-a');
+      fetchCoach.mockImplementationOnce(async () => {
+        // Coach B signs in while A's profile request is in flight.
+        await signIn('token-b');
+        return coach('coach-a');
+      });
+
+      expect(await resolvePlanMyPeakCoachId()).toBeNull();
+      expect(await peekPlanMyPeakCoachId()).toBeNull();
+
+      fetchCoach.mockResolvedValueOnce(coach('coach-b'));
+      expect(await resolvePlanMyPeakCoachId()).toBe('coach-b');
+    });
+
     it('should be unknown when the lookup throws', async () => {
       await signIn('token-a');
       fetchCoach.mockRejectedValue(new Error('aborted'));
@@ -119,6 +135,35 @@ describe('planMyPeakIdentityService', () => {
     it('should be unknown after sign-out even when primed', async () => {
       primePlanMyPeakIdentity('token-a', 'coach-1');
 
+      expect(await peekPlanMyPeakCoachId()).toBeNull();
+    });
+  });
+
+  describe('primePlanMyPeakIdentityIfCurrent', () => {
+    it('should prime when the session is still the one the fetch ran under', async () => {
+      await signIn('token-a');
+
+      expect(await primePlanMyPeakIdentityIfCurrent('token-a', 'coach-a')).toBe(
+        true
+      );
+      expect(await peekPlanMyPeakCoachId()).toBe('coach-a');
+    });
+
+    it('should refuse to bind a profile to a token it was not fetched with', async () => {
+      await signIn('token-b');
+
+      expect(await primePlanMyPeakIdentityIfCurrent('token-a', 'coach-a')).toBe(
+        false
+      );
+      expect(await peekPlanMyPeakCoachId()).toBeNull();
+    });
+
+    it('should prime nothing without a token at request time', async () => {
+      await signIn('token-a');
+
+      expect(await primePlanMyPeakIdentityIfCurrent(null, 'coach-a')).toBe(
+        false
+      );
       expect(await peekPlanMyPeakCoachId()).toBeNull();
     });
   });

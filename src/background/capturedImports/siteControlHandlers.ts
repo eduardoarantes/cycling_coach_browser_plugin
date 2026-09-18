@@ -189,6 +189,23 @@ export async function handleCapturedWorkoutSummary(
     });
   }
 
+  // The lookups ran under whatever session the extension holds *now*. Before
+  // their answers are written against `context`, confirm the session is still
+  // that one; otherwise a workout found in another coach's library, or on
+  // another destination, would be acknowledged as present here.
+  const recheck = await resolveRequestContext(origin);
+  if (
+    !recheck.ok ||
+    recheck.context.coachId !== context.coachId ||
+    recheck.context.destination !== context.destination
+  ) {
+    capturedReconciler.invalidate(context.contextId);
+    return createSuccessResponse(
+      requestId,
+      blockedSummary('account_changed', null, revision, unlinkedCount)
+    );
+  }
+
   let missingCount = 0;
   for (const record of candidates) {
     const answer = outcome.answers.get(record.key);

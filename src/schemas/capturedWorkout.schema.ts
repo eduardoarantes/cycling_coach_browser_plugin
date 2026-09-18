@@ -185,19 +185,23 @@ export function acknowledgementFor(
 }
 
 /**
- * Whether a record is a candidate for import into this destination: pending,
- * trusted to belong to this coach here, and not already accounted for here.
+ * Whether a record is a candidate for import into this destination: trusted
+ * to belong to this coach here, not dismissed, and not already accounted for
+ * *here*.
  *
- * `status` is global — a capture sent anywhere is `sent` — and is honoured as
- * the older, coarser signal. The per-destination acknowledgement is the
- * precise one.
+ * `status` is global — a capture sent anywhere is `sent` — so it cannot say
+ * whether this destination has the workout: one sent to staging is still
+ * missing from production. Only the per-destination acknowledgement says
+ * that, and a `sent` record with none for this destination is checked against
+ * it (and acknowledged as already present if found) rather than assumed.
+ * Dismissal is the coach's explicit choice and is honoured everywhere.
  */
 export function isImportCandidateFor(
   record: CapturedWorkoutRecord,
   owner: CapturedWorkoutOwner
 ): boolean {
   return (
-    record.status === 'pending' &&
+    record.status !== 'dismissed' &&
     isOwnedBy(record, owner) &&
     acknowledgementFor(record, owner) === undefined
   );

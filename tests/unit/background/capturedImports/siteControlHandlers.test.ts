@@ -209,10 +209,19 @@ describe('captured-import site-control handlers', () => {
       expect(api.fetchPlanMyPeakWorkoutByProviderId).not.toHaveBeenCalled();
     });
 
-    it('should count only pending captures owned by this coach on this destination', async () => {
+    it('should count only undismissed captures owned by this coach and unacknowledged here', async () => {
       await seedRecords([
         capturedRecord(1),
-        capturedRecord(2, { status: 'sent' }),
+        capturedRecord(2, {
+          status: 'sent',
+          acknowledgements: {
+            [`${DESTINATION}::${COACH_ID}`]: {
+              ...OWNER,
+              reason: 'imported',
+              at: 1,
+            },
+          },
+        }),
         capturedRecord(3, { status: 'dismissed' }),
         capturedRecord(4, { owner: { ...OWNER, coachId: 'coach-2' } }),
         capturedRecord(5, {
@@ -281,6 +290,54 @@ describe('captured-import site-control handlers', () => {
       );
       expect(second.missingCount).toBe(1);
       expect(second.revision).toBeGreaterThan(first.revision - 1);
+    });
+
+    it('should answer blocked and acknowledge nothing when the session changed during the scan', async () => {
+      await seedRecords([capturedRecord(1)]);
+      api.fetchPlanMyPeakWorkoutByProviderId.mockImplementation(async () => {
+        // Coach 2 signs in while the lookup is in flight; it answers from
+        // coach 2's library.
+        resolveRequestContext.mockResolvedValue({
+          ok: true,
+          context: { ...context, coachId: 'coach-2', contextId: 'ctx-b' },
+        });
+        return { success: true, data: remoteWorkout('cal:1') };
+      });
+
+      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+        await handleCapturedWorkoutSummary('r1', DESTINATION)
+      );
+
+      expect(summary).toMatchObject({
+        state: 'blocked',
+        blockedReason: 'account_changed',
+        missingCount: null,
+      });
+      const record = await storedRecord('production:1:1');
+      expect(record?.status).toBe('pending');
+      expect(record?.acknowledgements).toBeUndefined();
+    });
+
+    it('should count a capture sent to another destination as missing here', async () => {
+      await seedRecords([
+        capturedRecord(1, {
+          status: 'sent',
+          acknowledgements: {
+            'https://staging.app.planmypeak.com::coach-1': {
+              coachId: COACH_ID,
+              destination: 'https://staging.app.planmypeak.com',
+              reason: 'imported',
+              at: 1,
+            },
+          },
+        }),
+      ]);
+
+      const summary = data<SiteControlCapturedWorkoutSummaryResult>(
+        await handleCapturedWorkoutSummary('r1', DESTINATION)
+      );
+
+      expect(summary).toMatchObject({ state: 'ready', missingCount: 1 });
     });
 
     it('should report the revision after its own acknowledgement writes', async () => {

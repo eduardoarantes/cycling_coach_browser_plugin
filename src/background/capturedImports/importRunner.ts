@@ -36,6 +36,7 @@ import {
 } from '@/services/capturedWorkoutService';
 import {
   acknowledgementFor,
+  isImportCandidateFor,
   type CapturedWorkoutRecord,
 } from '@/schemas/capturedWorkout.schema';
 import {
@@ -237,10 +238,13 @@ export async function runCapturedImport(
         countOutcome(key, 'already_present');
         continue;
       }
-      if (record.status !== 'pending') {
+      if (!isImportCandidateFor(record, owner)) {
         countOutcome(key, 'failed', {
           title: record.workout.title,
-          message: `This workout is no longer pending in the extension (${record.status}).`,
+          message:
+            record.status === 'dismissed'
+              ? 'This workout was dismissed in the extension.'
+              : 'This workout is no longer importable from the extension.',
         });
         continue;
       }
@@ -255,6 +259,19 @@ export async function runCapturedImport(
       operation.contextId,
       records.map(toReconcileCandidate)
     );
+
+    // The lookups ran under whatever session the extension holds *now*. Before
+    // any answer is written against this operation's account, confirm that is
+    // still the session: a positive answer from another coach's library, or
+    // another destination, must not mark a capture present here.
+    const contextAfterScan = await verifyOperationContext(operation);
+    if (!contextAfterScan.ok) {
+      reconciler.invalidate(operation.contextId);
+      operation.state = 'blocked';
+      operation.blockedReason = contextAfterScan.reason;
+      await persist();
+      return operation;
+    }
 
     const missing: CapturedWorkoutRecord[] = [];
     for (const record of records) {

@@ -61,7 +61,7 @@ import {
   updateCapturedWorkout,
 } from '@/services/capturedWorkoutService';
 import {
-  primePlanMyPeakIdentity,
+  primePlanMyPeakIdentityIfCurrent,
   resolveCaptureContext,
   resolvePlanMyPeakCoachId,
 } from '@/services/planMyPeakIdentityService';
@@ -546,12 +546,14 @@ async function handleGetPlanMyPeakCoach(): Promise<
   ApiResponse<PlanMyPeakCoach>
 > {
   logger.debug('Handling GET_PLANMYPEAK_COACH message');
+  // Read before the request: the identity cache is bound to the credential
+  // the lookup actually ran under, not to whatever is stored once it returns.
+  const tokenAtRequest = await getPlanMyPeakAuthToken();
   const coach = await fetchPlanMyPeakCoach();
   if (coach.success) {
     // The popup asks for the coach before it sends anything, so a later
     // upload can acknowledge captures for this account without a lookup.
-    const token = await getPlanMyPeakAuthToken();
-    if (token) primePlanMyPeakIdentity(token, coach.data.id);
+    await primePlanMyPeakIdentityIfCurrent(tokenAtRequest, coach.data.id);
   }
   return coach;
 }

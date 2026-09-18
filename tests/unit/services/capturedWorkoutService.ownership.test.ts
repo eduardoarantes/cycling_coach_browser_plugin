@@ -153,7 +153,7 @@ describe('capturedWorkoutService ownership', () => {
   });
 
   describe('listImportCandidates', () => {
-    it('should list pending, owned, unacknowledged records for that owner only, newest first', async () => {
+    it('should list undismissed, owned records not acknowledged for that owner, newest first', async () => {
       await seedRecords([
         capturedRecord(1),
         capturedRecord(2),
@@ -184,7 +184,11 @@ describe('capturedWorkoutService ownership', () => {
 
       const candidates = await listImportCandidates(OWNER);
 
-      expect(candidates.map((record) => record.workoutId)).toEqual([9, 2, 1]);
+      // 3 was sent somewhere with no acknowledgement here, so it is checked
+      // rather than assumed present; 9 was acknowledged on staging only.
+      expect(candidates.map((record) => record.workoutId)).toEqual([
+        9, 3, 2, 1,
+      ]);
     });
   });
 

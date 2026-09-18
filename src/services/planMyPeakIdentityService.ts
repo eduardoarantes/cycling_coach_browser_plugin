@@ -55,6 +55,22 @@ export function primePlanMyPeakIdentity(token: string, coachId: string): void {
 }
 
 /**
+ * Prime the cache from a coach profile another code path fetched, but only
+ * when the session is still the one the fetch started under. Read the token
+ * *before* the request and pass it here; a profile fetched as coach A must
+ * never be cached against a token that now belongs to coach B.
+ */
+export async function primePlanMyPeakIdentityIfCurrent(
+  tokenAtRequest: string | null,
+  coachId: string
+): Promise<boolean> {
+  if (!tokenAtRequest) return false;
+  if ((await getPlanMyPeakAuthToken()) !== tokenAtRequest) return false;
+  cachedCoachId = { token: tokenAtRequest, coachId };
+  return true;
+}
+
+/**
  * The coach id for the current token, from cache only. `null` when nothing
  * has resolved it in this worker's lifetime — unknown, not "no coach".
  */
@@ -90,6 +106,13 @@ export async function resolvePlanMyPeakCoachId(
     });
 
     if (!coach.success) {
+      return null;
+    }
+
+    // The request read its credential from storage on its own; if the session
+    // changed while it was in flight, this profile may belong to the previous
+    // coach and must not be attributed to the token stored now.
+    if ((await getPlanMyPeakAuthToken()) !== token) {
       return null;
     }
 
