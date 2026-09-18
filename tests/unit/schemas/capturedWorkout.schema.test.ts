@@ -282,9 +282,9 @@ describe('capturedWorkout.schema', () => {
       ).toBeUndefined();
     });
 
-    it('should treat owned, undismissed records not acknowledged here as import candidates', () => {
+    it('should treat all undismissed records not acknowledged here as import candidates', () => {
       expect(isImportCandidateFor(record({ owner }), owner)).toBe(true);
-      expect(isImportCandidateFor(record(), owner)).toBe(false);
+      expect(isImportCandidateFor(record(), owner)).toBe(true);
       // Sent somewhere, but not acknowledged for this destination: still a
       // candidate, to be checked against the destination rather than assumed.
       expect(

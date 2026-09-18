@@ -4,6 +4,7 @@
  * Handles messages from content scripts and popup
  */
 
+import { refreshCaptureCoachIfDue } from '@/services/captureCoachRefreshService';
 import type {
   RuntimeMessage,
   TrainingPlanExportProgressMessage,
@@ -281,6 +282,7 @@ async function handleMyPeakAuthFound(
       logger.debug('No MyPeak auth fields to store (message ignored)');
     } else if (outcome === 'stored') {
       logger.info('✅ MyPeak auth details stored successfully');
+      await refreshCaptureCoachIfDue();
     }
   } catch (error) {
     logger.error('❌ Failed to store MyPeak auth details:', error);
@@ -709,21 +711,15 @@ async function handleWorkoutCaptured(
     return { success: false, error: 'Capture rejected: untrusted sender' };
   }
 
-  // Who this capture belongs to is decided now, from the stored PlanMyPeak
-  // session, and never revisited. If it cannot be resolved the record is
-  // stored unowned and stays private to the popup until the coach links it.
-  const owner = await resolveCaptureContext();
-
-  const stored = await storeCapture(
-    message,
-    environment,
-    owner ? { coachId: owner.coachId, destination: owner.destination } : null
-  );
+  // Durable annotation is read inside the capture write lock. Neither provider
+  // credential nor a live identity lookup is required to save the workout.
+  const stored = await storeCapture(message, environment);
   if (!stored) {
     return { success: false, error: 'Capture rejected: invalid payload' };
   }
 
   await refreshBadge();
+  await refreshCaptureCoachIfDue();
   return { success: true };
 }
 

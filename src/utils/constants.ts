@@ -504,6 +504,8 @@ export const STORAGE_KEYS = {
    * through capturedWorkoutService; the popup reads it and sends messages.
    */
   CAPTURED_WORKOUTS: 'captured_workouts',
+  CAPTURE_COACH_CACHE: 'capture_coach_cache',
+  CAPTURE_COACH_REFRESH: 'capture_coach_refresh',
   /**
    * Monotonic counter bumped on every write to `captured_workouts` and to
    * `captured_import_operations`. Reported to PlanMyPeak pages so they can tell

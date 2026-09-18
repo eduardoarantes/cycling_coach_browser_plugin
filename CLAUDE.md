@@ -779,7 +779,8 @@ TrainingPeaks API hosts, via `fetch` and XHR. Full design:
   test asserts this. What an allowlisted PlanMyPeak page _may_ do is the narrow
   surface of `GET_CAPTURED_WORKOUT_SUMMARY`, `IMPORT_MISSING_WORKOUTS` and
   `GET_CAPTURED_WORKOUT_IMPORT_STATUS` (`src/background/capturedImports/`):
-  learn how many captures are missing from _its own verified account's_
+  read the device-local pending count even with expired authentication,
+  learn how many captures are missing from its verified destination account's
   library, start an import into that account, and poll its counts. No reply
   carries a capture, an athlete id, a workout body, a record key or a
   credential; per-workout errors are the title plus a bounded reason. The
@@ -796,6 +797,14 @@ TrainingPeaks API hosts, via `fetch` and XHR. Full design:
 - **The capture never affects the page.** Nothing is awaited before the
   original fetch is dispatched; the page gets the original response object
   as soon as it exists; every failure in the capture path is swallowed.
+- **Personal-computer captures remain available without auth.** Save first,
+  stamp the last verified coach from `capture_coach_cache` when present, and
+  refresh metadata opportunistically after persistence, accepted auth traffic,
+  and worker startup. New installs may save unowned records; successful coach
+  API responses enrich them automatically. Historical owners never filter
+  visibility or import eligibility. Cache metadata is not authorization.
+  New Workouts stays reachable without a TrainingPeaks token; no Link step
+  is required. Destination acknowledgements and live send guards still apply.
 - **Only the background writes `captured_workouts`.** Every mutation is a
   read-modify-write serialized through `withCapturedWorkoutsLock`; the popup
   and hooks send runtime messages and never call `chrome.storage.local.set`

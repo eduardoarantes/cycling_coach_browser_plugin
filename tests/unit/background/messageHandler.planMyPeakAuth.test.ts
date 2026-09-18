@@ -6,6 +6,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readCaptureCoachCache } from '@/services/capturedWorkoutService';
 import { handleMessage } from '@/background/messageHandler';
 import { resetPlanMyPeakAuthRecovery } from '@/background/api/planMyPeakAuthRecovery';
 import { resetPlanMyPeakIdentityCache } from '@/services/planMyPeakIdentityService';
@@ -100,6 +101,28 @@ describe('messageHandler PlanMyPeak credentials', () => {
   });
 
   describe('MY_PEAK_AUTH_FOUND', () => {
+    it('learns the coach from ordinary auth traffic without opening the popup', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'coach-observed' }),
+      });
+      await handleMessage(
+        {
+          type: 'MY_PEAK_AUTH_FOUND',
+          token: jwt(3600, 'coach'),
+          timestamp: Date.now(),
+        },
+        tabSender(PORTAL)
+      );
+      expect(await readCaptureCoachCache()).toMatchObject({
+        coachId: 'coach-observed',
+        destination: PORTAL,
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(chrome.tabs.create).not.toHaveBeenCalled();
+    });
+
     it('should not let a staging-origin capture displace the production credential', async () => {
       const production = jwt(3600, 'production');
       await handleMessage(

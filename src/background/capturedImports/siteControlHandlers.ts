@@ -7,6 +7,8 @@
  * way to act as a different coach.
  */
 
+import { getPlanMyPeakAppUrl } from '@/services/planMyPeakConfigService';
+import { isPlanMyPeakControlOrigin } from '@/utils/constants';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -20,6 +22,7 @@ import type {
 } from '@/types/siteControl.types';
 import {
   getCapturedRevision,
+  getPendingCapturedCount,
   getUnlinkedCapturedCount,
   listImportCandidates,
   updateCapturedWorkout,
@@ -51,7 +54,6 @@ import {
   capturedReconciler,
   isPopupCapturedSendInFlight,
   runCapturedImport,
-  safeErrorMessage,
   toReconcileCandidate,
 } from './importRunner';
 
@@ -91,9 +93,11 @@ function blockedSummary(
   reason: SiteControlCapturedWorkoutSummaryResult['blockedReason'],
   coachId: string | null,
   revision: number,
-  unlinkedCount: number
+  unlinkedCount: number,
+  pendingCount: number
 ): SiteControlCapturedWorkoutSummaryResult {
   return {
+    pendingCount,
     contextId: null,
     coachId,
     revision,
@@ -118,9 +122,21 @@ export async function handleCapturedWorkoutSummary(
   requestId: string,
   origin: string | null | undefined
 ): Promise<SiteControlResponse> {
-  const [revision, unlinkedCount] = await Promise.all([
+  // Local availability may outlive auth, but never the configured origin gate.
+  if (
+    !origin ||
+    !isPlanMyPeakControlOrigin(origin) ||
+    origin !== (await getPlanMyPeakAppUrl())
+  ) {
+    return createErrorResponse(requestId, {
+      code: 'FORBIDDEN_ORIGIN',
+      message: 'Captured workouts are unavailable for this destination.',
+    });
+  }
+  const [revision, unlinkedCount, pendingCount] = await Promise.all([
     getCapturedRevision(),
     getUnlinkedCapturedCount(),
+    getPendingCapturedCount(),
   ]);
 
   const resolution = await resolveRequestContext(origin);
@@ -131,7 +147,8 @@ export async function handleCapturedWorkoutSummary(
         resolution.reason,
         resolution.coachId,
         revision,
-        unlinkedCount
+        unlinkedCount,
+        pendingCount
       )
     );
   }
@@ -144,6 +161,7 @@ export async function handleCapturedWorkoutSummary(
   const base = {
     contextId: context.contextId,
     coachId: context.coachId,
+    pendingCount,
     revision,
     unlinkedCount,
     ...refs,
@@ -181,12 +199,12 @@ export async function handleCapturedWorkoutSummary(
   }
 
   if (!outcome.complete) {
-    const [message] = [...outcome.failures.values()];
-    return createErrorResponse(requestId, {
-      code: 'API_ERROR',
-      // Bounded like every other API-derived text that reaches the page.
-      message: `Could not check the library for captured workouts: ${safeErrorMessage(message ?? 'lookup failed')}`,
-    });
+    return createSuccessResponse(requestId, {
+      ...base,
+      state: 'blocked',
+      blockedReason: 'lookup_failed',
+      missingCount: null,
+    } satisfies SiteControlCapturedWorkoutSummaryResult);
   }
 
   // The lookups ran under whatever session the extension holds *now*. Before
@@ -202,7 +220,13 @@ export async function handleCapturedWorkoutSummary(
     capturedReconciler.invalidate(context.contextId);
     return createSuccessResponse(
       requestId,
-      blockedSummary('account_changed', null, revision, unlinkedCount)
+      blockedSummary(
+        'account_changed',
+        null,
+        revision,
+        unlinkedCount,
+        pendingCount
+      )
     );
   }
 
@@ -231,6 +255,7 @@ export async function handleCapturedWorkoutSummary(
     ...base,
     // Acknowledging present ones is a write, so the revision moved.
     revision: await getCapturedRevision(),
+    pendingCount: await getPendingCapturedCount(),
     state: 'ready',
     missingCount,
   } satisfies SiteControlCapturedWorkoutSummaryResult);
@@ -430,6 +455,8 @@ function describeReason(
   reason: NonNullable<SiteControlCapturedWorkoutSummaryResult['blockedReason']>
 ): string {
   switch (reason) {
+    case 'lookup_failed':
+      return 'the destination library could not be checked.';
     case 'connection_disabled':
       return 'the PlanMyPeak connection is switched off in the extension.';
     case 'signed_out':

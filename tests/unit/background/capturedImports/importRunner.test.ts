@@ -18,6 +18,7 @@ import {
   type CapturedImportOperation,
 } from '@/background/capturedImports/importOperations';
 import { CapturedWorkoutReconciler } from '@/background/capturedImports/reconciler';
+import { readCaptureCoachCache } from '@/services/capturedWorkoutService';
 import { acknowledgementFor } from '@/schemas/capturedWorkout.schema';
 import {
   COACH_ID,
@@ -142,6 +143,28 @@ describe('importRunner', () => {
   });
 
   describe('runCapturedImport', () => {
+    it('imports unowned and differently annotated captures without a coach cache', async () => {
+      await seedRecords([
+        capturedRecord(1, { owner: undefined }),
+        capturedRecord(2, { owner: { ...OWNER, coachId: 'historical-coach' } }),
+      ]);
+      expect(await readCaptureCoachCache()).toBeNull();
+      const result = await runCapturedImport(
+        operation(['production:1:1', 'production:1:2']),
+        { reconciler: reconciler() }
+      );
+      expect(result).toMatchObject({
+        state: 'completed',
+        importedCount: 2,
+        failedCount: 0,
+      });
+      expect(
+        api.exportWorkoutsToPlanMyPeakLibrary.mock.calls[0][2]?.capturedKeys
+      ).toEqual({ 'cal:1': 'production:1:1', 'cal:2': 'production:1:2' });
+      expect((await storedRecord('production:1:1'))?.owner).toBeUndefined();
+      expect(await readCaptureCoachCache()).toBeNull();
+    });
+
     it('should upload the missing workouts and complete', async () => {
       await seedRecords([capturedRecord(1), capturedRecord(2)]);
 

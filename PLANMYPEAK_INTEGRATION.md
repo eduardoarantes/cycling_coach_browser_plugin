@@ -295,7 +295,7 @@ rather than retrying.
 | `GET_PLAN_CONTENTS`                  | `{ planId: number }`                     | `{ planId, workouts, notes, events, rxWorkouts }`                                                                                                              |
 | `GET_ATHLETE_GROUPS`                 | —                                        | `AthleteGroup[]`                                                                                                                                               |
 | `OPEN_IMPORTER`                      | `{ libraryId?, planId?, groups?, tab? }` | `{ opened: boolean, focused: boolean }`                                                                                                                        |
-| `GET_CAPTURED_WORKOUT_SUMMARY`       | —                                        | `{ contextId, coachId, revision, state, missingCount, unlinkedCount, blockedReason?, activeOperation, latestOperation }`                                       |
+| `GET_CAPTURED_WORKOUT_SUMMARY`       | —                                        | `{ contextId, coachId, revision, state, missingCount, pendingCount, unlinkedCount, blockedReason?, activeOperation, latestOperation }`                                       |
 | `IMPORT_MISSING_WORKOUTS`            | `{ contextId, operationId }` (strict)    | `{ operationId, state, blockedReason? }`                                                                                                                       |
 | `GET_CAPTURED_WORKOUT_IMPORT_STATUS` | `{ contextId, operationId }` (strict)    | `{ operationId, contextId, state, totalCount, processedCount, importedCount, alreadyPresentCount, failedCount, blockedReason?, errors, startedAt, updatedAt }` |
 
@@ -457,15 +457,16 @@ PlanMyPeak session and the page's verified origin.
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `state`                               | `ready`, `checking` or `blocked`                                                                                                                        |
 | `missingCount`                        | A number only when `ready`; otherwise `null`. **`null` is not zero.**                                                                                   |
-| `unlinkedCount`                       | Pending captures no PlanMyPeak account owns yet. They are not in `missingCount`; the coach links them from the extension popup (New Workouts tab).      |
+| `pendingCount` | All valid local records with status `pending`, across historical coaches and source environments. Available even when blocked; never a destination-library claim. |
+| `unlinkedCount`                       | Deprecated informational count of pending captures without coach metadata. These records are eligible for import without linking.      |
 | `contextId`                           | Opaque handle for (this PlanMyPeak site, this coach). Hand it back unchanged. `null` when `blocked`.                                                    |
 | `coachId`                             | The coach the extension is acting as, the same value `PING` reports.                                                                                    |
 | `revision`                            | Counter that increases whenever captures or import operations change. Compare two polls to know whether to refetch; it says nothing about what changed. |
 | `activeOperation` / `latestOperation` | `{ operationId, state }` or `null`, so a second tab can attach to a running import and a reloaded page can show the last result.                        |
 | `blockedReason`                       | Present when `blocked`; see below.                                                                                                                      |
 
-A capture is **missing** when it belongs to this coach on this PlanMyPeak
-site, was not dismissed, has not been acknowledged for this site, and its
+A capture is **missing** when it was not dismissed, has not been acknowledged
+for the currently verified destination account and site, and its
 exact provider identity (`cal:{workoutId}`, or `cal-sandbox:{workoutId}` for
 the TrainingPeaks sandbox) is in none of the coach's libraries. Title matches
 never count, and neither does a send to another PlanMyPeak site: a capture
@@ -475,8 +476,19 @@ extension and leaves the count for good.
 
 `checking` means the scan did not finish inside the extension's 2.5 s budget.
 It continues in the background; poll again and the next answer comes from its
-cache. A lookup that fails produces an **error response** (`API_ERROR`), never
-`missingCount: 0`.
+cache. A lookup failure returns `state: "blocked"`, `blockedReason:
+"lookup_failed"`, the local `pendingCount`, and `missingCount: null`.
+
+Query this summary even when a supported `PING` reports expired authentication,
+null coach identity, or a different account. The configured allowlisted page
+origin can read local availability without a live session; other origins
+receive no count. Feature-detect `pendingCount`: retain the old behavior when
+absent. When present, retain the navigation dot and explicit import action for
+positive pending availability, omit Link instructions, and disable importing
+until destination authentication can be verified. Label this as saved workouts,
+not verified missing workouts. Only live destination credentials authorize a
+scan or import; cached capture coaches never do. Deploy a tolerant page reader
+before or together with the extension, including support for `lookup_failed`.
 
 #### `IMPORT_MISSING_WORKOUTS`
 

@@ -10,6 +10,7 @@ import {
 } from '@/background/api/planMyPeak';
 import {
   listCapturedWorkouts,
+  readCaptureCoachCache,
   storeCapture,
 } from '@/services/capturedWorkoutService';
 import {
@@ -451,6 +452,8 @@ describe('exportWorkoutsToPlanMyPeakLibrary with capturedKeys', () => {
       const record = await recordByKey('production:1:1');
       expect(record?.status).toBe('sent');
       expect(record?.acknowledgements).toBeUndefined();
+      expect(record?.owner).toBeUndefined();
+      expect(await readCaptureCoachCache()).toBeNull();
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 

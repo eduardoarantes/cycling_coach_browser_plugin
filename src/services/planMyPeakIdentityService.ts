@@ -1,10 +1,9 @@
 /**
  * Which PlanMyPeak coach the extension is acting as, and where.
  *
- * Every captured-workout decision that touches a PlanMyPeak account — who a
- * capture belongs to, which destination it was sent to, whether a page may
- * count it — resolves the account here, from the stored credential, and never
- * from an id supplied by a page or the popup.
+ * Destination-library checks and writes resolve the current account here,
+ * from its credential, never from an id supplied by a page or popup. Local
+ * visibility and historical coach annotations use no live identity gate.
  *
  * `null` from any of these means *unknown*. Callers fail closed on it: an
  * unresolved coach is not "probably the same coach".

@@ -91,19 +91,7 @@ export const CapturedWorkoutDataSchema = z.object({
 
 export type CapturedWorkoutData = z.infer<typeof CapturedWorkoutDataSchema>;
 
-/**
- * The PlanMyPeak account and deployment a capture belongs to.
- *
- * Resolved in the background from the stored PlanMyPeak session at the moment
- * the capture is stored — never from anything a page or the popup sends — and
- * never rewritten afterwards. A record without one was captured before the
- * extension could tell, or while it held no session, and stays private to the
- * popup until the coach explicitly links it there.
- *
- * `destination` is the app origin the extension was configured to talk to
- * (`https://portal.planmypeak.com`, `https://localhost:3000`, …), because a
- * capture sent to staging is still missing from production.
- */
+/** Optional historical coach annotation. Never a visibility or import gate. */
 export const CapturedWorkoutOwnerSchema = z.object({
   coachId: z.string().min(1),
   destination: z.string().min(1),
@@ -164,7 +152,7 @@ export const CapturedWorkoutRecordSchema = z.object({
 
 export type CapturedWorkoutRecord = z.infer<typeof CapturedWorkoutRecordSchema>;
 
-/** Whether a record is trusted to belong to this coach on this destination. */
+/** Whether historical metadata matches this coach; never an access check. */
 export function isOwnedBy(
   record: CapturedWorkoutRecord,
   owner: CapturedWorkoutOwner
@@ -184,35 +172,20 @@ export function acknowledgementFor(
   return record.acknowledgements?.[acknowledgementKey(owner)];
 }
 
-/**
- * Whether a record is a candidate for import into this destination: trusted
- * to belong to this coach here, not dismissed, and not already accounted for
- * *here*.
- *
- * `status` is global — a capture sent anywhere is `sent` — so it cannot say
- * whether this destination has the workout: one sent to staging is still
- * missing from production. Only the per-destination acknowledgement says
- * that, and a `sent` record with none for this destination is checked against
- * it (and acknowledged as already present if found) rather than assumed.
- * Dismissal is the coach's explicit choice and is honoured everywhere.
- */
+/** All undismissed captures not acknowledged in the current destination. */
 export function isImportCandidateFor(
   record: CapturedWorkoutRecord,
   owner: CapturedWorkoutOwner
 ): boolean {
   return (
     record.status !== 'dismissed' &&
-    isOwnedBy(record, owner) &&
     acknowledgementFor(record, owner) === undefined
   );
 }
 
 /**
- * Pending records no verified account owns yet.
- *
- * Only pending ones are counted: this number tells the coach how many workouts
- * linking would make importable, and a sent or dismissed capture is not a
- * candidate for any destination whoever owns it.
+ * Informational compatibility count of pending records without a coach
+ * annotation. Missing metadata does not prevent visibility or importing.
  */
 export function countUnlinkedCapturedWorkouts(
   records: Iterable<CapturedWorkoutRecord>

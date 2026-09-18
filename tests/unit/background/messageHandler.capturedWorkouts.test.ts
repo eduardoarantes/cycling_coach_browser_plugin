@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { handleMessage } from '@/background/messageHandler';
 import * as badgeService from '@/services/badgeService';
 import * as identityService from '@/services/planMyPeakIdentityService';
+import * as coachRefresh from '@/services/captureCoachRefreshService';
 import * as planMyPeakApi from '@/background/api/planMyPeak';
 import {
   markOperationLive,
@@ -293,12 +294,36 @@ describe('messageHandler captured workouts', () => {
       contextId: 'ctx-a',
     };
 
-    it('should stamp the capture with the account resolved from the stored session', async () => {
-      vi.spyOn(identityService, 'resolveCaptureContext').mockResolvedValue(
-        context
-      );
+    it('persists and updates the badge before a coach refresh finishes', async () => {
+      let finish!: () => void;
+      const refresh = vi
+        .spyOn(coachRefresh, 'refreshCaptureCoachIfDue')
+        .mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              finish = resolve;
+            })
+        );
+      const handling = handleMessage(capture(), tp);
+      await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+      expect((await list()).pendingCount).toBe(1);
+      expect(refreshBadge).toHaveBeenCalledOnce();
+      finish();
+      expect(await handling).toEqual({ success: true });
+    });
 
+    it('should stamp from the durable coach even with no tokens and no popup', async () => {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.CAPTURE_COACH_CACHE]: {
+          version: 1,
+          coachId: context.coachId,
+          destination: context.destination,
+          verifiedAt: 1,
+        },
+      });
+      const lookup = vi.spyOn(identityService, 'resolveCaptureContext');
       await handleMessage(capture(), tp);
+      expect(lookup).not.toHaveBeenCalled();
 
       const [record] = (await list()).records;
       expect(record.owner).toEqual({

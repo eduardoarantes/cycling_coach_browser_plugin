@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { CapturedWorkoutList } from '@/popup/components/CapturedWorkoutList';
 import type { CapturedWorkoutRecord } from '@/schemas/capturedWorkout.schema';
 
@@ -305,76 +299,15 @@ describe('CapturedWorkoutList', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('rejected');
   });
 
-  describe('unlinked captures banner', () => {
-    it('should not show when every capture has an owner', () => {
-      render(<CapturedWorkoutList />);
-
-      expect(
-        screen.queryByTestId('captured-unlinked-banner')
-      ).not.toBeInTheDocument();
-    });
-
-    it('should say how many captures are unlinked and where they would go', () => {
-      mockList({ unlinkedCount: 3 });
-
-      render(<CapturedWorkoutList />);
-
-      const banner = screen.getByTestId('captured-unlinked-banner');
-      expect(banner).toHaveTextContent(
-        "3 captured workouts aren't linked to a PlanMyPeak account yet"
-      );
-      expect(
-        within(banner).getByRole('button', {
-          name: 'Link to my portal.planmypeak.com account',
-        })
-      ).toBeEnabled();
-    });
-
-    it('should use the singular for one capture', () => {
-      mockList({ unlinkedCount: 1 });
-
-      render(<CapturedWorkoutList />);
-
-      expect(screen.getByTestId('captured-unlinked-banner')).toHaveTextContent(
-        "1 captured workout isn't linked"
-      );
-    });
-
-    it('should claim when the button is clicked', async () => {
-      claim.mockResolvedValue(null);
-      mockList({ unlinkedCount: 2 });
-      render(<CapturedWorkoutList />);
-
-      fireEvent.click(screen.getByRole('button', { name: /^Link to my/ }));
-
-      await waitFor(() => expect(claim).toHaveBeenCalledTimes(1));
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    });
-
-    it('should show the reason when the background refuses the claim', async () => {
-      claim.mockResolvedValue('Sign in to PlanMyPeak in the extension first.');
-      mockList({ unlinkedCount: 2 });
-      render(<CapturedWorkoutList />);
-
-      fireEvent.click(screen.getByRole('button', { name: /^Link to my/ }));
-
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Sign in to PlanMyPeak in the extension first.'
-      );
-    });
-
-    it.each([
-      ['PlanMyPeak is not authenticated', { authenticated: false }],
-      ['the PlanMyPeak connection is off', { enabled: false }],
-    ])('should disable linking when %s', (_label, gates) => {
-      mockGates(gates);
-      mockList({ unlinkedCount: 2 });
-
-      render(<CapturedWorkoutList />);
-
-      expect(
-        screen.getByRole('button', { name: /^Link to my/ })
-      ).toBeDisabled();
-    });
+  it('shows unowned pending workouts without asking the coach to link them', () => {
+    mockList({ unlinkedCount: 2 });
+    render(<CapturedWorkoutList />);
+    expect(
+      screen.queryByTestId('captured-unlinked-banner')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Send all pending' })
+    ).toBeEnabled();
+    expect(claim).not.toHaveBeenCalled();
   });
 });

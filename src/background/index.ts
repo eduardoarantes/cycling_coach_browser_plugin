@@ -6,6 +6,8 @@
  * DEBUG MODE: Enhanced logging to troubleshoot message handling
  */
 
+import { backfillCachedCaptureCoach } from '@/services/capturedWorkoutService';
+import { refreshCaptureCoachIfDue } from '@/services/captureCoachRefreshService';
 import { handleMessage } from './messageHandler';
 import { refreshBadge } from '@/services/badgeService';
 import { recoverInterruptedOperations } from './capturedImports/importOperations';
@@ -23,6 +25,7 @@ logDebug('🚀 Background service worker loaded');
 // every start, anything storage still calls running is marked interrupted so a
 // PlanMyPeak page polling it is told to retry rather than left waiting.
 void recoverInterruptedOperations();
+void backfillCachedCaptureCoach().then(() => refreshCaptureCoachIfDue());
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener((details) => {

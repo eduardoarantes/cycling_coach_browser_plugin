@@ -152,7 +152,7 @@ function App(): ReactElement {
 
           <AccountMismatchBanner />
 
-          {!canAccessTrainingPeaksData ? (
+          {!canAccessTrainingPeaksData && activeTab !== 'captured' ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
               <div className="flex items-start justify-between gap-3">
                 <div className="pr-2">
@@ -188,14 +188,14 @@ function App(): ReactElement {
             </div>
           ) : null}
 
-          {canAccessTrainingPeaksData ? (
+          <TabNavigation
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            pendingCount={pendingCapturedCount}
+          />
+          {activeTab === 'captured' ? <CapturedWorkoutList /> : null}
+          {canAccessTrainingPeaksData && activeTab !== 'captured' ? (
             <>
-              <TabNavigation
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                pendingCount={pendingCapturedCount}
-              />
-
               {activeTab === 'libraries' ? (
                 selectedLibraryId !== null ? (
                   <LibraryDetails
@@ -208,8 +208,6 @@ function App(): ReactElement {
                 )
               ) : activeTab === 'groups' ? (
                 <AthleteGroupList />
-              ) : activeTab === 'captured' ? (
-                <CapturedWorkoutList />
               ) : selectedPlanId !== null ? (
                 <PlanCalendar
                   planId={selectedPlanId}

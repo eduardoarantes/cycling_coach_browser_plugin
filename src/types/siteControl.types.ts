@@ -189,6 +189,7 @@ export interface SiteControlGetCapturedWorkoutImportStatusPayload {
  */
 export const CAPTURED_IMPORT_BLOCKED_REASONS = [
   /** The PlanMyPeak connection is switched off in the extension's settings. */
+  'lookup_failed',
   'connection_disabled',
   /** No PlanMyPeak credential is stored. */
   'signed_out',
@@ -244,12 +245,13 @@ export interface SiteControlCapturedImportRef {
  * so a page can tell that something happened between two polls — a popup send,
  * a recovered run — without being told what.
  *
- * `unlinkedCount` is how many captures the extension holds that are not
- * associated with any verified account and therefore cannot be counted for
- * this or any page. It exists so the page can point the coach at the popup's
- * recovery path; it exposes nothing about the captures themselves.
+ * `pendingCount` reports local availability even when destination checks are
+ * blocked. `unlinkedCount` is deprecated informational metadata; unowned
+ * captures need no claim or enrichment before they can be imported.
  */
 export interface SiteControlCapturedWorkoutSummaryResult {
+  /** All local pending captures; independent of owner and authentication. */
+  pendingCount: number;
   contextId: string | null;
   coachId: string | null;
   revision: number;

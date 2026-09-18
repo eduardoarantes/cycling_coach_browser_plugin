@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from '@/utils/constants';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as planMyPeakApi from '@/background/api/planMyPeak';
 import * as trainingPeaksApi from '@/background/api/trainingPeaks';
@@ -113,6 +114,9 @@ describe('captured-import site-control handlers', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await chrome.storage.local.clear();
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.PLANMYPEAK_ENVIRONMENT]: 'production',
+    });
     resetLiveOperations();
     resetPopupCapturedSend();
     capturedReconciler.invalidate();
@@ -155,13 +159,8 @@ describe('captured-import site-control handlers', () => {
   });
 
   describe('GET_CAPTURED_WORKOUT_SUMMARY', () => {
-    it.each([
-      'connection_disabled',
-      'signed_out',
-      'account_unknown',
-      'destination_mismatch',
-    ] as const)(
-      'should answer blocked (%s) with no context and no count',
+    it.each(['connection_disabled', 'signed_out', 'account_unknown'] as const)(
+      'should answer blocked (%s) with local pending count and no destination count',
       async (reason) => {
         await seedRecords([capturedRecord(1)]);
         resolveRequestContext.mockResolvedValue({
@@ -179,6 +178,7 @@ describe('captured-import site-control handlers', () => {
           blockedReason: reason,
           contextId: null,
           missingCount: null,
+          pendingCount: 1,
           activeOperation: null,
           latestOperation: null,
         });
@@ -186,12 +186,10 @@ describe('captured-import site-control handlers', () => {
       }
     );
 
-    it('should pass the verified sender origin to the guard', async () => {
+    it('should reject a foreign origin before reading counts', async () => {
       await handleCapturedWorkoutSummary('r1', 'https://example.test');
 
-      expect(resolveRequestContext).toHaveBeenCalledWith(
-        'https://example.test'
-      );
+      expect(resolveRequestContext).not.toHaveBeenCalled();
     });
 
     it('should answer ready with zero and no lookups when there are no candidates', async () => {
@@ -209,7 +207,7 @@ describe('captured-import site-control handlers', () => {
       expect(api.fetchPlanMyPeakWorkoutByProviderId).not.toHaveBeenCalled();
     });
 
-    it('should count only undismissed captures owned by this coach and unacknowledged here', async () => {
+    it('should count all undismissed captures unacknowledged here regardless of annotation', async () => {
       await seedRecords([
         capturedRecord(1),
         capturedRecord(2, {
@@ -237,9 +235,10 @@ describe('captured-import site-control handlers', () => {
         await handleCapturedWorkoutSummary('r1', DESTINATION)
       );
 
-      expect(summary.missingCount).toBe(1);
+      expect(summary.missingCount).toBe(4);
+      expect(summary.pendingCount).toBe(4);
       expect(summary.unlinkedCount).toBe(1);
-      expect(api.fetchPlanMyPeakWorkoutByProviderId).toHaveBeenCalledTimes(1);
+      expect(api.fetchPlanMyPeakWorkoutByProviderId).toHaveBeenCalledTimes(4);
       expect(api.fetchPlanMyPeakWorkoutByProviderId).toHaveBeenCalledWith(
         'cal:1'
       );
@@ -257,6 +256,7 @@ describe('captured-import site-control handlers', () => {
           'contextId',
           'latestOperation',
           'missingCount',
+          'pendingCount',
           'revision',
           'state',
           'unlinkedCount',
@@ -364,9 +364,14 @@ describe('captured-import site-control handlers', () => {
 
       const response = await handleCapturedWorkoutSummary('r1', DESTINATION);
 
-      expect(response.ok).toBe(false);
       expect(response).toMatchObject({
-        error: { code: 'API_ERROR' },
+        ok: true,
+        data: {
+          state: 'blocked',
+          blockedReason: 'lookup_failed',
+          pendingCount: 1,
+          missingCount: null,
+        },
       });
     });
 
@@ -379,10 +384,15 @@ describe('captured-import site-control handlers', () => {
 
       const response = await handleCapturedWorkoutSummary('r1', DESTINATION);
 
-      expect(response.ok).toBe(false);
-      if (!response.ok) {
-        expect(response.error.message.length).toBeLessThan(400);
-      }
+      expect(response).toMatchObject({
+        ok: true,
+        data: {
+          pendingCount: 1,
+          missingCount: null,
+          blockedReason: 'lookup_failed',
+        },
+      });
+      expect(JSON.stringify(response)).not.toContain('x'.repeat(400));
     });
 
     it('should answer checking when reconciliation outlasts the budget, then ready from its cache', async () => {

@@ -4,6 +4,8 @@
  * Handles authenticated requests to PlanMyPeak workout and training-plan endpoints.
  */
 
+import { publishCaptureCoachCache } from '@/services/capturedWorkoutService';
+import { readPlanMyPeakCredential } from '@/background/api/planMyPeakCredential';
 import { getPlanMyPeakApiUrl } from '@/services/planMyPeakConfigService';
 import {
   startExport,
@@ -309,6 +311,15 @@ function isReplayableBody(body: RequestInit['body']): boolean {
  * Send one request with the given credential. No policy: no credential
  * lookup, no removal, no retry.
  */
+interface ResponseCredentialContext {
+  token: string;
+  destination: string;
+}
+const responseCredentialContexts = new WeakMap<
+  Response,
+  ResponseCredentialContext
+>();
+
 async function sendApiRequest(
   endpoint: string,
   init: RequestInit,
@@ -325,10 +336,15 @@ async function sendApiRequest(
   // Use the main app API base (dynamic port for local development).
   const apiBaseUrl = await getPlanMyPeakApiUrl();
 
-  return fetch(`${apiBaseUrl}${endpoint}`, {
+  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
     ...init,
     headers,
   });
+  responseCredentialContexts.set(response, {
+    token,
+    destination: new URL(apiBaseUrl).origin,
+  });
+  return response;
 }
 
 /**
@@ -864,6 +880,31 @@ async function apiRequest<T>(
 
     const json = await response.json();
     const validated = schema.parse(json);
+    if (endpoint === COACH_ME_ENDPOINT) {
+      const coach = PlanMyPeakCoachSchema.safeParse(validated);
+      const context = responseCredentialContexts.get(response);
+      if (coach.success && context && !init?.signal?.aborted) {
+        await publishCaptureCoachCache(
+          {
+            version: 1,
+            coachId: coach.data.id,
+            destination: context.destination,
+            verifiedAt: Date.now(),
+          },
+          async () => {
+            const [credential, apiUrl] = await Promise.all([
+              readPlanMyPeakCredential(),
+              getPlanMyPeakApiUrl(),
+            ]);
+            return (
+              !init?.signal?.aborted &&
+              credential.token === context.token &&
+              new URL(apiUrl).origin === context.destination
+            );
+          }
+        );
+      }
+    }
 
     return { success: true, data: validated };
   } catch (error) {

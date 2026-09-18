@@ -153,7 +153,7 @@ describe('capturedWorkoutService ownership', () => {
   });
 
   describe('listImportCandidates', () => {
-    it('should list undismissed, owned records not acknowledged for that owner, newest first', async () => {
+    it('should list all undismissed records not acknowledged here, newest first', async () => {
       await seedRecords([
         capturedRecord(1),
         capturedRecord(2),
@@ -187,7 +187,7 @@ describe('capturedWorkoutService ownership', () => {
       // 3 was sent somewhere with no acknowledgement here, so it is checked
       // rather than assumed present; 9 was acknowledged on staging only.
       expect(candidates.map((record) => record.workoutId)).toEqual([
-        9, 3, 2, 1,
+        9, 7, 6, 5, 3, 2, 1,
       ]);
     });
   });

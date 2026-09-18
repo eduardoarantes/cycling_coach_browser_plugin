@@ -15,6 +15,7 @@
  * on it. Reads may bypass the queue.
  */
 
+import { z } from 'zod';
 import { STORAGE_KEYS, type TrainingPeaksEnvironment } from '@/utils/constants';
 import { logger } from '@/utils/logger';
 import {
@@ -41,7 +42,7 @@ export interface CapturedWorkoutsList {
   /** Newest first */
   records: CapturedWorkoutRecord[];
   pendingCount: number;
-  /** Records no verified account has claimed; see `claimUnlinkedCapturedWorkouts`. */
+  /** Informational only: pending records without historical coach metadata. */
   unlinkedCount: number;
 }
 
@@ -258,11 +259,9 @@ export function normalizeCapturedWorkout(
  *   resurface. An unknown key is ignored: edits to workouts that were never
  *   captured are not captures.
  *
- * `owner` is the PlanMyPeak account and destination the background resolved
- * from its own stored session at capture time, or null when it could not. It
- * is written only when the record is created: an existing record keeps
- * whatever it had, including nothing. Assigning ownership on a later edit
- * would hand a capture to whichever coach happened to be signed in then.
+ * A new record uses supplied metadata or the durable last-known coach cache.
+ * Existing annotations are preserved. Automatic enrichment fills missing
+ * annotations separately; none of these fields authorize or gate import.
  *
  * Returns the stored record, or null when the payload was invalid or the
  * update targeted an unknown key.
@@ -309,6 +308,7 @@ export async function storeCapture(
       return null;
     }
 
+    const annotation = owner ?? (await readCaptureCoachCache());
     const record: CapturedWorkoutRecord = {
       key,
       athleteId: payload.athleteId,
@@ -318,7 +318,14 @@ export async function storeCapture(
       updatedAt: timestamp,
       status: 'pending',
       workout,
-      ...(owner ? { owner } : {}),
+      ...(annotation
+        ? {
+            owner: {
+              coachId: annotation.coachId,
+              destination: annotation.destination,
+            },
+          }
+        : {}),
     };
     map[key] = record;
     await writeMap(map);
@@ -388,10 +395,8 @@ export async function updateCapturedWorkout(
 /**
  * Link every record that has no owner to `owner`.
  *
- * The explicit recovery path for captures stored before ownership existed, or
- * while the extension held no PlanMyPeak session. Only the coach can trigger
- * it, from the popup, under a session the background has verified; nothing
- * assigns these records automatically. Returns how many were linked.
+ * Legacy popup compatibility only. Normal capture and import require no
+ * manual claim; cache publication and startup enrich absent owners.
  */
 export async function claimUnlinkedCapturedWorkouts(
   owner: CapturedWorkoutOwner
@@ -482,4 +487,74 @@ export async function getCapturedWorkout(
 export async function getUnlinkedCapturedCount(): Promise<number> {
   const map = await readMap();
   return countUnlinkedCapturedWorkouts(Object.values(map));
+}
+
+/** Durable metadata only: never used to authorize destination requests. */
+const CaptureCoachCacheSchema = z.object({
+  version: z.literal(1),
+  coachId: z.string().min(1),
+  destination: z.url(),
+  verifiedAt: z.number().finite().nonnegative(),
+});
+export type CaptureCoachCache = z.infer<typeof CaptureCoachCacheSchema>;
+
+export async function readCaptureCoachCache(): Promise<CaptureCoachCache | null> {
+  try {
+    const data = await chrome.storage.local.get(
+      STORAGE_KEYS.CAPTURE_COACH_CACHE
+    );
+    const parsed = CaptureCoachCacheSchema.safeParse(
+      data[STORAGE_KEYS.CAPTURE_COACH_CACHE]
+    );
+    return parsed.success ? parsed.data : null;
+  } catch {
+    // Metadata must not prevent the workout itself being saved.
+    return null;
+  }
+}
+
+async function backfillCaptureCoachLocked(
+  owner: CapturedWorkoutOwner
+): Promise<void> {
+  const map = await readMap();
+  let changed = false;
+  for (const record of Object.values(map)) {
+    if (!record.owner) {
+      record.owner = { coachId: owner.coachId, destination: owner.destination };
+      changed = true;
+    }
+  }
+  if (changed) await writeMap(map);
+}
+
+/** Save first so startup can resume enrichment if the worker stops. */
+export async function publishCaptureCoachCache(
+  cache: CaptureCoachCache,
+  isCurrent: () => Promise<boolean>
+): Promise<void> {
+  try {
+    const validated = CaptureCoachCacheSchema.parse(cache);
+    await withCapturedWorkoutsLock(async () => {
+      if (!(await isCurrent())) return;
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.CAPTURE_COACH_CACHE]: validated,
+      });
+      await backfillCaptureCoachLocked(validated);
+    });
+  } catch {
+    logger.warn(
+      'Could not enrich capture coach metadata; capture/import remains available'
+    );
+  }
+}
+
+export async function backfillCachedCaptureCoach(): Promise<void> {
+  try {
+    await withCapturedWorkoutsLock(async () => {
+      const cache = await readCaptureCoachCache();
+      if (cache) await backfillCaptureCoachLocked(cache);
+    });
+  } catch {
+    logger.warn('Could not resume capture coach enrichment');
+  }
 }
