@@ -772,11 +772,21 @@ TrainingPeaks API hosts, via `fetch` and XHR. Full design:
 
 **Rules — do not weaken these when extending the feature**:
 
-- **The capture channel is not page-facing.** `WORKOUT_CAPTURED`,
-  `GET_CAPTURED_WORKOUTS`, `UPDATE_CAPTURED_WORKOUT` and
-  `REMOVE_CAPTURED_WORKOUTS` are `RuntimeMessage` types only. They are not in
-  `PING.supports` and the site-control router does not serve them; the
-  site-control test asserts this.
+- **A page gets counts and handles, never a capture.** `WORKOUT_CAPTURED`,
+  `GET_CAPTURED_WORKOUTS`, `UPDATE_CAPTURED_WORKOUT`, `REMOVE_CAPTURED_WORKOUTS`
+  and `CLAIM_CAPTURED_WORKOUTS` are `RuntimeMessage` types only: not in
+  `PING.supports`, not served by the site-control router, and the site-control
+  test asserts this. What an allowlisted PlanMyPeak page _may_ do is the narrow
+  surface of `GET_CAPTURED_WORKOUT_SUMMARY`, `IMPORT_MISSING_WORKOUTS` and
+  `GET_CAPTURED_WORKOUT_IMPORT_STATUS` (`src/background/capturedImports/`):
+  learn how many captures are missing from _its own verified account's_
+  library, start an import into that account, and poll its counts. No reply
+  carries a capture, an athlete id, a workout body, a record key or a
+  credential; per-workout errors are the title plus a bounded reason. The
+  account is resolved from the stored session on every request — `contextId`
+  is correlation, not authorization — and the page's origin must equal the
+  configured destination. Widening this surface is a security decision, not a
+  convenience.
 - **Captures are origin-gated in the background.** `WORKOUT_CAPTURED` is
   accepted only from a tab whose URL origin is a TrainingPeaks app origin
   (`trainingPeaksEnvironmentForAppOrigin`), and the record's `environment`
