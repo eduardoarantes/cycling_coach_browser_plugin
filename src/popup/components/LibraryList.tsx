@@ -122,11 +122,13 @@ export function LibraryList({
     openDialog();
   };
 
+  // Returns the export's promise so the dialog knows when it is over and can
+  // end the PlanMyPeak recovery run it started for it.
   const handleExecuteExport = (
     config: MultiLibraryDialogConfig,
     destination: ExportDestination
-  ): void => {
-    if (selectedLibraries.length === 0) return;
+  ): Promise<void> => {
+    if (selectedLibraries.length === 0) return Promise.resolve();
 
     if (destination === 'planmypeak') {
       const multiConfig: MultiLibraryExportConfig = {
@@ -134,16 +136,15 @@ export function LibraryList({
         strategy: libraryBatchStrategy,
       };
 
-      void executeExport(
+      return executeExport(
         Array.from(selectedLibraryIds),
         selectedLibraries,
         multiConfig,
         destination
       );
-      return;
     }
 
-    void executeExport(
+    return executeExport(
       Array.from(selectedLibraryIds),
       selectedLibraries,
       config as IntervalsIcuExportConfig,

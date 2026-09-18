@@ -188,7 +188,16 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
     folders?: unknown[];
     existingPlanLibraries?: unknown[];
     existingWorkoutLibraries?: unknown[];
+    /** Entry upserts from this (1-based) attempt on are rejected for auth. */
+    entryAuthFailureFrom?: number;
+    planReadAuthFailure?: boolean;
+    deleteAuthFailure?: boolean;
   }) {
+    const authFailure = {
+      success: false,
+      error: { message: 'PlanMyPeak sign-in required.', code: 'UNAUTHORIZED' },
+    };
+    let entryAttempts = 0;
     const entryPayloads: Array<Record<string, unknown>> = [];
     const deletedEntryIds: string[] = [];
     const planPayloads: Array<Record<string, unknown>> = [];
@@ -300,6 +309,7 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
               },
             };
           case 'GET_PLANMYPEAK_PLAN':
+            if (options.planReadAuthFailure) return authFailure;
             return {
               success: true,
               data: {
@@ -308,6 +318,13 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
               },
             };
           case 'UPSERT_PLANMYPEAK_PLAN_ENTRY':
+            entryAttempts += 1;
+            if (
+              options.entryAuthFailureFrom !== undefined &&
+              entryAttempts >= options.entryAuthFailureFrom
+            ) {
+              return authFailure;
+            }
             entryPayloads.push(typed.payload as Record<string, unknown>);
             return {
               success: true,
@@ -332,6 +349,7 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
               },
             };
           case 'DELETE_PLANMYPEAK_PLAN_ENTRY':
+            if (options.deleteAuthFailure) return authFailure;
             deletedEntryIds.push(typed.entryId as string);
             return { success: true, data: null };
           case 'UPDATE_PLANMYPEAK_PLAN':
@@ -352,6 +370,109 @@ describe('exportTrainingPlanClassicWorkoutsToPlanMyPeak', () => {
       workoutLibraryCreateNames,
     };
   }
+
+  describe('authentication failures', () => {
+    const threeWorkouts = (): ReturnType<typeof makeStructuredWorkout>[] => [
+      makeStructuredWorkout(),
+      makeStructuredWorkout({
+        workoutId: 1002,
+        workoutDay: '2026-03-04T00:00:00',
+      }),
+      makeStructuredWorkout({
+        workoutId: 1003,
+        workoutDay: '2026-03-05T00:00:00',
+      }),
+    ];
+
+    it('should stop scheduling and report the auth failure with the partial count', async () => {
+      const calls = mockPlanMyPeak({
+        entryAuthFailureFrom: 2,
+        planWeekCount: 8,
+      });
+
+      const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+        trainingPlan: makeTrainingPlan(),
+        workouts: threeWorkouts(),
+        notes: [],
+        config: {},
+      });
+
+      expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+      expect(result.itemsExported).toBe(1);
+      expect(calls.entryPayloads).toHaveLength(1);
+      // Stopped: the third entry was never attempted, and the plan was left
+      // as it was rather than reconciled or shortened with a dead credential.
+      const attempts = vi
+        .mocked(chrome.runtime.sendMessage)
+        .mock.calls.filter(
+          (call) =>
+            (call[0] as { type: string }).type ===
+            'UPSERT_PLANMYPEAK_PLAN_ENTRY'
+        );
+      expect(attempts).toHaveLength(2);
+      expect(calls.planPatches).toHaveLength(0);
+    });
+
+    it('should not report success when nothing could be scheduled', async () => {
+      mockPlanMyPeak({ entryAuthFailureFrom: 1 });
+
+      const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+        trainingPlan: makeTrainingPlan(),
+        workouts: threeWorkouts(),
+        notes: [],
+        config: {},
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+      expect(result.itemsExported).toBe(0);
+    });
+
+    it('should stop when the existing schedule cannot be read for auth', async () => {
+      const calls = mockPlanMyPeak({ planReadAuthFailure: true });
+
+      const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+        trainingPlan: makeTrainingPlan(),
+        workouts: threeWorkouts(),
+        notes: [],
+        config: {},
+      });
+
+      expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+      expect(calls.entryPayloads).toHaveLength(0);
+    });
+
+    it('should report an auth failure while removing stale entries', async () => {
+      mockPlanMyPeak({
+        deleteAuthFailure: true,
+        existingEntries: [
+          {
+            id: 'old-entry',
+            planId: 'plan-1',
+            weekNumber: 3,
+            dayOfWeek: 1,
+            position: 0,
+            note: null,
+            workout: { id: 'wk-old', name: 'Old' },
+            provider: 'training_peaks',
+            providerEntryId: '9999',
+            createdAt: '2026-02-27T00:00:00.000Z',
+            updatedAt: '2026-02-27T00:00:00.000Z',
+          },
+        ],
+      });
+
+      const result = await exportTrainingPlanClassicWorkoutsToPlanMyPeak({
+        trainingPlan: makeTrainingPlan(),
+        workouts: threeWorkouts(),
+        notes: [],
+        config: {},
+      });
+
+      expect(result.itemsExported).toBe(3);
+      expect(result.authFailure).toEqual({ reason: 'sign_in_required' });
+    });
+  });
 
   it('schedules each workout as a plan entry carrying its TrainingPeaks identity', async () => {
     const calls = mockPlanMyPeak({});

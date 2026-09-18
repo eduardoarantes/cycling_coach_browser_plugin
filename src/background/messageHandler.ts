@@ -16,7 +16,20 @@ import type {
   CapturedWorkoutRecord,
   CapturedWorkoutStatus,
   AuthRefreshProvider,
+  BeginPlanMyPeakAuthRunResult,
+  PlanMyPeakAuthRunScoped,
 } from '@/types';
+import {
+  beginAuthRun,
+  endAuthRun,
+  getAuthRun,
+} from '@/background/api/planMyPeakAuthRecovery';
+import { isPlanMyPeakAuthErrorCode } from '@/utils/planMyPeakAuthErrors';
+import {
+  removePlanMyPeakCredentialIf,
+  removePlanMyPeakCredentialIfStale,
+  storeObservedPlanMyPeakAuth,
+} from '@/background/api/planMyPeakCredential';
 import type {
   UserProfile,
   Library,
@@ -127,6 +140,7 @@ import {
   fetchPlanMyPeakPlanLibraries,
   createPlanMyPeakPlanLibrary,
   exportWorkoutsToPlanMyPeakLibrary,
+  type PlanMyPeakRequestAuth,
   type PlanMyPeakUploadSummary,
   type PlanMyPeakCreatePlanRequest,
   type PlanMyPeakCreatePlanEntryRequest,
@@ -202,6 +216,7 @@ type MessageResponse =
   | ApiResponse<RemoveCapturedWorkoutsResult>
   | ApiResponse<ClaimCapturedWorkoutsResult>
   | AuthRefreshResult
+  | BeginPlanMyPeakAuthRunResult
   | SiteControlResponse;
 
 /**
@@ -248,33 +263,25 @@ async function handleTokenFound(
 async function handleMyPeakAuthFound(
   token: string | null | undefined,
   apiKey: string | null | undefined,
-  timestamp: number
+  timestamp: number,
+  sender: chrome.runtime.MessageSender
 ): Promise<void> {
   try {
-    const payload: Record<string, string | number> = {};
+    // The environment is derived from where the credential was observed,
+    // never from the message, and a capture from a confirmed inactive
+    // environment is refused so it cannot displace the active one.
+    const outcome = await storeObservedPlanMyPeakAuth({
+      token,
+      apiKey,
+      timestamp,
+      senderOrigin: sender.origin ?? originFromUrl(sender.tab?.url),
+    });
 
-    if (typeof apiKey === 'string' && apiKey.length > 0) {
-      payload[STORAGE_KEYS.MYPEAK_SUPABASE_API_KEY] = apiKey;
-      logger.info('Stored MyPeak Supabase API key from browser request');
-    }
-
-    if (typeof token === 'string' && token.length > 0) {
-      payload[STORAGE_KEYS.MYPEAK_AUTH_TOKEN] = token;
-      payload[STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP] = timestamp;
-      logger.info('Stored MyPeak authentication token from browser request');
-      logger.debug(
-        'MyPeak token timestamp:',
-        new Date(timestamp).toISOString()
-      );
-    }
-
-    if (Object.keys(payload).length === 0) {
+    if (outcome === 'ignored') {
       logger.debug('No MyPeak auth fields to store (message ignored)');
-      return;
+    } else if (outcome === 'stored') {
+      logger.info('✅ MyPeak auth details stored successfully');
     }
-
-    await chrome.storage.local.set(payload);
-    logger.info('✅ MyPeak auth details stored successfully');
   } catch (error) {
     logger.error('❌ Failed to store MyPeak auth details:', error);
     throw error;
@@ -384,6 +391,42 @@ async function handleValidateToken(): Promise<{
 }
 
 /**
+ * The credential policy a PlanMyPeak request runs under.
+ *
+ * A request carrying the id of a live run may recover; anything else — no id,
+ * an ended run, an expired one, an id the background never minted — is
+ * resolved passively.
+ */
+function requestAuth(message: PlanMyPeakAuthRunScoped): PlanMyPeakRequestAuth {
+  return { run: getAuthRun(message.authRunId) };
+}
+
+/**
+ * Handle BEGIN_PLANMYPEAK_AUTH_RUN.
+ *
+ * A run lets requests open a sign-in tab, so it is minted only for the
+ * extension's own pages (no `sender.tab`). A page — including the in-page
+ * overlay — gets no run and stays passive in this change.
+ */
+function handleBeginPlanMyPeakAuthRun(
+  sender: chrome.runtime.MessageSender
+): BeginPlanMyPeakAuthRunResult {
+  if (sender.tab) {
+    logger.warn('Rejected BEGIN_PLANMYPEAK_AUTH_RUN from a tab');
+    return { authRunId: null };
+  }
+
+  return { authRunId: beginAuthRun().id };
+}
+
+function handleEndPlanMyPeakAuthRun(authRunId: string): void {
+  const run = getAuthRun(authRunId);
+  if (run) {
+    endAuthRun(run);
+  }
+}
+
+/**
  * Handle REFRESH_PROVIDER_AUTH.
  *
  * Opens a tab, so it is accepted only from the extension's own pages (no
@@ -481,11 +524,12 @@ async function validateMyPeakTokenViaAppBackend(token: string): Promise<{
   );
 
   if (response.status === 401) {
-    await chrome.storage.local.remove([
-      STORAGE_KEYS.MYPEAK_AUTH_TOKEN,
-      STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP,
-    ]);
-    logger.warn('Cleared MyPeak auth token after VALIDATE_MY_PEAK_TOKEN 401');
+    // Compare-and-remove: a credential captured while this request was in
+    // flight is not the one that was rejected, and must survive.
+    await removePlanMyPeakCredentialIf(
+      token,
+      'VALIDATE_MY_PEAK_TOKEN was rejected'
+    );
   }
 
   return { valid: false };
@@ -513,11 +557,11 @@ async function handleGetLibraries(): Promise<ApiResponse<Library[]>> {
  * Handle GET_PLANMYPEAK_LIBRARIES message from popup
  * Fetches workout libraries from PlanMyPeak API
  */
-async function handleGetPlanMyPeakLibraries(): Promise<
-  ApiResponse<PlanMyPeakLibrary[]>
-> {
+async function handleGetPlanMyPeakLibraries(
+  auth: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakLibrary[]>> {
   logger.debug('Handling GET_PLANMYPEAK_LIBRARIES message');
-  return await fetchPlanMyPeakLibraries();
+  return await fetchPlanMyPeakLibraries(auth);
 }
 
 /**
@@ -526,10 +570,11 @@ async function handleGetPlanMyPeakLibraries(): Promise<
  */
 async function handleCreatePlanMyPeakLibrary(
   name: string,
-  description?: string | null
+  description: string | null | undefined,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakLibrary>> {
   logger.debug('Handling CREATE_PLANMYPEAK_LIBRARY message:', name);
-  return await createPlanMyPeakLibrary(name, description);
+  return await createPlanMyPeakLibrary(name, description, auth);
 }
 
 async function handleImportAthleteGroupsToPlanMyPeak(
@@ -563,32 +608,37 @@ async function handleGetPlanMyPeakCoach(): Promise<
  * Deletes a workout library in PlanMyPeak
  */
 async function handleDeletePlanMyPeakLibrary(
-  libraryId: string
+  libraryId: string,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<null>> {
   logger.debug('Handling DELETE_PLANMYPEAK_LIBRARY message:', libraryId);
-  return await deletePlanMyPeakLibrary(libraryId);
+  return await deletePlanMyPeakLibrary(libraryId, auth);
 }
 
 /**
  * Handle GET_PLANMYPEAK_WORKOUTS message from popup
  */
-async function handleGetPlanMyPeakWorkouts(filters: {
-  libraryId?: string;
-  provider?: string;
-  providerWorkoutId?: string;
-}): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
+async function handleGetPlanMyPeakWorkouts(
+  filters: {
+    libraryId?: string;
+    provider?: string;
+    providerWorkoutId?: string;
+  },
+  auth: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
   logger.debug('Handling GET_PLANMYPEAK_WORKOUTS message:', filters);
-  return await fetchPlanMyPeakWorkouts(filters);
+  return await fetchPlanMyPeakWorkouts(filters, auth);
 }
 
 /**
  * Handle DELETE_PLANMYPEAK_WORKOUT message from popup
  */
 async function handleDeletePlanMyPeakWorkout(
-  workoutId: string
+  workoutId: string,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<null>> {
   logger.debug('Handling DELETE_PLANMYPEAK_WORKOUT message:', workoutId);
-  return await deletePlanMyPeakWorkout(workoutId);
+  return await deletePlanMyPeakWorkout(workoutId, auth);
 }
 
 /**
@@ -598,7 +648,8 @@ async function handleDeletePlanMyPeakWorkout(
 async function handleExportWorkoutsToPlanMyPeakLibrary(
   workouts: PlanMyPeakWorkout[],
   libraryId: string,
-  capturedKeys?: Record<string, string>
+  capturedKeys: Record<string, string> | undefined,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakUploadSummary>> {
   logger.debug(
     'Handling EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY message:',
@@ -624,15 +675,17 @@ async function handleExportWorkoutsToPlanMyPeakLibrary(
     }
   }
 
+  const isCapturedSend = !!capturedKeys && Object.keys(capturedKeys).length > 0;
   const upload = exportWorkoutsToPlanMyPeakLibrary(workouts, libraryId, {
     capturedKeys,
+    // The captured-workout send stays passive in this change: recovering there
+    // needs account identity to tolerate a credential changing mid-lookup.
+    auth: isCapturedSend ? undefined : auth,
   });
 
   // Registered so a page-driven import started meanwhile waits for this send
   // instead of uploading the same captures alongside it.
-  return capturedKeys && Object.keys(capturedKeys).length > 0
-    ? await trackPopupCapturedSend(upload)
-    : await upload;
+  return isCapturedSend ? await trackPopupCapturedSend(upload) : await upload;
 }
 
 /**
@@ -768,55 +821,63 @@ async function handleGetTrainingPlanFolders(): Promise<
 }
 
 /** Training-plan library and plan operations, all thin pass-throughs. */
-async function handleGetPlanMyPeakPlanLibraries(): Promise<
-  ApiResponse<PlanMyPeakPlanLibrary[]>
-> {
+async function handleGetPlanMyPeakPlanLibraries(
+  auth: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakPlanLibrary[]>> {
   logger.debug('Handling GET_PLANMYPEAK_PLAN_LIBRARIES message');
-  return await fetchPlanMyPeakPlanLibraries();
+  return await fetchPlanMyPeakPlanLibraries(auth);
 }
 
 async function handleCreatePlanMyPeakPlanLibrary(
   name: string,
-  description?: string | null
+  description: string | null | undefined,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakPlanLibrary>> {
   logger.debug('Handling CREATE_PLANMYPEAK_PLAN_LIBRARY message:', name);
-  return await createPlanMyPeakPlanLibrary(name, description);
+  return await createPlanMyPeakPlanLibrary(name, description, auth);
 }
 
 async function handleUpsertPlanMyPeakPlan(
-  payload: PlanMyPeakCreatePlanRequest
+  payload: PlanMyPeakCreatePlanRequest,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanSummary>>> {
   logger.debug('Handling UPSERT_PLANMYPEAK_PLAN message:', payload.name);
-  return await upsertPlanMyPeakPlan(payload);
+  return await upsertPlanMyPeakPlan(payload, auth);
 }
 
 async function handleUpdatePlanMyPeakPlan(
   planId: string,
-  payload: Partial<PlanMyPeakCreatePlanRequest>
+  payload: Partial<PlanMyPeakCreatePlanRequest>,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakPlanSummary>> {
   logger.debug('Handling UPDATE_PLANMYPEAK_PLAN message:', planId);
-  return await updatePlanMyPeakPlan(planId, payload);
+  return await updatePlanMyPeakPlan(planId, payload, auth);
 }
 
 async function handleGetPlanMyPeakPlan(
-  planId: string
+  planId: string,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakPlanDetail>> {
   logger.debug('Handling GET_PLANMYPEAK_PLAN message:', planId);
-  return await fetchPlanMyPeakPlan(planId);
+  return await fetchPlanMyPeakPlan(planId, auth);
 }
 
-async function handleGetPlanMyPeakPlans(filters: {
-  libraryId?: string;
-  provider?: string;
-  providerPlanId?: string;
-}): Promise<ApiResponse<PlanMyPeakPlanSummary[]>> {
+async function handleGetPlanMyPeakPlans(
+  filters: {
+    libraryId?: string;
+    provider?: string;
+    providerPlanId?: string;
+  },
+  auth: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakPlanSummary[]>> {
   logger.debug('Handling GET_PLANMYPEAK_PLANS message:', filters);
-  return await fetchPlanMyPeakPlans(filters);
+  return await fetchPlanMyPeakPlans(filters, auth);
 }
 
 async function handleUpsertPlanMyPeakPlanEntry(
   planId: string,
-  payload: PlanMyPeakCreatePlanEntryRequest
+  payload: PlanMyPeakCreatePlanEntryRequest,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanEntry>>> {
   logger.debug(
     'Handling UPSERT_PLANMYPEAK_PLAN_ENTRY message:',
@@ -824,19 +885,20 @@ async function handleUpsertPlanMyPeakPlanEntry(
     payload.weekNumber,
     payload.dayOfWeek
   );
-  return await upsertPlanMyPeakPlanEntry(planId, payload);
+  return await upsertPlanMyPeakPlanEntry(planId, payload, auth);
 }
 
 async function handleDeletePlanMyPeakPlanEntry(
   planId: string,
-  entryId: string
+  entryId: string,
+  auth: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<null>> {
   logger.debug(
     'Handling DELETE_PLANMYPEAK_PLAN_ENTRY message:',
     planId,
     entryId
   );
-  return await deletePlanMyPeakPlanEntry(planId, entryId);
+  return await deletePlanMyPeakPlanEntry(planId, entryId, auth);
 }
 
 /**
@@ -1099,9 +1161,11 @@ const AUTH_REQUIRED_API_CODES = new Set([
  */
 function toSiteControlError(error: ApiError): SiteControlError {
   return {
-    code: AUTH_REQUIRED_API_CODES.has(error.code ?? '')
-      ? 'AUTH_REQUIRED'
-      : 'API_ERROR',
+    code:
+      AUTH_REQUIRED_API_CODES.has(error.code ?? '') ||
+      isPlanMyPeakAuthErrorCode(error.code)
+        ? 'AUTH_REQUIRED'
+        : 'API_ERROR',
     message: error.message,
   };
 }
@@ -1146,10 +1210,14 @@ async function buildSiteControlPingResult(): Promise<SiteControlPingResult> {
       authenticated: trainingPeaksHasToken && !trainingPeaksExpired,
     },
     planMyPeak: {
+      // Presence, not freshness: an expired credential that recovery could
+      // replace must not make the page hide its import entry point.
       authenticated: planMyPeakHasToken,
       // Bounded and cached per token in the identity service, so a slow or
       // unreachable PlanMyPeak degrades to `null` rather than delaying PING
-      // past the page's detection timeout.
+      // past the page's detection timeout. The lookup carries no recovery
+      // run, so it is resolved passively: it never waits on a refresh and
+      // never opens a tab, and an expired credential answers at once.
       coachId: planMyPeakHasToken ? await resolvePlanMyPeakCoachId() : null,
     },
   };
@@ -1410,7 +1478,8 @@ export async function handleMessage(
       await handleMyPeakAuthFound(
         message.token,
         message.apiKey,
-        message.timestamp
+        message.timestamp,
+        sender
       );
       return { success: true };
 
@@ -1430,6 +1499,17 @@ export async function handleMessage(
     case 'REFRESH_PROVIDER_AUTH':
       return await handleRefreshProviderAuth(message.provider, sender);
 
+    case 'BEGIN_PLANMYPEAK_AUTH_RUN':
+      return handleBeginPlanMyPeakAuthRun(sender);
+
+    case 'END_PLANMYPEAK_AUTH_RUN':
+      handleEndPlanMyPeakAuthRun(message.authRunId);
+      return { success: true };
+
+    case 'DISCARD_STALE_MY_PEAK_TOKEN':
+      await removePlanMyPeakCredentialIfStale();
+      return { success: true };
+
     case 'GET_USER':
       return await handleGetUser();
 
@@ -1437,22 +1517,27 @@ export async function handleMessage(
       return await handleGetLibraries();
 
     case 'GET_PLANMYPEAK_LIBRARIES':
-      return await handleGetPlanMyPeakLibraries();
+      return await handleGetPlanMyPeakLibraries(requestAuth(message));
 
     case 'CREATE_PLANMYPEAK_LIBRARY':
       return await handleCreatePlanMyPeakLibrary(
         message.name,
-        message.description
+        message.description,
+        requestAuth(message)
       );
 
     case 'DELETE_PLANMYPEAK_LIBRARY':
-      return await handleDeletePlanMyPeakLibrary(message.libraryId);
+      return await handleDeletePlanMyPeakLibrary(
+        message.libraryId,
+        requestAuth(message)
+      );
 
     case 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY':
       return await handleExportWorkoutsToPlanMyPeakLibrary(
         message.workouts,
         message.libraryId,
-        message.capturedKeys
+        message.capturedKeys,
+        requestAuth(message)
       );
 
     case 'WORKOUT_CAPTURED':
@@ -1471,14 +1556,20 @@ export async function handleMessage(
       return await handleClaimCapturedWorkouts(sender);
 
     case 'GET_PLANMYPEAK_WORKOUTS':
-      return await handleGetPlanMyPeakWorkouts({
-        libraryId: message.libraryId,
-        provider: message.provider,
-        providerWorkoutId: message.providerWorkoutId,
-      });
+      return await handleGetPlanMyPeakWorkouts(
+        {
+          libraryId: message.libraryId,
+          provider: message.provider,
+          providerWorkoutId: message.providerWorkoutId,
+        },
+        requestAuth(message)
+      );
 
     case 'DELETE_PLANMYPEAK_WORKOUT':
-      return await handleDeletePlanMyPeakWorkout(message.workoutId);
+      return await handleDeletePlanMyPeakWorkout(
+        message.workoutId,
+        requestAuth(message)
+      );
 
     case 'GET_PLANMYPEAK_WORKOUT_BY_PROVIDER_ID':
       return await handleGetPlanMyPeakWorkoutByProviderId(
@@ -1489,40 +1580,56 @@ export async function handleMessage(
       return await handleGetTrainingPlanFolders();
 
     case 'GET_PLANMYPEAK_PLAN_LIBRARIES':
-      return await handleGetPlanMyPeakPlanLibraries();
+      return await handleGetPlanMyPeakPlanLibraries(requestAuth(message));
 
     case 'CREATE_PLANMYPEAK_PLAN_LIBRARY':
       return await handleCreatePlanMyPeakPlanLibrary(
         message.name,
-        message.description
+        message.description,
+        requestAuth(message)
       );
 
     case 'UPSERT_PLANMYPEAK_PLAN':
-      return await handleUpsertPlanMyPeakPlan(message.payload);
+      return await handleUpsertPlanMyPeakPlan(
+        message.payload,
+        requestAuth(message)
+      );
 
     case 'UPDATE_PLANMYPEAK_PLAN':
-      return await handleUpdatePlanMyPeakPlan(message.planId, message.payload);
+      return await handleUpdatePlanMyPeakPlan(
+        message.planId,
+        message.payload,
+        requestAuth(message)
+      );
 
     case 'GET_PLANMYPEAK_PLAN':
-      return await handleGetPlanMyPeakPlan(message.planId);
+      return await handleGetPlanMyPeakPlan(
+        message.planId,
+        requestAuth(message)
+      );
 
     case 'GET_PLANMYPEAK_PLANS':
-      return await handleGetPlanMyPeakPlans({
-        libraryId: message.libraryId,
-        provider: message.provider,
-        providerPlanId: message.providerPlanId,
-      });
+      return await handleGetPlanMyPeakPlans(
+        {
+          libraryId: message.libraryId,
+          provider: message.provider,
+          providerPlanId: message.providerPlanId,
+        },
+        requestAuth(message)
+      );
 
     case 'UPSERT_PLANMYPEAK_PLAN_ENTRY':
       return await handleUpsertPlanMyPeakPlanEntry(
         message.planId,
-        message.payload
+        message.payload,
+        requestAuth(message)
       );
 
     case 'DELETE_PLANMYPEAK_PLAN_ENTRY':
       return await handleDeletePlanMyPeakPlanEntry(
         message.planId,
-        message.entryId
+        message.entryId,
+        requestAuth(message)
       );
 
     case 'IMPORT_ATHLETE_GROUPS_TO_PLANMYPEAK':

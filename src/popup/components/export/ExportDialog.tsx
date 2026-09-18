@@ -4,7 +4,7 @@
  * Modal dialog for configuring and executing workout export to multiple destinations
  */
 import type { ReactElement } from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
 import type { PlanMyPeakLibrary } from '@/schemas/planMyPeakApi.schema';
 import type {
@@ -30,8 +30,30 @@ import {
   findExistingPlanMyPeakLibraries,
   normalizeTargetLibraryNames,
 } from '@/export/adapters/planMyPeak/duplicatePreflight';
+import {
+  beginPlanMyPeakAuthRun,
+  endPlanMyPeakAuthRun,
+} from '@/export/adapters/planMyPeak/authRun';
+import { useMyPeakAuth } from '@/hooks/useMyPeakAuth';
+import { useProviderAuthRefresh } from '@/hooks/useProviderAuthRefresh';
+import { ConnectionGate } from '@/components/ConnectionGate';
+import { PLANMYPEAK_AUTH_MESSAGES } from '@/utils/uiStrings';
 
 type ExportConfig = PlanMyPeakExportConfig | IntervalsIcuExportConfig;
+
+/**
+ * Where PlanMyPeak authentication stands for this dialog.
+ *
+ * Export stays available in `ready` even when the stored credential is
+ * expired or missing: starting the export is what triggers recovery, so
+ * gating the button on freshness would block the recovery it depends on.
+ * The blocking gate appears only in `sign_in_required`, after recovery failed.
+ */
+export type PlanMyPeakAuthUiState =
+  | 'checking'
+  | 'refreshing'
+  | 'ready'
+  | 'sign_in_required';
 export type ExportScope =
   | 'library'
   | 'libraries'
@@ -134,6 +156,41 @@ export function ExportDialog({
     isIntervalsEnabled,
     isLoading: isConnectionSettingsLoading,
   } = useConnectionSettings();
+  const {
+    isAuthenticated: isPlanMyPeakAuthenticated,
+    validateAuth: validatePlanMyPeakAuth,
+  } = useMyPeakAuth();
+  const planMyPeakAuthRefresh = useProviderAuthRefresh('planmypeak');
+  const [isRecoveringPlanMyPeakAuth, setIsRecoveringPlanMyPeakAuth] =
+    useState(false);
+  const [planMyPeakAuthFailureMessage, setPlanMyPeakAuthFailureMessage] =
+    useState<string | null>(null);
+
+  // One recovery run spans one export: from before the duplicate check,
+  // across the coach's duplicate decision, to the end of the upload.
+  const authRunIdRef = useRef<string | undefined>(undefined);
+  const endAuthRun = useCallback((): void => {
+    endPlanMyPeakAuthRun(authRunIdRef.current);
+    authRunIdRef.current = undefined;
+  }, []);
+
+  const planMyPeakAuthState: PlanMyPeakAuthUiState = isConnectionSettingsLoading
+    ? 'checking'
+    : planMyPeakAuthFailureMessage !== null
+      ? 'sign_in_required'
+      : isRecoveringPlanMyPeakAuth || planMyPeakAuthRefresh.isRefreshing
+        ? 'refreshing'
+        : 'ready';
+
+  // Closing the dialog, however it happens, ends any run it still holds.
+  useEffect(() => endAuthRun, [endAuthRun]);
+
+  // A sign-in completed elsewhere (the auth row, a tab) lifts the gate.
+  useEffect(() => {
+    if (isPlanMyPeakAuthenticated) {
+      setPlanMyPeakAuthFailureMessage(null);
+    }
+  }, [isPlanMyPeakAuthenticated]);
 
   const enabledDestinations = EXPORT_DESTINATIONS.filter((dest) => {
     if (!dest.available) {
@@ -187,7 +244,9 @@ export function ExportDialog({
     setPendingPlanMyPeakConfig(null);
     setExistingPlanMyPeakLibraryConflictError(null);
     setIsCheckingExistingPlan(false);
-  }, [destination, isOpen]);
+    setPlanMyPeakAuthFailureMessage(null);
+    endAuthRun();
+  }, [destination, isOpen, endAuthRun]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -270,7 +329,20 @@ export function ExportDialog({
     setExistingPlanMyPeakLibraryBatchConflicts([]);
     setPendingPlanMyPeakConfig(null);
     setExistingPlanMyPeakLibraryConflictError(null);
-    await onExport(config, 'planmypeak');
+    try {
+      await onExport(config, 'planmypeak');
+    } finally {
+      // Completed or failed, the export is over and so is its run.
+      endAuthRun();
+    }
+  };
+
+  const handlePlanMyPeakSignIn = async (): Promise<void> => {
+    const result = await planMyPeakAuthRefresh.refresh();
+    await validatePlanMyPeakAuth();
+    if (result.outcome === 'refreshed') {
+      setPlanMyPeakAuthFailureMessage(null);
+    }
   };
 
   const handleExistingPlanConflictAction = async (
@@ -312,6 +384,7 @@ export function ExportDialog({
       setExistingPlanMyPeakLibraryBatchConflicts([]);
       setPendingPlanMyPeakConfig(null);
       setExistingPlanMyPeakLibraryConflictError(null);
+      endAuthRun();
       onClose();
       return;
     }
@@ -332,17 +405,25 @@ export function ExportDialog({
     }
 
     if (activeDestination === 'planmypeak') {
+      // The run begins before the duplicate check, not at upload: the check is
+      // the export's first request, and when it fails the export never starts.
+      endAuthRun();
+      const authRunId = await beginPlanMyPeakAuthRun();
+      authRunIdRef.current = authRunId;
+
       const config: PlanMyPeakExportConfig = {
         fileName,
         createFolder: isTrainingPlanLikeScope ? true : createFolder,
         targetLibraryName: sourceLibraryName?.trim() || undefined,
         includeMetadata: true,
+        ...(authRunId ? { authRunId } : {}),
       };
 
       setExistingPlanMyPeakLibraryConflict(null);
       setExistingPlanMyPeakLibraryBatchConflicts([]);
       setPendingPlanMyPeakConfig(null);
       setExistingPlanMyPeakLibraryConflictError(null);
+      setPlanMyPeakAuthFailureMessage(null);
 
       if (isLibraryLikeScope && config.createFolder) {
         const uniqueLibraryNames = normalizeTargetLibraryNames(
@@ -355,12 +436,27 @@ export function ExportDialog({
 
         if (uniqueLibraryNames.length > 0) {
           setIsCheckingExistingPlan(true);
+          // Without a usable credential the check is where recovery happens.
+          setIsRecoveringPlanMyPeakAuth(!isPlanMyPeakAuthenticated);
           try {
-            const duplicateCheck =
-              await findExistingPlanMyPeakLibraries(uniqueLibraryNames);
+            const duplicateCheck = await findExistingPlanMyPeakLibraries(
+              uniqueLibraryNames,
+              { authRunId }
+            );
 
             if (!duplicateCheck.ok) {
-              setExistingPlanMyPeakLibraryConflictError(duplicateCheck.message);
+              endAuthRun();
+              if (duplicateCheck.authFailure) {
+                setPlanMyPeakAuthFailureMessage(
+                  duplicateCheck.authFailure.reason === 'environment_mismatch'
+                    ? duplicateCheck.message
+                    : PLANMYPEAK_AUTH_MESSAGES.DUPLICATE_CHECK_SIGN_IN_REQUIRED
+                );
+              } else {
+                setExistingPlanMyPeakLibraryConflictError(
+                  duplicateCheck.message
+                );
+              }
               return;
             }
 
@@ -373,11 +469,14 @@ export function ExportDialog({
               setExistingPlanMyPeakLibraryConflict(
                 isLibraryBatchScope ? null : (conflicts[0] ?? null)
               );
+              // The run stays open across the coach's decision: it is one
+              // export from their side, and a second run could open a second tab.
               setPendingPlanMyPeakConfig(config);
               return;
             }
           } finally {
             setIsCheckingExistingPlan(false);
+            setIsRecoveringPlanMyPeakAuth(false);
           }
         }
       }
@@ -747,6 +846,32 @@ export function ExportDialog({
                   </p>
                 </div>
               )}
+
+              {activeDestination === 'planmypeak' &&
+                planMyPeakAuthState === 'sign_in_required' && (
+                  <ConnectionGate
+                    isTrainingPeaksAuthenticated
+                    isPlanMyPeakAuthenticated={false}
+                    isChecking={planMyPeakAuthRefresh.isRefreshing}
+                    onOpenTrainingPeaks={() => undefined}
+                    onRecheck={() => void handlePlanMyPeakSignIn()}
+                    recheckLabel={PLANMYPEAK_AUTH_MESSAGES.GATE_ACTION}
+                    planMyPeakMessage={
+                      planMyPeakAuthFailureMessage ??
+                      PLANMYPEAK_AUTH_MESSAGES.SIGN_IN_REQUIRED
+                    }
+                  />
+                )}
+
+              {activeDestination === 'planmypeak' &&
+                planMyPeakAuthState === 'refreshing' && (
+                  <div
+                    role="status"
+                    className="bg-blue-50 border border-blue-200 rounded-md p-3 text-xs text-blue-900"
+                  >
+                    {PLANMYPEAK_AUTH_MESSAGES.RECOVERING}
+                  </div>
+                )}
 
               {existingPlanMyPeakLibraryConflictError && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -1285,6 +1410,8 @@ export function ExportDialog({
               isWaitingForConflictDecision ||
               isWaitingForPlanMyPeakConflictDecision ||
               isConnectionSettingsLoading ||
+              (activeDestination === 'planmypeak' &&
+                planMyPeakAuthState === 'sign_in_required') ||
               !hasEnabledDestinations ||
               !selectedDestination ||
               (activeDestination === 'planmypeak' && !fileName.trim()) ||

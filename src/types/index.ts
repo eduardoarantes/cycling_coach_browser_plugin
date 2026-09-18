@@ -78,23 +78,63 @@ export interface RefreshProviderAuthMessage {
 
 export type { AuthRefreshProvider, AuthRefreshResult };
 
-export interface GetPlanMyPeakLibrariesMessage {
+/**
+ * A PlanMyPeak request that may belong to an auth recovery run.
+ *
+ * Recovery is a property of the request, not of its type: several callers
+ * share these message types, including an idle query that runs whenever the
+ * popup opens. A request carrying no run id, or one the background does not
+ * know, is resolved passively — it never refreshes and never opens a tab.
+ */
+export interface PlanMyPeakAuthRunScoped {
+  authRunId?: string;
+}
+
+/**
+ * Start an auth recovery run for explicit work the coach began (a popup
+ * export). The background mints the id; a caller cannot invent one. Accepted
+ * from extension pages only.
+ */
+export interface BeginPlanMyPeakAuthRunMessage {
+  type: 'BEGIN_PLANMYPEAK_AUTH_RUN';
+}
+
+export interface BeginPlanMyPeakAuthRunResult {
+  authRunId: string | null;
+}
+
+/** End a run on every exit from the work that began it. */
+export interface EndPlanMyPeakAuthRunMessage {
+  type: 'END_PLANMYPEAK_AUTH_RUN';
+  authRunId: string;
+}
+
+/**
+ * Ask the background to remove the stored PlanMyPeak credential if it is
+ * stale. The background re-decides under its credential lock, so a fresh
+ * replacement captured in the meantime survives.
+ */
+export interface DiscardStaleMyPeakTokenMessage {
+  type: 'DISCARD_STALE_MY_PEAK_TOKEN';
+}
+
+export interface GetPlanMyPeakLibrariesMessage extends PlanMyPeakAuthRunScoped {
   type: 'GET_PLANMYPEAK_LIBRARIES';
 }
 
-export interface CreatePlanMyPeakLibraryMessage {
+export interface CreatePlanMyPeakLibraryMessage extends PlanMyPeakAuthRunScoped {
   type: 'CREATE_PLANMYPEAK_LIBRARY';
   name: string;
   description?: string | null;
 }
 
-export interface DeletePlanMyPeakLibraryMessage {
+export interface DeletePlanMyPeakLibraryMessage extends PlanMyPeakAuthRunScoped {
   type: 'DELETE_PLANMYPEAK_LIBRARY';
   libraryId: string;
 }
 
 /** List workouts, optionally scoped to a library and/or a provider. */
-export interface GetPlanMyPeakWorkoutsMessage {
+export interface GetPlanMyPeakWorkoutsMessage extends PlanMyPeakAuthRunScoped {
   type: 'GET_PLANMYPEAK_WORKOUTS';
   libraryId?: string;
   provider?: string;
@@ -105,7 +145,7 @@ export interface GetPlanMyPeakWorkoutsMessage {
  * Remove one workout. Used when reconciling a library on Replace, since a
  * library holding workouts cannot be deleted and recreated.
  */
-export interface DeletePlanMyPeakWorkoutMessage {
+export interface DeletePlanMyPeakWorkoutMessage extends PlanMyPeakAuthRunScoped {
   type: 'DELETE_PLANMYPEAK_WORKOUT';
   workoutId: string;
 }
@@ -113,7 +153,7 @@ export interface DeletePlanMyPeakWorkoutMessage {
 /**
  * Message to export transformed workouts to a PlanMyPeak workout library
  */
-export interface ExportWorkoutsToPlanMyPeakLibraryMessage {
+export interface ExportWorkoutsToPlanMyPeakLibraryMessage extends PlanMyPeakAuthRunScoped {
   type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY';
   workouts: PlanMyPeakWorkout[];
   libraryId: string;
@@ -204,36 +244,36 @@ export interface GetTrainingPlanFoldersMessage {
 }
 
 /** List the coach's training-plan libraries (creates their default if absent). */
-export interface GetPlanMyPeakPlanLibrariesMessage {
+export interface GetPlanMyPeakPlanLibrariesMessage extends PlanMyPeakAuthRunScoped {
   type: 'GET_PLANMYPEAK_PLAN_LIBRARIES';
 }
 
-export interface CreatePlanMyPeakPlanLibraryMessage {
+export interface CreatePlanMyPeakPlanLibraryMessage extends PlanMyPeakAuthRunScoped {
   type: 'CREATE_PLANMYPEAK_PLAN_LIBRARY';
   name: string;
   description?: string | null;
 }
 
 /** Create or update a plan, matched on provider identity. 201 created, 200 updated. */
-export interface UpsertPlanMyPeakPlanMessage {
+export interface UpsertPlanMyPeakPlanMessage extends PlanMyPeakAuthRunScoped {
   type: 'UPSERT_PLANMYPEAK_PLAN';
   payload: PlanMyPeakCreatePlanRequest;
 }
 
 /** Shorten or rename a plan. Shortening past a scheduled week is a 409. */
-export interface UpdatePlanMyPeakPlanMessage {
+export interface UpdatePlanMyPeakPlanMessage extends PlanMyPeakAuthRunScoped {
   type: 'UPDATE_PLANMYPEAK_PLAN';
   planId: string;
   payload: Partial<PlanMyPeakCreatePlanRequest>;
 }
 
 /** Read a plan with its schedule, for reconciling against the source. */
-export interface GetPlanMyPeakPlanMessage {
+export interface GetPlanMyPeakPlanMessage extends PlanMyPeakAuthRunScoped {
   type: 'GET_PLANMYPEAK_PLAN';
   planId: string;
 }
 
-export interface GetPlanMyPeakPlansMessage {
+export interface GetPlanMyPeakPlansMessage extends PlanMyPeakAuthRunScoped {
   type: 'GET_PLANMYPEAK_PLANS';
   libraryId?: string;
   provider?: string;
@@ -241,13 +281,13 @@ export interface GetPlanMyPeakPlansMessage {
 }
 
 /** Schedule or move one session. 201 scheduled, 200 moved. */
-export interface UpsertPlanMyPeakPlanEntryMessage {
+export interface UpsertPlanMyPeakPlanEntryMessage extends PlanMyPeakAuthRunScoped {
   type: 'UPSERT_PLANMYPEAK_PLAN_ENTRY';
   planId: string;
   payload: PlanMyPeakCreatePlanEntryRequest;
 }
 
-export interface DeletePlanMyPeakPlanEntryMessage {
+export interface DeletePlanMyPeakPlanEntryMessage extends PlanMyPeakAuthRunScoped {
   type: 'DELETE_PLANMYPEAK_PLAN_ENTRY';
   planId: string;
   entryId: string;
@@ -498,6 +538,9 @@ export type RuntimeMessage =
   | ValidateTokenMessage
   | ValidateMyPeakTokenMessage
   | RefreshProviderAuthMessage
+  | BeginPlanMyPeakAuthRunMessage
+  | EndPlanMyPeakAuthRunMessage
+  | DiscardStaleMyPeakTokenMessage
   | GetPlanMyPeakLibrariesMessage
   | CreatePlanMyPeakLibraryMessage
   | DeletePlanMyPeakLibraryMessage

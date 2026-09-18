@@ -3,7 +3,7 @@ import {
   resolveRequestContext,
   verifyOperationContext,
 } from '@/background/capturedImports/contextGuard';
-import * as myPeakAuthService from '@/services/myPeakAuthService';
+import * as authRecovery from '@/background/api/planMyPeakAuthRecovery';
 import * as identityService from '@/services/planMyPeakIdentityService';
 import { STORAGE_KEYS } from '@/utils/constants';
 
@@ -17,15 +17,15 @@ const context: identityService.CaptureContext = {
 };
 
 describe('contextGuard', () => {
-  let isAuthenticated: ReturnType<typeof vi.spyOn>;
+  let resolveCredential: ReturnType<typeof vi.spyOn>;
   let resolveCaptureContext: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     vi.restoreAllMocks();
     await chrome.storage.local.clear();
-    isAuthenticated = vi
-      .spyOn(myPeakAuthService, 'isAuthenticated')
-      .mockResolvedValue(true);
+    resolveCredential = vi
+      .spyOn(authRecovery, 'resolveCredential')
+      .mockResolvedValue({ usable: true, token: 'token-a' });
     resolveCaptureContext = vi
       .spyOn(identityService, 'resolveCaptureContext')
       .mockResolvedValue(context);
@@ -49,12 +49,12 @@ describe('contextGuard', () => {
         reason: 'connection_disabled',
         coachId: null,
       });
-      expect(isAuthenticated).not.toHaveBeenCalled();
+      expect(resolveCredential).not.toHaveBeenCalled();
       expect(resolveCaptureContext).not.toHaveBeenCalled();
     });
 
     it('should refuse with signed_out when there is no PlanMyPeak session', async () => {
-      isAuthenticated.mockResolvedValue(false);
+      resolveCredential.mockResolvedValue({ usable: false, token: null });
 
       expect(await resolveRequestContext(DESTINATION)).toEqual({
         ok: false,
@@ -143,7 +143,7 @@ describe('contextGuard', () => {
     });
 
     it('should report every other refusal as account_changed too', async () => {
-      isAuthenticated.mockResolvedValue(false);
+      resolveCredential.mockResolvedValue({ usable: false, token: null });
 
       expect(await verifyOperationContext(operation)).toEqual({
         ok: false,

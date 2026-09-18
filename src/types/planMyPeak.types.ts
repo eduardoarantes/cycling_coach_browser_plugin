@@ -283,6 +283,12 @@ export interface PlanMyPeakExportConfig {
    * message so the background records each workout's outcome as it uploads.
    */
   capturedKeys?: Record<string, string>;
+  /**
+   * Auth recovery run for this export, minted by the background when the
+   * coach started it from the popup. Absent everywhere else, which keeps the
+   * export passive: it never refreshes a credential or opens a tab.
+   */
+  authRunId?: string;
 }
 
 export type PlanMyPeakWeekday =

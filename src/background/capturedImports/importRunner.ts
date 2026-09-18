@@ -142,12 +142,15 @@ function directTransport(
     error?: string;
   }) => Promise<void>
 ): PlanMyPeakTransport {
+  // Every call is passive: a page-driven import never recovers a credential
+  // in this change, so any `authRunId` option is deliberately ignored and no
+  // call here can open a tab.
   return {
-    getLibraries: fetchPlanMyPeakLibraries,
+    getLibraries: () => fetchPlanMyPeakLibraries(),
     createLibrary: (name) => createPlanMyPeakLibrary(name),
-    deleteLibrary: deletePlanMyPeakLibrary,
-    getWorkouts: fetchPlanMyPeakWorkouts,
-    deleteWorkout: deletePlanMyPeakWorkout,
+    deleteLibrary: (libraryId) => deletePlanMyPeakLibrary(libraryId),
+    getWorkouts: (filters) => fetchPlanMyPeakWorkouts(filters),
+    deleteWorkout: (workoutId) => deletePlanMyPeakWorkout(workoutId),
     uploadWorkouts: (workouts, libraryId, capturedKeys) =>
       exportWorkoutsToPlanMyPeakLibrary(workouts, libraryId, {
         capturedKeys,

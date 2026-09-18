@@ -4,7 +4,6 @@
  * Handles authenticated requests to PlanMyPeak workout and training-plan endpoints.
  */
 
-import { STORAGE_KEYS } from '@/utils/constants';
 import { getPlanMyPeakApiUrl } from '@/services/planMyPeakConfigService';
 import {
   startExport,
@@ -49,7 +48,21 @@ import type {
   PlanMyPeakStructureBlock,
   PlanMyPeakWorkout,
 } from '@/types/planMyPeak.types';
-import type { ApiResponse } from '@/types/api.types';
+import type { ApiError, ApiResponse } from '@/types/api.types';
+import {
+  authRunTerminalReason,
+  latchAuthRun,
+  recoverForRun,
+  reportCredentialRejected,
+  resolveCredential,
+  type AuthRun,
+  type PlanMyPeakAuthFailureReason,
+} from '@/background/api/planMyPeakAuthRecovery';
+import {
+  isPlanMyPeakAuthErrorCode,
+  type PlanMyPeakAuthErrorCode,
+} from '@/utils/planMyPeakAuthErrors';
+import { PLANMYPEAK_AUTH_MESSAGES } from '@/utils/uiStrings';
 import { ZodError, z } from 'zod';
 
 // The server splits these one character apart and they are different
@@ -248,33 +261,59 @@ function buildQuery(params: Record<string, QueryValue>): string {
   return query.length > 0 ? `?${query}` : '';
 }
 
-async function getAuthToken(): Promise<string | null> {
-  const data = await chrome.storage.local.get([STORAGE_KEYS.MYPEAK_AUTH_TOKEN]);
-  return (data[STORAGE_KEYS.MYPEAK_AUTH_TOKEN] as string | undefined) ?? null;
+/**
+ * How a request may obtain its credential.
+ *
+ * Absent (or without a run) means passive: the stored credential is used if
+ * it is usable, and nothing is refreshed. A run lets the request recover once
+ * — see `planMyPeakAuthRecovery.ts`.
+ */
+export interface PlanMyPeakRequestAuth {
+  run?: AuthRun | null;
 }
 
-async function clearAuthToken(): Promise<void> {
-  try {
-    await chrome.storage.local.remove([
-      STORAGE_KEYS.MYPEAK_AUTH_TOKEN,
-      STORAGE_KEYS.MYPEAK_TOKEN_TIMESTAMP,
-    ]);
-    logger.warn('Cleared PlanMyPeak auth token after 401 response');
-  } catch (error) {
-    logger.error('Failed to clear PlanMyPeak auth token after 401:', error);
+/** Thrown when no usable credential can be obtained for a request. */
+class PlanMyPeakCredentialError extends Error {
+  constructor(
+    readonly code: PlanMyPeakAuthErrorCode,
+    message: string
+  ) {
+    super(message);
+    this.name = 'PlanMyPeakCredentialError';
   }
 }
 
-async function makeApiRequest(
+function credentialErrorFor(
+  reason: PlanMyPeakAuthFailureReason
+): PlanMyPeakCredentialError {
+  return reason === 'environment_mismatch'
+    ? new PlanMyPeakCredentialError(
+        'ENVIRONMENT_MISMATCH',
+        PLANMYPEAK_AUTH_MESSAGES.ENVIRONMENT_MISMATCH
+      )
+    : new PlanMyPeakCredentialError(
+        'NO_TOKEN',
+        PLANMYPEAK_AUTH_MESSAGES.SIGN_IN_REQUIRED
+      );
+}
+
+/**
+ * Whether a request body can be sent a second time. Bodies are JSON strings
+ * today; anything else (a stream in particular) is not retried.
+ */
+function isReplayableBody(body: RequestInit['body']): boolean {
+  return body === undefined || body === null || typeof body === 'string';
+}
+
+/**
+ * Send one request with the given credential. No policy: no credential
+ * lookup, no removal, no retry.
+ */
+async function sendApiRequest(
   endpoint: string,
-  init: RequestInit = {}
+  init: RequestInit,
+  token: string
 ): Promise<Response> {
-  const token = await getAuthToken();
-
-  if (!token) {
-    throw new Error('NO_TOKEN');
-  }
-
   const headers = new Headers(init.headers ?? {});
   headers.set('accept', 'application/json');
   headers.set('authorization', `Bearer ${token}`);
@@ -286,19 +325,120 @@ async function makeApiRequest(
   // Use the main app API base (dynamic port for local development).
   const apiBaseUrl = await getPlanMyPeakApiUrl();
 
-  const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+  return fetch(`${apiBaseUrl}${endpoint}`, {
     ...init,
     headers,
   });
+}
 
-  if (response.status === 401) {
-    logger.warn(
-      `[PlanMyPeak API] 401 on ${endpoint} - clearing token to update auth UI`
-    );
-    await clearAuthToken();
+/**
+ * Credential policy around {@link sendApiRequest}.
+ *
+ * Resolves a credential (passively, or through the run's recovery), sends,
+ * and on a rejection hands the removal to the credential owner. Inside a run
+ * it then recovers once and re-sends through `sendApiRequest` directly — the
+ * retry never re-enters this wrapper, so a second retry is impossible by
+ * construction rather than by a counter.
+ */
+async function makeApiRequest(
+  endpoint: string,
+  init: RequestInit = {},
+  auth?: PlanMyPeakRequestAuth
+): Promise<Response> {
+  const run = auth?.run ?? null;
+
+  // A terminal run sends nothing, even if a usable credential has since
+  // appeared: the coach retries explicitly, which starts a new run.
+  const terminalReason = run ? authRunTerminalReason(run) : null;
+  if (terminalReason) {
+    throw credentialErrorFor(terminalReason);
   }
 
-  return response;
+  let token: string;
+  const passive = await resolveCredential();
+  if (passive.usable && passive.token !== null) {
+    token = passive.token;
+  } else if (run) {
+    const recovered = await recoverForRun(run);
+    if (!recovered.ok) {
+      throw credentialErrorFor(recovered.reason);
+    }
+    token = recovered.token;
+  } else {
+    throw new Error('NO_TOKEN');
+  }
+
+  const response = await sendApiRequest(endpoint, init, token);
+  if (response.status !== 401) {
+    return response;
+  }
+
+  logger.warn(`[PlanMyPeak API] 401 on ${endpoint}`);
+  await reportCredentialRejected(token);
+
+  if (!run || !isReplayableBody(init.body)) {
+    return response;
+  }
+
+  const recovered = await recoverForRun(run, { rejectedToken: token });
+  if (!recovered.ok) {
+    throw credentialErrorFor(recovered.reason);
+  }
+
+  const retried = await sendApiRequest(endpoint, init, recovered.token);
+  if (retried.status === 401) {
+    // Captured, then rejected: not a recovery. Latch so the rest of the run
+    // does not open another tab.
+    await reportCredentialRejected(recovered.token);
+    latchAuthRun(run, 'sign_in_required');
+  }
+
+  return retried;
+}
+
+/**
+ * The `ApiResponse` failure for an error thrown while obtaining a credential,
+ * or null when `error` is something else.
+ */
+function credentialFailure(
+  error: unknown
+): { success: false; error: ApiError } | null {
+  if (error instanceof PlanMyPeakCredentialError) {
+    return {
+      success: false,
+      error: { message: error.message, code: error.code },
+    };
+  }
+
+  if (error instanceof Error && error.message === 'NO_TOKEN') {
+    return {
+      success: false,
+      error: {
+        message: PLANMYPEAK_AUTH_MESSAGES.SIGN_IN_REQUIRED,
+        code: 'NO_TOKEN',
+      },
+    };
+  }
+
+  return null;
+}
+
+/** The failure for a non-2xx response, coding a rejection as auth. */
+async function responseFailure(
+  response: Response
+): Promise<{ success: false; error: ApiError }> {
+  const message = await parseErrorMessage(response);
+  return {
+    success: false,
+    error:
+      response.status === 401
+        ? {
+            message: PLANMYPEAK_AUTH_MESSAGES.SIGN_IN_REQUIRED,
+            status: 401,
+            code: 'UNAUTHORIZED',
+          }
+        : { message, status: response.status },
+  };
 }
 
 async function parseErrorMessage(response: Response): Promise<string> {
@@ -703,27 +843,23 @@ async function apiRequest<T>(
   schema: z.ZodSchema<T>,
   operationName: string,
   init?: RequestInit,
-  /** Filled with the response status on success, for callers that need it. */
-  statusOut?: { status: number }
+  extras: {
+    /** Filled with the response status on success, for callers that need it. */
+    statusOut?: { status: number };
+    auth?: PlanMyPeakRequestAuth;
+  } = {}
 ): Promise<ApiResponse<T>> {
   try {
     logger.debug(`[PlanMyPeak API] ${operationName}`);
 
-    const response = await makeApiRequest(endpoint, init);
+    const response = await makeApiRequest(endpoint, init, extras.auth);
 
-    if (statusOut) {
-      statusOut.status = response.status;
+    if (extras.statusOut) {
+      extras.statusOut.status = response.status;
     }
 
     if (!response.ok) {
-      const message = await parseErrorMessage(response);
-      return {
-        success: false,
-        error: {
-          message,
-          status: response.status,
-        },
-      };
+      return await responseFailure(response);
     }
 
     const json = await response.json();
@@ -731,14 +867,9 @@ async function apiRequest<T>(
 
     return { success: true, data: validated };
   } catch (error) {
-    if (error instanceof Error && error.message === 'NO_TOKEN') {
-      return {
-        success: false,
-        error: {
-          message: 'PlanMyPeak authentication required',
-          code: 'NO_TOKEN',
-        },
-      };
+    const authFailure = credentialFailure(error);
+    if (authFailure) {
+      return authFailure;
     }
 
     if (error instanceof ZodError) {
@@ -780,16 +911,14 @@ async function apiRequestWithStatus<T>(
   endpoint: string,
   schema: z.ZodSchema<T>,
   operationName: string,
-  init?: RequestInit
+  init?: RequestInit,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<{ value: T; status: number }>> {
   const captured: { status: number } = { status: 0 };
-  const result = await apiRequest(
-    endpoint,
-    schema,
-    operationName,
-    init,
-    captured
-  );
+  const result = await apiRequest(endpoint, schema, operationName, init, {
+    statusOut: captured,
+    auth,
+  });
 
   if (!result.success) {
     return result;
@@ -804,13 +933,15 @@ async function apiRequestWithStatus<T>(
 /**
  * Fetch PlanMyPeak workout libraries
  */
-export async function fetchPlanMyPeakLibraries(): Promise<
-  ApiResponse<PlanMyPeakLibrary[]>
-> {
+export async function fetchPlanMyPeakLibraries(
+  auth?: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakLibrary[]>> {
   const result = await apiRequest(
     WORKOUT_CONTAINERS_ENDPOINT,
     PlanMyPeakLibrariesResponseSchema,
-    'Fetching PlanMyPeak libraries'
+    'Fetching PlanMyPeak libraries',
+    undefined,
+    { auth }
   );
 
   if (!result.success) {
@@ -841,11 +972,14 @@ const MAX_WORKOUT_PAGES = 200;
  * A filter that matches nothing is a 200 with an empty list, never a 404, so an
  * empty result means "not there" rather than "something went wrong".
  */
-export async function fetchPlanMyPeakWorkouts(filters?: {
-  libraryId?: string;
-  provider?: string;
-  providerWorkoutId?: string;
-}): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
+export async function fetchPlanMyPeakWorkouts(
+  filters?: {
+    libraryId?: string;
+    provider?: string;
+    providerWorkoutId?: string;
+  },
+  auth?: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakWorkoutLibraryItem[]>> {
   const collected: PlanMyPeakWorkoutLibraryItem[] = [];
   let offset = 0;
 
@@ -861,7 +995,9 @@ export async function fetchPlanMyPeakWorkouts(filters?: {
     const result = await apiRequest(
       `${WORKOUT_ITEMS_ENDPOINT}${query}`,
       PlanMyPeakWorkoutLibraryResponseSchema,
-      `Fetching PlanMyPeak workouts${query}`
+      `Fetching PlanMyPeak workouts${query}`,
+      undefined,
+      { auth }
     );
 
     if (!result.success) {
@@ -934,7 +1070,8 @@ export async function fetchPlanMyPeakWorkoutByProviderId(
  */
 export async function createPlanMyPeakLibrary(
   name: string,
-  description?: string | null
+  description?: string | null,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakLibrary>> {
   const trimmedName = name.trim();
 
@@ -958,7 +1095,8 @@ export async function createPlanMyPeakLibrary(
         name: trimmedName,
         description: description?.trim() || null,
       }),
-    }
+    },
+    { auth }
   );
 }
 
@@ -1012,7 +1150,8 @@ export async function ingestTrainingPeaksAthleteGroups(
  * Delete a PlanMyPeak workout library
  */
 export async function deletePlanMyPeakLibrary(
-  libraryId: string
+  libraryId: string,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<null>> {
   const trimmedLibraryId = libraryId.trim();
 
@@ -1033,30 +1172,19 @@ export async function deletePlanMyPeakLibrary(
       `${WORKOUT_CONTAINERS_ENDPOINT}/${encodeURIComponent(trimmedLibraryId)}`,
       {
         method: 'DELETE',
-      }
+      },
+      auth
     );
 
     if (response.status === 204 || response.status === 200) {
       return { success: true, data: null };
     }
 
-    const message = await parseErrorMessage(response);
-    return {
-      success: false,
-      error: {
-        message,
-        status: response.status,
-      },
-    };
+    return await responseFailure(response);
   } catch (error) {
-    if (error instanceof Error && error.message === 'NO_TOKEN') {
-      return {
-        success: false,
-        error: {
-          message: 'PlanMyPeak authentication required',
-          code: 'NO_TOKEN',
-        },
-      };
+    const authFailure = credentialFailure(error);
+    if (authFailure) {
+      return authFailure;
     }
 
     logger.error('[PlanMyPeak API] Delete library failed:', error);
@@ -1077,7 +1205,8 @@ export async function deletePlanMyPeakLibrary(
  * should collect these and report them rather than treating them as fatal.
  */
 export async function deletePlanMyPeakWorkout(
-  workoutId: string
+  workoutId: string,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<null>> {
   const trimmedId = workoutId.trim();
 
@@ -1094,29 +1223,19 @@ export async function deletePlanMyPeakWorkout(
   try {
     const response = await makeApiRequest(
       `${WORKOUT_ITEMS_ENDPOINT}/${encodeURIComponent(trimmedId)}`,
-      { method: 'DELETE' }
+      { method: 'DELETE' },
+      auth
     );
 
     if (response.status === 204 || response.status === 200) {
       return { success: true, data: null };
     }
 
-    return {
-      success: false,
-      error: {
-        message: await parseErrorMessage(response),
-        status: response.status,
-      },
-    };
+    return await responseFailure(response);
   } catch (error) {
-    if (error instanceof Error && error.message === 'NO_TOKEN') {
-      return {
-        success: false,
-        error: {
-          message: 'PlanMyPeak authentication required',
-          code: 'NO_TOKEN',
-        },
-      };
+    const authFailure = credentialFailure(error);
+    if (authFailure) {
+      return authFailure;
     }
 
     logger.error('[PlanMyPeak API] Delete workout failed:', error);
@@ -1170,13 +1289,15 @@ export interface PlanMyPeakUpsertResult<T> {
 }
 
 /** List the coach's training-plan libraries, creating their default if needed. */
-export async function fetchPlanMyPeakPlanLibraries(): Promise<
-  ApiResponse<PlanMyPeakPlanLibrary[]>
-> {
+export async function fetchPlanMyPeakPlanLibraries(
+  auth?: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakPlanLibrary[]>> {
   const result = await apiRequest(
     PLAN_CONTAINERS_ENDPOINT,
     PlanMyPeakPlanLibrariesResponseSchema,
-    'Fetching PlanMyPeak plan libraries'
+    'Fetching PlanMyPeak plan libraries',
+    undefined,
+    { auth }
   );
 
   if (!result.success) {
@@ -1189,7 +1310,8 @@ export async function fetchPlanMyPeakPlanLibraries(): Promise<
 /** Create a training-plan library. */
 export async function createPlanMyPeakPlanLibrary(
   name: string,
-  description?: string | null
+  description?: string | null,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakPlanLibrary>> {
   const trimmedName = name.trim();
 
@@ -1213,7 +1335,8 @@ export async function createPlanMyPeakPlanLibrary(
         name: trimmedName,
         description: description?.trim() || null,
       }),
-    }
+    },
+    { auth }
   );
 }
 
@@ -1226,13 +1349,15 @@ export async function createPlanMyPeakPlanLibrary(
  * library it is actually in.
  */
 export async function upsertPlanMyPeakPlan(
-  payload: PlanMyPeakCreatePlanRequest
+  payload: PlanMyPeakCreatePlanRequest,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanSummary>>> {
   const result = await apiRequestWithStatus(
     PLANS_ENDPOINT,
     PlanMyPeakPlanSummarySchema,
     `Upserting PlanMyPeak training plan "${payload.name}"`,
-    { method: 'POST', body: JSON.stringify(payload) }
+    { method: 'POST', body: JSON.stringify(payload) },
+    auth
   );
 
   if (!result.success) {
@@ -1248,33 +1373,41 @@ export async function upsertPlanMyPeakPlan(
 /** Shorten or rename a plan. Shortening below the highest scheduled week is a 409. */
 export async function updatePlanMyPeakPlan(
   planId: string,
-  payload: Partial<PlanMyPeakCreatePlanRequest>
+  payload: Partial<PlanMyPeakCreatePlanRequest>,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakPlanSummary>> {
   return apiRequest(
     `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}`,
     PlanMyPeakPlanSummarySchema,
     `Updating PlanMyPeak training plan ${planId}`,
-    { method: 'PATCH', body: JSON.stringify(payload) }
+    { method: 'PATCH', body: JSON.stringify(payload) },
+    { auth }
   );
 }
 
 /** Read a plan with its full schedule, for reconciling against a source. */
 export async function fetchPlanMyPeakPlan(
-  planId: string
+  planId: string,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakPlanDetail>> {
   return apiRequest(
     `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}`,
     PlanMyPeakPlanDetailSchema,
-    `Fetching PlanMyPeak training plan ${planId}`
+    `Fetching PlanMyPeak training plan ${planId}`,
+    undefined,
+    { auth }
   );
 }
 
 /** Find plans, optionally by provider identity. A miss is an empty list. */
-export async function fetchPlanMyPeakPlans(filters?: {
-  libraryId?: string;
-  provider?: string;
-  providerPlanId?: string;
-}): Promise<ApiResponse<PlanMyPeakPlanSummary[]>> {
+export async function fetchPlanMyPeakPlans(
+  filters?: {
+    libraryId?: string;
+    provider?: string;
+    providerPlanId?: string;
+  },
+  auth?: PlanMyPeakRequestAuth
+): Promise<ApiResponse<PlanMyPeakPlanSummary[]>> {
   const query = buildQuery({
     libraryId: filters?.libraryId,
     provider: filters?.provider,
@@ -1284,7 +1417,9 @@ export async function fetchPlanMyPeakPlans(filters?: {
   const result = await apiRequest(
     `${PLANS_ENDPOINT}${query}`,
     PlanMyPeakPlansResponseSchema,
-    `Fetching PlanMyPeak training plans${query}`
+    `Fetching PlanMyPeak training plans${query}`,
+    undefined,
+    { auth }
   );
 
   if (!result.success) {
@@ -1302,13 +1437,15 @@ export async function fetchPlanMyPeakPlans(filters?: {
  */
 export async function upsertPlanMyPeakPlanEntry(
   planId: string,
-  payload: PlanMyPeakCreatePlanEntryRequest
+  payload: PlanMyPeakCreatePlanEntryRequest,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanEntry>>> {
   const result = await apiRequestWithStatus(
     `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}/entries`,
     PlanMyPeakPlanEntrySchema,
     `Scheduling PlanMyPeak plan entry in ${planId}`,
-    { method: 'POST', body: JSON.stringify(payload) }
+    { method: 'POST', body: JSON.stringify(payload) },
+    auth
   );
 
   if (!result.success) {
@@ -1324,34 +1461,25 @@ export async function upsertPlanMyPeakPlanEntry(
 /** Remove one scheduled session. */
 export async function deletePlanMyPeakPlanEntry(
   planId: string,
-  entryId: string
+  entryId: string,
+  auth?: PlanMyPeakRequestAuth
 ): Promise<ApiResponse<null>> {
   try {
     const response = await makeApiRequest(
       `${PLANS_ENDPOINT}/${encodeURIComponent(planId)}/entries/${encodeURIComponent(entryId)}`,
-      { method: 'DELETE' }
+      { method: 'DELETE' },
+      auth
     );
 
     if (response.status === 204 || response.status === 200) {
       return { success: true, data: null };
     }
 
-    return {
-      success: false,
-      error: {
-        message: await parseErrorMessage(response),
-        status: response.status,
-      },
-    };
+    return await responseFailure(response);
   } catch (error) {
-    if (error instanceof Error && error.message === 'NO_TOKEN') {
-      return {
-        success: false,
-        error: {
-          message: 'PlanMyPeak authentication required',
-          code: 'NO_TOKEN',
-        },
-      };
+    const authFailure = credentialFailure(error);
+    if (authFailure) {
+      return authFailure;
     }
 
     logger.error('[PlanMyPeak API] Delete plan entry failed:', error);
@@ -1398,6 +1526,8 @@ export interface PlanMyPeakUploadFailure {
   providerWorkoutId: string;
   name: string;
   message: string;
+  /** Machine-readable cause; set for authentication failures. */
+  code?: string;
 }
 
 /**
@@ -1421,6 +1551,8 @@ export interface PlanMyPeakUploadItemResult {
   created?: boolean;
   /** Set on failure. */
   error?: string;
+  /** Machine-readable cause of a failure; set for authentication failures. */
+  code?: string;
 }
 
 /**
@@ -1457,6 +1589,8 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
     shouldContinue?: () => Promise<
       { ok: true } | { ok: false; reason: string }
     >;
+    /** Credential policy for every upload; absent means passive. */
+    auth?: PlanMyPeakRequestAuth;
   }
 ): Promise<ApiResponse<PlanMyPeakUploadSummary>> {
   const trimmedLibraryId = libraryId.trim();
@@ -1497,7 +1631,11 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
   const failures: PlanMyPeakUploadFailure[] = [];
 
   // Once refused, every remaining workout is a failure with the same reason.
+  // An authentication failure stops the loop the same way: the credential is
+  // gone for the rest of the batch, so the remaining uploads would only repeat
+  // it — and inside a recovery run they must not ask for another tab.
   let stopReason: string | null = null;
+  let stopCode: string | undefined;
 
   for (let i = 0; i < workouts.length; i++) {
     const workout = workouts[i];
@@ -1521,6 +1659,7 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
         providerWorkoutId: workout.provider_workout_id,
         name: workout.name,
         message: stopReason,
+        ...(stopCode ? { code: stopCode } : {}),
       });
       if (capturedKey) {
         touchedCapturedRecords = true;
@@ -1540,6 +1679,7 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
         name: workout.name,
         success: false,
         error: stopReason,
+        ...(stopCode ? { code: stopCode } : {}),
       });
       continue;
     }
@@ -1551,14 +1691,24 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
       {
         method: 'POST',
         body: JSON.stringify(requestBody),
-      }
+      },
+      options?.auth
     );
 
     if (!result.success) {
+      const code = isPlanMyPeakAuthErrorCode(result.error.code)
+        ? result.error.code
+        : undefined;
+      if (code) {
+        stopReason = result.error.message;
+        stopCode = code;
+      }
+
       failures.push({
         providerWorkoutId: workout.provider_workout_id,
         name: workout.name,
         message: result.error.message,
+        ...(code ? { code } : {}),
       });
 
       if (capturedKey) {
@@ -1582,6 +1732,7 @@ export async function exportWorkoutsToPlanMyPeakLibrary(
         name: workout.name,
         success: false,
         error: result.error.message,
+        ...(code ? { code } : {}),
       });
       continue;
     }

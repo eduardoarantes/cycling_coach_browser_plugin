@@ -2,6 +2,9 @@
  * Blocks the import when a required connection is missing, naming which one and
  * offering a way to restore it — rather than letting the coach select workouts
  * and then fail at upload time.
+ *
+ * Shared by the in-page import overlay and the popup export dialog, so the two
+ * surfaces cannot describe a missing sign-in differently.
  */
 
 import type { ReactElement } from 'react';
@@ -12,6 +15,10 @@ export interface ConnectionGateProps {
   isChecking: boolean;
   onOpenTrainingPeaks: () => void;
   onRecheck: () => void;
+  /** Label for the recheck action; the popup names it as a sign-in. */
+  recheckLabel?: string;
+  /** Replaces the PlanMyPeak explanation, e.g. with why recovery failed. */
+  planMyPeakMessage?: string;
 }
 
 export function ConnectionGate({
@@ -20,6 +27,8 @@ export function ConnectionGate({
   isChecking,
   onOpenTrainingPeaks,
   onRecheck,
+  recheckLabel = 'Re-check',
+  planMyPeakMessage = 'Sign in to PlanMyPeak so workouts can be imported into your account.',
 }: ConnectionGateProps): ReactElement | null {
   if (isTrainingPeaksAuthenticated && isPlanMyPeakAuthenticated) {
     return null;
@@ -40,7 +49,7 @@ export function ConnectionGate({
       <p className="mt-1 text-xs">
         {missingTrainingPeaks
           ? 'Sign in to TrainingPeaks so the extension can read your libraries and training plans. If you are already signed in, reload TrainingPeaks so your session is detected.'
-          : 'Sign in to PlanMyPeak so workouts can be imported into your account.'}
+          : planMyPeakMessage}
       </p>
       <div className="mt-2 flex gap-2">
         {missingTrainingPeaks ? (
@@ -58,7 +67,7 @@ export function ConnectionGate({
           disabled={isChecking}
           className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isChecking ? 'Checking…' : 'Re-check'}
+          {isChecking ? 'Checking…' : recheckLabel}
         </button>
       </div>
     </div>

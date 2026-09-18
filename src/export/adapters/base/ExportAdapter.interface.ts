@@ -6,6 +6,7 @@
  */
 
 import type { LibraryItem } from '@/types';
+import type { PlanMyPeakAuthFailure } from '@/utils/planMyPeakAuthErrors';
 
 /**
  * Base configuration for all export adapters
@@ -53,6 +54,14 @@ export interface ExportResult {
    * attributable by id where `warnings`/`errors` only carry names.
    */
   itemResults?: ExportItemResult[];
+  /**
+   * Set when the destination refused the credential for good during this
+   * export, whether before any item uploaded or part-way through. Carried as
+   * data, not only as a message, so a batch can stop the remaining exports
+   * and the surface can offer sign-in instead of repeating the error. Items
+   * that already landed are still reported alongside it.
+   */
+  authFailure?: PlanMyPeakAuthFailure;
 }
 
 /** Outcome of exporting one item, identified by its provider id. */

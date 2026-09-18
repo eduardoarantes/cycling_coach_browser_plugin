@@ -37,6 +37,13 @@ import type {
   ValidationMessage,
 } from '../base';
 import type { PlanMyPeakExportConfig } from '@/types/planMyPeak.types';
+import {
+  isPlanMyPeakAuthErrorCode,
+  planMyPeakAuthFailureFromCode,
+  type PlanMyPeakAuthFailure,
+} from '@/utils/planMyPeakAuthErrors';
+import { PLANMYPEAK_AUTH_MESSAGES } from '@/utils/uiStrings';
+import { authRunField } from './transport';
 import type { PlanMyPeakLibrary } from '@/schemas/planMyPeakApi.schema';
 import { getDayOfWeek, getWeekNumber } from '@/utils/dateUtils';
 import { planMyPeakAdapter } from './PlanMyPeakAdapter';
@@ -165,14 +172,23 @@ function resolvePlanStart(
   );
 }
 
+function authFailureField(code: string | undefined): {
+  authFailure?: PlanMyPeakAuthFailure;
+} {
+  const authFailure = planMyPeakAuthFailureFromCode(code);
+  return authFailure ? { authFailure } : {};
+}
+
 async function resolveSharedPlanWorkoutLibrary(
-  preferredName?: string
+  preferredName: string | undefined,
+  authRun: { authRunId?: string }
 ): Promise<ApiResponse<PlanMyPeakLibrary>> {
   const librariesResponse = await chrome.runtime.sendMessage<
     GetPlanMyPeakLibrariesMessage,
     ApiResponse<PlanMyPeakLibrary[]>
   >({
     type: 'GET_PLANMYPEAK_LIBRARIES',
+    ...authRun,
   });
 
   if (!librariesResponse.success) {
@@ -199,6 +215,7 @@ async function resolveSharedPlanWorkoutLibrary(
   >({
     type: 'CREATE_PLANMYPEAK_LIBRARY',
     name: sharedName,
+    ...authRun,
   });
 }
 
@@ -221,6 +238,10 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   const planName =
     trainingPlan.title?.trim() || `Training Plan ${trainingPlan.planId}`;
   const warnings: ValidationMessage[] = [];
+  // The popup's recovery run, carried on every PlanMyPeak request this export
+  // makes: it does its own library lookup and creation, so it has to be able
+  // to recover there too.
+  const authRun = authRunField(config.authRunId);
   const normalizedItems = normalizeTpPlanWorkoutsToPlanMyPeakLibraryItems(
     workouts,
     { exerciseLibraryId: trainingPlan.planId }
@@ -327,6 +348,8 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       phaseTotal: number;
       message: string;
       itemsExported?: number;
+      /** The failing response's error code, to carry an auth failure as data. */
+      errorCode?: string;
     }
   ): ExportResultType => {
     emitProgress(
@@ -353,6 +376,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       itemsExported: options.itemsExported ?? 0,
       warnings,
       errors,
+      ...authFailureField(options.errorCode),
     };
   };
 
@@ -366,7 +390,8 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   );
 
   const libraryResult = await resolveSharedPlanWorkoutLibrary(
-    transformConfig.targetLibraryName
+    transformConfig.targetLibraryName,
+    authRun
   );
   if (!libraryResult.success) {
     return failWithProgress(
@@ -379,6 +404,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         phaseCurrent: folderCurrent,
         phaseTotal: folderPhaseTotal,
         message: 'Failed to resolve shared PlanMyPeak workout library',
+        errorCode: libraryResult.error.code,
       }
     );
   }
@@ -418,6 +444,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     type: 'EXPORT_WORKOUTS_TO_PLANMYPEAK_LIBRARY',
     workouts: [...transformedWorkouts, ...notes.map(toPlanMyPeakNoteWorkout)],
     libraryId: libraryResult.data.id,
+    ...authRun,
   });
 
   if (!uploadResult.success) {
@@ -426,12 +453,19 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       phaseCurrent: classicCurrent,
       phaseTotal: classicPhaseTotal,
       message: 'Failed to upload plan workouts',
+      errorCode: uploadResult.error.code,
     });
   }
 
+  // An auth failure ends the export even when some workouts landed: building
+  // the plan needs the same credential, and would only repeat the failure.
+  const authFailureCode = uploadResult.data.failures.find((failure) =>
+    isPlanMyPeakAuthErrorCode(failure.code)
+  )?.code;
+
   // Every workout failing is still a failed export; the summary now carries
   // each failure, so report all of them instead of only the first.
-  if (isTotalUploadFailure(uploadResult.data)) {
+  if (isTotalUploadFailure(uploadResult.data) || authFailureCode) {
     return failWithProgress(
       uploadResult.data.failures.map(
         (failure) => `Failed to upload "${failure.name}": ${failure.message}`
@@ -441,6 +475,8 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         phaseCurrent: classicCurrent,
         phaseTotal: classicPhaseTotal,
         message: 'Failed to upload plan workouts',
+        itemsExported: uploadResult.data.results.length,
+        errorCode: authFailureCode,
       }
     );
   }
@@ -633,7 +669,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   const planLibrariesResponse = await chrome.runtime.sendMessage<
     GetPlanMyPeakPlanLibrariesMessage,
     ApiResponse<PlanMyPeakPlanLibrary[]>
-  >({ type: 'GET_PLANMYPEAK_PLAN_LIBRARIES' });
+  >({ type: 'GET_PLANMYPEAK_PLAN_LIBRARIES', ...authRun });
 
   if (!planLibrariesResponse.success) {
     return failWithProgress([planLibrariesResponse.error.message], {
@@ -641,6 +677,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       phaseCurrent: 0,
       phaseTotal: 1,
       message: 'Failed to read PlanMyPeak plan libraries',
+      errorCode: planLibrariesResponse.error.code,
     });
   }
 
@@ -687,6 +724,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       >({
         type: 'CREATE_PLANMYPEAK_PLAN_LIBRARY',
         name: planFolderName,
+        ...authRun,
       });
 
       if (created.success) {
@@ -723,6 +761,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         trainingPeaksStartDate: trainingPlan.startDate,
       },
     },
+    ...authRun,
   });
 
   if (!upsertPlanResponse.success) {
@@ -731,6 +770,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       phaseCurrent: 0,
       phaseTotal: 1,
       message: `Failed to create training plan "${planName}"`,
+      errorCode: upsertPlanResponse.error.code,
     });
   }
 
@@ -760,7 +800,16 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   const existingPlanResponse = await chrome.runtime.sendMessage<
     GetPlanMyPeakPlanMessage,
     ApiResponse<PlanMyPeakPlanDetail>
-  >({ type: 'GET_PLANMYPEAK_PLAN', planId: plan.id });
+  >({ type: 'GET_PLANMYPEAK_PLAN', planId: plan.id, ...authRun });
+
+  // Once PlanMyPeak refuses the credential, every later write would fail the
+  // same way, so the export stops and reports it as data: the batch loop stops
+  // the remaining plans and the result modal offers sign-in. Scheduling is not
+  // reconciled or shortened on a partial schedule, since that would act on a
+  // plan this export did not finish writing.
+  let authFailure: PlanMyPeakAuthFailure | null = existingPlanResponse.success
+    ? null
+    : planMyPeakAuthFailureFromCode(existingPlanResponse.error.code);
 
   const existingEntries = existingPlanResponse.success
     ? existingPlanResponse.data.entries
@@ -779,6 +828,10 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
   let scheduledWorkoutCount = 0;
 
   for (const placement of placements) {
+    if (authFailure) {
+      break;
+    }
+
     const entryResponse = await chrome.runtime.sendMessage<
       UpsertPlanMyPeakPlanEntryMessage,
       ApiResponse<PlanMyPeakUpsertResult<PlanMyPeakPlanEntry>>
@@ -795,6 +848,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         // `note` is deliberately absent: an omitted note is kept, and we have
         // none to offer. Sending null would erase whatever the coach wrote.
       },
+      ...authRun,
     });
 
     entriesCurrent += 1;
@@ -806,6 +860,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         severity: 'warning',
         message: `Failed to schedule "${placement.title}" in week ${placement.weekNumber}: ${entryResponse.error.message}`,
       });
+      authFailure = planMyPeakAuthFailureFromCode(entryResponse.error.code);
     } else {
       scheduledWorkoutCount += 1;
     }
@@ -818,6 +873,44 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       placement.title,
       entryResponse.success ? 'Scheduled' : 'Failed'
     );
+  }
+
+  if (authFailure) {
+    const notScheduled = placements.length - scheduledWorkoutCount;
+    warnings.push({
+      field: 'entries',
+      severity: 'warning',
+      message: `${notScheduled} of ${placements.length} session(s) in "${planName}" were not scheduled: ${PLANMYPEAK_AUTH_MESSAGES.SIGN_IN_REQUIRED}`,
+    });
+    emitProgress(
+      'entries',
+      'failed',
+      entriesCurrent,
+      placements.length,
+      planName,
+      'Stopped: PlanMyPeak sign-in required'
+    );
+    emitProgress(
+      'complete',
+      'failed',
+      overallCurrent,
+      overallTotal,
+      planName,
+      'Stopped: PlanMyPeak sign-in required'
+    );
+
+    return {
+      // A partly scheduled plan still landed something; an empty one did not.
+      success: scheduledWorkoutCount > 0,
+      fileName: planName,
+      format: 'api',
+      itemsExported: scheduledWorkoutCount,
+      warnings,
+      ...(scheduledWorkoutCount > 0
+        ? {}
+        : { errors: [PLANMYPEAK_AUTH_MESSAGES.SIGN_IN_REQUIRED] }),
+      authFailure,
+    };
   }
 
   emitProgress(
@@ -847,6 +940,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       type: 'DELETE_PLANMYPEAK_PLAN_ENTRY',
       planId: plan.id,
       entryId: entry.id,
+      ...authRun,
     });
 
     if (!deleted.success) {
@@ -855,11 +949,16 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         severity: 'warning',
         message: `Kept "${entry.workout.name}" in week ${entry.weekNumber}: ${deleted.error.message}`,
       });
+      authFailure = planMyPeakAuthFailureFromCode(deleted.error.code);
+      if (authFailure) {
+        break;
+      }
     }
   }
 
-  // Shortening last, once nothing is stranded outside the new length.
-  if (plan.weekCount > sourceWeekCount) {
+  // Shortening last, once nothing is stranded outside the new length. Not
+  // attempted after an auth failure: stale entries may still be in place.
+  if (!authFailure && plan.weekCount > sourceWeekCount) {
     const shortened = await chrome.runtime.sendMessage<
       UpdatePlanMyPeakPlanMessage,
       ApiResponse<PlanMyPeakPlanSummary>
@@ -867,6 +966,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
       type: 'UPDATE_PLANMYPEAK_PLAN',
       planId: plan.id,
       payload: { weekCount: sourceWeekCount },
+      ...authRun,
     });
 
     if (!shortened.success) {
@@ -875,6 +975,7 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
         severity: 'warning',
         message: `Left "${plan.name}" at ${plan.weekCount} weeks: ${shortened.error.message}`,
       });
+      authFailure = planMyPeakAuthFailureFromCode(shortened.error.code);
     }
   }
 
@@ -893,5 +994,6 @@ export async function exportTrainingPlanClassicWorkoutsToPlanMyPeak({
     format: 'api',
     itemsExported: scheduledWorkoutCount,
     warnings,
+    ...(authFailure ? { authFailure } : {}),
   };
 }

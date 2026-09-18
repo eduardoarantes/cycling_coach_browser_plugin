@@ -14,7 +14,11 @@ import type {
   ValidationMessage,
   ValidationResult,
 } from '../base';
-import { runtimeMessageTransport, type PlanMyPeakTransport } from './transport';
+import {
+  runtimeMessageTransport,
+  type PlanMyPeakTransport,
+  type PlanMyPeakTransportCallOptions,
+} from './transport';
 import type {
   PlanMyPeakExportConfig,
   PlanMyPeakWorkout,
@@ -29,6 +33,10 @@ import {
 } from '@/background/api/planMyPeak';
 import { PlanMyPeakWorkoutSchema } from '@/schemas/planMyPeak.schema';
 import { logger } from '@/utils/logger';
+import {
+  planMyPeakAuthFailureFromCode,
+  type PlanMyPeakAuthFailure,
+} from '@/utils/planMyPeakAuthErrors';
 import { transformToPlanMyPeak } from './transformer';
 import {
   DISCIPLINES_ALLOWING_EMPTY_STRUCTURE,
@@ -36,6 +44,30 @@ import {
   collectTpTargetUnits,
   hasImportableStructure,
 } from './workoutMapping';
+
+/** A failed PlanMyPeak call, keeping the API's error code. */
+class PlanMyPeakExportError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string
+  ) {
+    super(message);
+    this.name = 'PlanMyPeakExportError';
+  }
+}
+
+function authFailureOf(error: unknown): PlanMyPeakAuthFailure | null {
+  return error instanceof PlanMyPeakExportError
+    ? planMyPeakAuthFailureFromCode(error.code)
+    : null;
+}
+
+/** The run carried by an export's config, if the popup started one. */
+function callOptions(
+  config: PlanMyPeakExportConfig
+): PlanMyPeakTransportCallOptions {
+  return config.authRunId ? { authRunId: config.authRunId } : {};
+}
 
 /**
  * PlanMyPeak adapter for exporting TrainingPeaks workouts
@@ -60,36 +92,47 @@ export class PlanMyPeakAdapter implements ExportAdapter<
     private readonly transport: PlanMyPeakTransport = runtimeMessageTransport
   ) {}
 
-  private async getLibraries(): Promise<PlanMyPeakLibrary[]> {
-    const response = await this.transport.getLibraries();
+  private async getLibraries(
+    options: PlanMyPeakTransportCallOptions
+  ): Promise<PlanMyPeakLibrary[]> {
+    const response = await this.transport.getLibraries(options);
 
     if (!response.success) {
-      throw new Error(
-        response.error.message || 'Failed to fetch PlanMyPeak libraries'
+      throw new PlanMyPeakExportError(
+        response.error.message || 'Failed to fetch PlanMyPeak libraries',
+        response.error.code
       );
     }
 
     return response.data;
   }
 
-  private async createLibrary(name: string): Promise<PlanMyPeakLibrary> {
-    const response = await this.transport.createLibrary(name);
+  private async createLibrary(
+    name: string,
+    options: PlanMyPeakTransportCallOptions
+  ): Promise<PlanMyPeakLibrary> {
+    const response = await this.transport.createLibrary(name, options);
 
     if (!response.success) {
-      throw new Error(
-        response.error.message || `Failed to create library "${name}"`
+      throw new PlanMyPeakExportError(
+        response.error.message || `Failed to create library "${name}"`,
+        response.error.code
       );
     }
 
     return response.data;
   }
 
-  private async deleteLibrary(libraryId: string): Promise<void> {
-    const response = await this.transport.deleteLibrary(libraryId);
+  private async deleteLibrary(
+    libraryId: string,
+    options: PlanMyPeakTransportCallOptions
+  ): Promise<void> {
+    const response = await this.transport.deleteLibrary(libraryId, options);
 
     if (!response.success) {
-      throw new Error(
-        response.error.message || `Failed to delete library ${libraryId}`
+      throw new PlanMyPeakExportError(
+        response.error.message || `Failed to delete library ${libraryId}`,
+        response.error.code
       );
     }
   }
@@ -109,8 +152,9 @@ export class PlanMyPeakAdapter implements ExportAdapter<
     const targetLibraryName =
       config.targetLibraryName?.trim() || 'TrainingPeaks Library';
     const shouldCreateLibrary = config.createFolder !== false;
+    const options = callOptions(config);
 
-    const libraries = await this.getLibraries();
+    const libraries = await this.getLibraries(options);
 
     if (targetLibraryId) {
       const byId = libraries.find((library) => library.id === targetLibraryId);
@@ -141,7 +185,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
       }
 
       try {
-        const created = await this.createLibrary(targetLibraryName);
+        const created = await this.createLibrary(targetLibraryName, options);
         logger.info(
           '[PlanMyPeakAdapter] Created PlanMyPeak library:',
           created.id,
@@ -149,12 +193,17 @@ export class PlanMyPeakAdapter implements ExportAdapter<
         );
         return { library: created, createdByUs: true };
       } catch (error) {
+        // An auth failure is not a duplicate-name race; refetching would only
+        // repeat it.
+        if (authFailureOf(error)) {
+          throw error;
+        }
         // Handle duplicate-name races by re-fetching and retrying exact name match.
         logger.warn(
           '[PlanMyPeakAdapter] Library create failed, attempting refetch:',
           error
         );
-        const retryLibraries = await this.getLibraries();
+        const retryLibraries = await this.getLibraries(options);
         const afterRetry = retryLibraries.find(
           (library) =>
             library.name.trim().toLowerCase() ===
@@ -199,14 +248,21 @@ export class PlanMyPeakAdapter implements ExportAdapter<
    */
   private async reconcileLibraryContents(
     libraryId: string,
-    keepProviderWorkoutIds: Set<string>
-  ): Promise<ValidationMessage[]> {
+    keepProviderWorkoutIds: Set<string>,
+    options: PlanMyPeakTransportCallOptions
+  ): Promise<{
+    warnings: ValidationMessage[];
+    authFailure: PlanMyPeakAuthFailure | null;
+  }> {
     const warnings: ValidationMessage[] = [];
 
-    const response = await this.transport.getWorkouts({
-      libraryId,
-      provider: TRAINING_PEAKS_PROVIDER_CODE,
-    });
+    const response = await this.transport.getWorkouts(
+      {
+        libraryId,
+        provider: TRAINING_PEAKS_PROVIDER_CODE,
+      },
+      options
+    );
 
     if (!response.success) {
       warnings.push({
@@ -214,7 +270,10 @@ export class PlanMyPeakAdapter implements ExportAdapter<
         message: `Could not check for workouts to remove: ${response.error.message}`,
         severity: 'warning',
       });
-      return warnings;
+      return {
+        warnings,
+        authFailure: planMyPeakAuthFailureFromCode(response.error.code),
+      };
     }
 
     const stale = response.data.filter(
@@ -224,7 +283,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
     );
 
     for (const workout of stale) {
-      const deleted = await this.transport.deleteWorkout(workout.id);
+      const deleted = await this.transport.deleteWorkout(workout.id, options);
 
       if (!deleted.success) {
         warnings.push({
@@ -232,10 +291,16 @@ export class PlanMyPeakAdapter implements ExportAdapter<
           message: `Kept "${workout.name}" - ${deleted.error.message}`,
           severity: 'warning',
         });
+
+        // The credential is gone: the rest would fail the same way.
+        const authFailure = planMyPeakAuthFailureFromCode(deleted.error.code);
+        if (authFailure) {
+          return { warnings, authFailure };
+        }
       }
     }
 
-    return warnings;
+    return { warnings, authFailure: null };
   }
 
   /**
@@ -441,6 +506,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
     );
 
     const warnings: ValidationMessage[] = [];
+    const options = callOptions(config);
 
     try {
       const { library: targetLibrary, createdByUs } =
@@ -449,13 +515,17 @@ export class PlanMyPeakAdapter implements ExportAdapter<
       const uploadResult = await this.transport.uploadWorkouts(
         workouts,
         targetLibrary.id,
-        config.capturedKeys
+        config.capturedKeys,
+        options
       );
 
       if (!uploadResult.success) {
         logger.error(
           '[PlanMyPeakAdapter] Upload failed:',
           uploadResult.error.message
+        );
+        const authFailure = planMyPeakAuthFailureFromCode(
+          uploadResult.error.code
         );
         return {
           success: false,
@@ -464,11 +534,19 @@ export class PlanMyPeakAdapter implements ExportAdapter<
           itemsExported: 0,
           warnings,
           errors: [uploadResult.error.message || 'PlanMyPeak upload failed'],
+          ...(authFailure ? { authFailure } : {}),
         };
       }
 
       const summary = uploadResult.data;
       const itemResults = this.buildItemResults(summary);
+      // Derived from the per-item codes so a credential that fails part-way
+      // through is still reported as the auth failure it is, alongside the
+      // workouts that landed before it.
+      let authFailure =
+        summary.failures
+          .map((failure) => planMyPeakAuthFailureFromCode(failure.code))
+          .find((failure) => failure !== null) ?? null;
 
       // The loop ran and nothing landed. Surface it as the failure it is, with
       // every failure message rather than the first — the keyed results say
@@ -486,6 +564,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
           warnings: [...warnings, ...this.lastTransformWarnings],
           errors,
           itemResults,
+          ...(authFailure ? { authFailure } : {}),
         };
       }
 
@@ -553,18 +632,27 @@ export class PlanMyPeakAdapter implements ExportAdapter<
 
       // Replace means reconciling the library's contents, since a library
       // holding workouts can no longer be deleted and recreated.
-      if (config.existingLibraryAction === 'replace') {
+      // Skipped after an auth failure: it would only fail the same way, and
+      // removing workouts from a library whose upload did not finish would
+      // delete ones the next export still needs.
+      if (config.existingLibraryAction === 'replace' && !authFailure) {
         const keep = new Set(
           workouts.map((workout) => workout.provider_workout_id)
         );
-        warnings.push(
-          ...(await this.reconcileLibraryContents(targetLibrary.id, keep))
+        const reconciled = await this.reconcileLibraryContents(
+          targetLibrary.id,
+          keep,
+          options
         );
+        warnings.push(...reconciled.warnings);
+        // Uploads landed, but the credential failed afterwards: report it so a
+        // batch stops here instead of carrying on into the next library.
+        authFailure = reconciled.authFailure;
       }
 
       // Nothing landed in the library we made, so it is an empty container we
       // created for nothing. Remove it rather than leaving it unexplained.
-      if (summary.destinationEmpty && createdByUs) {
+      if (summary.destinationEmpty && createdByUs && !authFailure) {
         warnings.push({
           field: 'destination',
           message:
@@ -573,12 +661,13 @@ export class PlanMyPeakAdapter implements ExportAdapter<
           severity: 'warning',
         });
         try {
-          await this.deleteLibrary(targetLibrary.id);
+          await this.deleteLibrary(targetLibrary.id, options);
         } catch (error) {
           logger.warn(
             '[PlanMyPeakAdapter] Could not remove empty library:',
             error
           );
+          authFailure = authFailureOf(error);
         }
       }
 
@@ -592,9 +681,14 @@ export class PlanMyPeakAdapter implements ExportAdapter<
         itemsExported: summary.results.length,
         warnings,
         itemResults,
+        ...(authFailure ? { authFailure } : {}),
       };
     } catch (error) {
       logger.error('[PlanMyPeakAdapter] Export failed:', error);
+      // Library lookup and creation fail before any workout uploads, so there
+      // are no per-item codes to derive an auth failure from; it is carried
+      // on the error instead.
+      const authFailure = authFailureOf(error);
       return {
         success: false,
         fileName: config.targetLibraryName || 'PlanMyPeak Library',
@@ -602,6 +696,7 @@ export class PlanMyPeakAdapter implements ExportAdapter<
         itemsExported: 0,
         warnings,
         errors: [error instanceof Error ? error.message : 'Unknown error'],
+        ...(authFailure ? { authFailure } : {}),
       };
     }
   }

@@ -168,3 +168,27 @@ export const AUTH_REFRESH_MESSAGES = {
     error: 'Could not refresh PlanMyPeak sign-in',
   },
 } as const;
+
+/**
+ * PlanMyPeak authentication failures, worded by outcome.
+ *
+ * None of these says a sign-in tab was opened: a run that is latched or
+ * cooling down opens none, and the same message is used either way. Shown in
+ * the popup and — for page-driven imports — sent to the PlanMyPeak page, so
+ * they must never carry a credential.
+ */
+export const PLANMYPEAK_AUTH_MESSAGES = {
+  SIGN_IN_REQUIRED:
+    'PlanMyPeak sign-in required. Sign in to PlanMyPeak, then try again.',
+  ENVIRONMENT_MISMATCH:
+    'The PlanMyPeak sign-in belongs to a different environment than the one selected in Settings. Sign in on the selected environment, then try again.',
+  /** One shared reason for the libraries a batch did not reach. */
+  STOPPED_AFTER_AUTH_FAILURE:
+    'Not exported: PlanMyPeak sign-in is required. Sign in to PlanMyPeak, then export again.',
+  /** The duplicate check could not run because the coach is signed out. */
+  DUPLICATE_CHECK_SIGN_IN_REQUIRED:
+    'Sign in to PlanMyPeak to check for existing libraries before exporting.',
+  GATE_TITLE: 'PlanMyPeak sign-in required',
+  GATE_ACTION: 'Sign in to PlanMyPeak',
+  RECOVERING: 'Refreshing PlanMyPeak sign-in…',
+} as const;
