@@ -20,21 +20,34 @@ trap 'rm -f "$BODY_FILE"' EXIT
 cat > "$BODY_FILE" <<BODY
 Set package.json, package-lock.json, and the extension manifest to ${RELEASE_VERSION}.
 
-Requested through the Release Artifact workflow. The workflow explicitly dispatches CI for this commit and merges only after it passes; branch protection still applies.
+Requested through the Release Artifact workflow. The workflow waits for the pull-request CI run for this commit and merges only after it passes; branch protection still applies.
 BODY
 PR_URL=$(gh pr create --base main --head "$BRANCH" \
   --title "chore(release): bump version to ${RELEASE_VERSION}" --body-file "$BODY_FILE")
 printf 'Version bump PR: %s\n' "$PR_URL"
 printf 'Version bump PR: %s\n' "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
 
-# A bot-created PR cannot rely on automatic CI. Dispatch explicitly with the
-# built-in token, and retain the returned run ID rather than finding an older run.
-RUN_ID=$(gh api --method POST \
-  -H 'X-GitHub-Api-Version: 2026-03-10' \
-  "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" \
-  -f "ref=$BRANCH" --jq '.workflow_run_id')
-[[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo 'CI dispatch did not return a run ID.' >&2; exit 1; }
+# Only pull_request CI satisfies required branch checks. A manually dispatched
+# run can pass for the same SHA while GitHub still reports validate as expected.
+# Discover the run for this unique branch and exact commit, never a previous run.
+RUN_ID=''
+for ATTEMPT in {1..30}; do
+  RUN_ID=$(gh api --method GET \
+    "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+    -f event=pull_request -f "branch=$BRANCH" -f "head_sha=$BUMP_SHA" \
+    --jq '.workflow_runs[0].id // empty')
+  if [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then break; fi
+  sleep 2
+done
+[[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo 'No pull-request CI run appeared within 60 seconds.' >&2; exit 1; }
 printf 'CI run: https://github.com/%s/actions/runs/%s\n' "$GITHUB_REPOSITORY" "$RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+
+# GitHub requires execution approval for PRs created with GITHUB_TOKEN. This
+# approves only the run of the version-only PR just created, not a PR review.
+CONCLUSION=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq '.conclusion // empty')
+if [[ "$CONCLUSION" == action_required ]]; then
+  gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/approve"
+fi
 # Bound the wait. A failure leaves the PR available for diagnosis and never tags.
 timeout 20m gh run watch "$RUN_ID" --interval 10 --exit-status
 CI_SHA=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq '.head_sha')

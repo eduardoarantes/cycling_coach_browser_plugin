@@ -140,14 +140,18 @@ if (tool === 'git') {
   }
 } else if (tool === 'gh') {
   if (command.startsWith('pr create')) console.log('https://github.com/example/repo/pull/1');
-  else if (command.includes('/dispatches')) console.log('123');
+  else if (command.includes('ci.yml/runs')) console.log(scenario === 'missing-run' ? '' : '123');
+  else if (command.includes('/approve')) {
+    if (scenario === 'approval-denied') process.exit(1);
+  }
+  else if (command.includes('.conclusion')) console.log(scenario === 'no-approval' ? '' : 'action_required');
   else if (command.includes('/actions/runs/123')) console.log(scenario === 'wrong-ci-sha' ? base : bump);
   else if (command.includes('/git/ref/heads/main')) console.log(scenario === 'changed-main' ? bump : base);
   else if (command.startsWith('pr merge') && scenario === 'changed-pr') process.exit(1);
   else if (command.startsWith('pr view')) console.log(merged);
 } else if (tool === 'timeout' && scenario === 'failed-ci') process.exit(1);
 `;
-  for (const tool of ['git', 'gh', 'timeout'])
+  for (const tool of ['git', 'gh', 'timeout', 'sleep'])
     writeFileSync(join(bin, tool), fakeTool, { mode: 0o755 });
   const result = spawnSync('bash', [resolve('scripts/prepare-release-pr.sh')], {
     cwd: root,
@@ -171,24 +175,38 @@ if (tool === 'git') {
 }
 
 describe('release PR orchestration', () => {
-  it('dispatches CI, merges the exact checked commit, and checks out the merge', () => {
+  it('approves the actual PR workflow, merges its checked commit, and checks out the merge', () => {
     const result = runPreparation();
     expect(result.status, result.stderr).toBe(0);
-    expect(result.log).toContain('ci.yml/dispatches');
+    expect(result.log).toContain('ci.yml/runs');
+    expect(result.log).toContain('-f event=pull_request');
+    expect(result.log).toContain(`-f head_sha=${'b'.repeat(40)}`);
+    expect(result.log).toContain(
+      'gh api --method POST repos/example/repo/actions/runs/123/approve'
+    );
+    expect(result.log).not.toContain('/dispatches');
     expect(result.log).toContain(
       'timeout 20m gh run watch 123 --interval 10 --exit-status'
     );
     expect(result.log).toContain(`--match-head-commit ${'b'.repeat(40)}`);
     expect(result.log).toContain(`checkout --detach ${'c'.repeat(40)}`);
   });
-  it.each(['failed-ci', 'wrong-ci-sha', 'changed-main'])(
-    'does not merge when %s',
-    (scenario) => {
-      const result = runPreparation(scenario);
-      expect(result.status).not.toBe(0);
-      expect(result.log).not.toContain('gh pr merge');
-    }
-  );
+  it.each([
+    'failed-ci',
+    'wrong-ci-sha',
+    'changed-main',
+    'approval-denied',
+    'missing-run',
+  ])('does not merge when %s', (scenario) => {
+    const result = runPreparation(scenario);
+    expect(result.status).not.toBe(0);
+    expect(result.log).not.toContain('gh pr merge');
+  });
+  it('does not request approval for a run that already started normally', () => {
+    const result = runPreparation('no-approval');
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.log).not.toContain('/approve');
+  });
   it('stops if the PR changes before the merge', () => {
     const result = runPreparation('changed-pr');
     expect(result.status).not.toBe(0);
